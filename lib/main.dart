@@ -37,12 +37,17 @@ class HomePage extends StatefulWidget {
   final void Function(bool) onThemeChanged;
   final bool isDarkMode;
 
-  const HomePage({super.key, required this.onThemeChanged, required this.isDarkMode});
+  HomePage({super.key, required this.onThemeChanged, required this.isDarkMode});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
+class Goal {
+  String activityName;
+  Duration dailyGoal;
+  Goal({required this.activityName, required this.dailyGoal});
+}
 
 class Activity {
   String name;
@@ -60,6 +65,7 @@ class _HomePageState extends State<HomePage> {
     Activity(name: 'Cleaning'),
   ];
   final List<ActivityLog> activityLogs = [];
+  List<Goal> goals = [];
 
   void updateActivities() {
     setState(() {});
@@ -68,12 +74,13 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           bottom: const TabBar(
             tabs: [
               Tab(icon: Icon(Icons.timer), text: 'Tracker'),
+              Tab(icon: Icon(Icons.flag), text: 'Goals'),
               Tab(icon: Icon(Icons.list), text: 'Activities'),
               Tab(icon: Icon(Icons.bar_chart), text: 'Stats'),
               Tab(icon: Icon(Icons.calendar_today), text: 'Calendar'),
@@ -92,6 +99,9 @@ class _HomePageState extends State<HomePage> {
                 });
               },
             ),
+            GoalsPage(goals: goals, activities: activities, onGoalChanged: (newGoals) {
+              setState(() { goals = newGoals; });
+            },),
             ActivitiesPage(activities: activities, onUpdate: updateActivities),
             StatsPage(activityLogs: activityLogs, activities: activities.where((a) => a.visible).toList()),
             CalendarPage(activityLogs: activityLogs),
@@ -273,6 +283,65 @@ class _TrackerPageState extends State<TrackerPage> {
     );
   }
 }
+
+// ---------------- Stats Page ----------------
+
+  class GoalsPage extends StatefulWidget {
+  final List<Goal> goals;
+  final List<Activity> activities;
+  final void Function(List<Goal>) onGoalChanged;
+
+  const GoalsPage({super.key, required this.goals, required this.activities, required this.onGoalChanged});
+
+  @override
+  State<GoalsPage> createState() => _GoalsPageState();
+  }
+
+  class _GoalsPageState extends State<GoalsPage> {
+  late List<Goal> editableGoals;
+
+  @override
+  void initState() {
+  super.initState();
+  editableGoals = widget.goals.isNotEmpty
+  ? widget.goals.map((g) => Goal(activityName: g.activityName, dailyGoal: g.dailyGoal)).toList()
+      : widget.activities.map((a) => Goal(activityName: a.name, dailyGoal: Duration.zero)).toList();
+  }
+
+  void updateGoal(String activityName, String minutesText) {
+  final minutes = int.tryParse(minutesText) ?? 0;
+  setState(() {
+  final index = editableGoals.indexWhere((g) => g.activityName == activityName);
+  if (index != -1) {
+  editableGoals[index] = Goal(activityName: activityName, dailyGoal: Duration(minutes: minutes));
+  }
+  widget.onGoalChanged(editableGoals);
+  });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+  return ListView.builder(
+  itemCount: editableGoals.length,
+  itemBuilder: (context, index) {
+  final goal = editableGoals[index];
+  final controller = TextEditingController(text: goal.dailyGoal.inMinutes.toString());
+  return ListTile(
+  title: Text(goal.activityName),
+  trailing: SizedBox(
+  width: 60,
+  child: TextField(
+  controller: controller,
+  keyboardType: TextInputType.number,
+  decoration: const InputDecoration(suffixText: 'min'),
+  onSubmitted: (val) => updateGoal(goal.activityName, val),
+  ),
+  ),
+  );
+  },
+  );
+  }
+  }
 
 // ---------------- Stats Page ----------------
 
