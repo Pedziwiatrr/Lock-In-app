@@ -47,8 +47,9 @@ class HomePage extends StatefulWidget {
 class Activity {
   String name;
   Duration totalTime;
+  bool visible;
 
-  Activity({required this.name, this.totalTime = Duration.zero});
+  Activity({required this.name, this.totalTime = Duration.zero, this.visible = true});
 }
 
 class _HomePageState extends State<HomePage> {
@@ -58,6 +59,10 @@ class _HomePageState extends State<HomePage> {
     Activity(name: 'Reading'),
     Activity(name: 'Cleaning'),
   ];
+
+  void updateActivities() {
+    setState(() {}); // rebuild całej strony po zmianie visible
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,9 +82,9 @@ class _HomePageState extends State<HomePage> {
         ),
         body: TabBarView(
           children: [
-            TrackerPage(activities: activities),
-            StatsPage(activities: activities),
-            ActivitiesPage(activities: activities),
+            TrackerPage(activities: activities.where((a) => a.visible).toList()),
+            StatsPage(activities: activities.where((a) => a.visible).toList()),
+            ActivitiesPage(activities: activities, onUpdate: updateActivities),
             SettingsPage(
               isDarkMode: widget.isDarkMode,
               onThemeChanged: widget.onThemeChanged,
@@ -90,6 +95,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+
 
 // ---------------- Tracker Page ----------------
 
@@ -269,11 +275,14 @@ class StatsPage extends StatelessWidget {
 
 class ActivitiesPage extends StatefulWidget {
   final List<Activity> activities;
-  const ActivitiesPage({super.key, required this.activities});
+  final VoidCallback onUpdate;
+
+  const ActivitiesPage({super.key, required this.activities, required this.onUpdate});
 
   @override
   State<ActivitiesPage> createState() => _ActivitiesPageState();
 }
+
 
 class _ActivitiesPageState extends State<ActivitiesPage> {
   void addActivity() {
@@ -367,6 +376,16 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    IconButton(
+                      icon: Icon(a.visible ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () {
+                        setState(() {
+                          a.visible = !a.visible;
+                        });
+                        widget.onUpdate(); // wywołaj setState nadrzędny
+                      },
+                    ),
+
                     IconButton(
                       icon: const Icon(Icons.edit),
                       onPressed: () => renameActivity(index),
