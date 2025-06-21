@@ -61,7 +61,7 @@ class _HomePageState extends State<HomePage> {
   ];
 
   void updateActivities() {
-    setState(() {}); // rebuild całej strony po zmianie visible
+    setState(() {});
   }
 
   @override
@@ -74,8 +74,8 @@ class _HomePageState extends State<HomePage> {
           bottom: const TabBar(
             tabs: [
               Tab(icon: Icon(Icons.timer), text: 'Tracker'),
-              Tab(icon: Icon(Icons.bar_chart), text: 'Stats'),
               Tab(icon: Icon(Icons.list), text: 'Activities'),
+              Tab(icon: Icon(Icons.bar_chart), text: 'Stats'),
               Tab(icon: Icon(Icons.settings), text: 'Settings'),
             ],
           ),
@@ -382,7 +382,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                         setState(() {
                           a.visible = !a.visible;
                         });
-                        widget.onUpdate(); // wywołaj setState nadrzędny
+                        widget.onUpdate();
                       },
                     ),
 
