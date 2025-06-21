@@ -91,6 +91,7 @@ class _HomePageState extends State<HomePage> {
           children: [
             TrackerPage(
               activities: activities.where((a) => a.visible).toList(),
+              goals: goals,
               onAddLog: (log) {
                 setState(() {
                   activityLogs.add(log);
@@ -103,7 +104,11 @@ class _HomePageState extends State<HomePage> {
               setState(() { goals = newGoals; });
             },),
             ActivitiesPage(activities: activities, onUpdate: updateActivities),
-            StatsPage(activityLogs: activityLogs, activities: activities.where((a) => a.visible).toList()),
+            StatsPage(
+              activityLogs: activityLogs,
+              activities: activities.where((a) => a.visible).toList(),
+              goals: goals,
+            ),
             CalendarPage(activityLogs: activityLogs),
           ],
         ),
@@ -126,6 +131,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     activityLogs.addAll([
+      ActivityLog(activityName: 'Studying', date: DateTime.now().subtract(Duration(days: 0)), duration: Duration(hours: 2)),
       ActivityLog(activityName: 'Studying', date: DateTime.now().subtract(Duration(days: 1)), duration: Duration(hours: 2)),
       ActivityLog(activityName: 'Workout', date: DateTime.now().subtract(Duration(days: 2)), duration: Duration(minutes: 90)),
       ActivityLog(activityName: 'Reading', date: DateTime.now().subtract(Duration(days: 3)), duration: Duration(hours: 1, minutes: 30)),
@@ -154,8 +160,14 @@ class ActivityLog {
 class TrackerPage extends StatefulWidget {
   final void Function(ActivityLog) onAddLog;
   final List<Activity> activities;
+  final List<Goal> goals;
 
-  const TrackerPage({super.key, required this.activities, required this.onAddLog});
+  const TrackerPage({
+    Key? key,
+    required this.activities,
+    required this.goals,
+    required this.onAddLog,
+  }) : super(key: key);
 
   @override
   State<TrackerPage> createState() => _TrackerPageState();
@@ -268,11 +280,35 @@ class _TrackerPageState extends State<TrackerPage> {
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: widget.activities.length,
+              itemCount: widget.activities.where((a) {
+                final goal = widget.goals.firstWhere(
+                      (g) => g.activityName == a.name,
+                  orElse: () => Goal(activityName: a.name, dailyGoal: Duration.zero),
+                );
+                return goal.dailyGoal > Duration.zero;
+              }).length,
               itemBuilder: (context, index) {
-                final a = widget.activities[index];
+                final filteredActivities = widget.activities.where((a) {
+                  final goal = widget.goals.firstWhere(
+                        (g) => g.activityName == a.name,
+                    orElse: () => Goal(activityName: a.name, dailyGoal: Duration.zero),
+                  );
+                  return goal.dailyGoal > Duration.zero;
+                }).toList();
+
+                final a = filteredActivities[index];
+                final goal = widget.goals.firstWhere(
+                      (g) => g.activityName == a.name,
+                  orElse: () => Goal(activityName: a.name, dailyGoal: Duration.zero),
+                );
+
+                final percent = goal.dailyGoal.inSeconds == 0
+                    ? 0.0
+                    : (a.totalTime.inSeconds / goal.dailyGoal.inSeconds).clamp(0.0, 1.0);
+
                 return ListTile(
                   title: Text(a.name),
+                  subtitle: LinearProgressIndicator(value: percent),
                   trailing: Text(formatDuration(a.totalTime)),
                 );
               },
@@ -284,7 +320,7 @@ class _TrackerPageState extends State<TrackerPage> {
   }
 }
 
-// ---------------- Stats Page ----------------
+// ---------------- Goal Page ----------------
 
   class GoalsPage extends StatefulWidget {
   final List<Goal> goals;
@@ -352,8 +388,9 @@ enum StatsPeriod { day, week, month, total }
 class StatsPage extends StatefulWidget {
   final List<ActivityLog> activityLogs;
   final List<Activity> activities;
+  final List<Goal> goals;
 
-  const StatsPage({super.key, required this.activityLogs, required this.activities});
+  const StatsPage({super.key, required this.activityLogs, required this.activities, required this.goals});
 
   @override
   State<StatsPage> createState() => _StatsPageState();
@@ -361,6 +398,11 @@ class StatsPage extends StatefulWidget {
 
 class _StatsPageState extends State<StatsPage> {
   StatsPeriod selectedPeriod = StatsPeriod.total;
+
+  Duration getGoalForActivity(String name) {
+    final goal = widget.goals.firstWhere((g) => g.activityName == name, orElse: () => Goal(activityName: name, dailyGoal: Duration.zero));
+    return goal.dailyGoal;
+  }
 
   List<Activity> filteredActivities() {
     DateTime now = DateTime.now();
@@ -440,9 +482,10 @@ class _StatsPageState extends State<StatsPage> {
           Expanded(
             child: ListView(
               children: filtered.map((a) {
-                final percent = totalTime.inSeconds == 0
+                final goalDuration = getGoalForActivity(a.name);
+                final percent = goalDuration.inSeconds == 0
                     ? 0.0
-                    : a.totalTime.inSeconds / totalTime.inSeconds;
+                    : (a.totalTime.inSeconds / goalDuration.inSeconds).clamp(0.0, 1.0);
                 return ListTile(
                   title: Text(a.name),
                   subtitle: LinearProgressIndicator(value: percent),
