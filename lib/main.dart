@@ -1,0 +1,408 @@
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const LockInTrackerApp());
+}
+
+class LockInTrackerApp extends StatefulWidget {
+  const LockInTrackerApp({super.key});
+
+  @override
+  State<LockInTrackerApp> createState() => _LockInTrackerAppState();
+}
+
+class _LockInTrackerAppState extends State<LockInTrackerApp> {
+  ThemeMode _themeMode = ThemeMode.dark;
+
+  void toggleTheme(bool isDark) {
+    setState(() {
+      _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'LockIn Tracker',
+      theme: ThemeData.light(),
+      darkTheme: ThemeData.dark(),
+      themeMode: _themeMode,
+      home: HomePage(onThemeChanged: toggleTheme, isDarkMode: _themeMode == ThemeMode.dark),
+    );
+  }
+}
+
+
+class HomePage extends StatefulWidget {
+  final void Function(bool) onThemeChanged;
+  final bool isDarkMode;
+
+  const HomePage({super.key, required this.onThemeChanged, required this.isDarkMode});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+
+class Activity {
+  String name;
+  Duration totalTime;
+
+  Activity({required this.name, this.totalTime = Duration.zero});
+}
+
+class _HomePageState extends State<HomePage> {
+  final List<Activity> activities = [
+    Activity(name: 'Studying'),
+    Activity(name: 'Workout'),
+    Activity(name: 'Reading'),
+    Activity(name: 'Cleaning'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('LockIn Tracker'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.timer), text: 'Tracker'),
+              Tab(icon: Icon(Icons.bar_chart), text: 'Stats'),
+              Tab(icon: Icon(Icons.list), text: 'Activities'),
+              Tab(icon: Icon(Icons.settings), text: 'Settings'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            TrackerPage(activities: activities),
+            StatsPage(activities: activities),
+            ActivitiesPage(activities: activities),
+            SettingsPage(
+              isDarkMode: widget.isDarkMode,
+              onThemeChanged: widget.onThemeChanged,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------- Tracker Page ----------------
+
+class TrackerPage extends StatefulWidget {
+  final List<Activity> activities;
+  const TrackerPage({super.key, required this.activities});
+
+  @override
+  State<TrackerPage> createState() => _TrackerPageState();
+}
+
+class _TrackerPageState extends State<TrackerPage> {
+  Activity? selectedActivity;
+  Stopwatch stopwatch = Stopwatch();
+  Duration elapsed = Duration.zero;
+
+  void startTimer() {
+    if (selectedActivity == null || stopwatch.isRunning) return;
+    stopwatch.start();
+    _tick();
+  }
+
+  void stopTimer() {
+    if (!stopwatch.isRunning) return;
+    stopwatch.stop();
+    setState(() {
+      selectedActivity!.totalTime += stopwatch.elapsed;
+      elapsed = Duration.zero;
+      stopwatch.reset();
+    });
+  }
+
+  void resetTimer() {
+    stopwatch.reset();
+    setState(() {
+      elapsed = Duration.zero;
+    });
+  }
+
+  void _tick() {
+    Future.delayed(const Duration(seconds: 1), () {
+      if (stopwatch.isRunning) {
+        setState(() {
+          elapsed = stopwatch.elapsed;
+        });
+        _tick();
+      }
+    });
+  }
+
+  String formatDuration(Duration d) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final h = twoDigits(d.inHours);
+    final m = twoDigits(d.inMinutes.remainder(60));
+    final s = twoDigits(d.inSeconds.remainder(60));
+    return '$h:$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          DropdownButton<Activity>(
+            value: selectedActivity,
+            hint: const Text('Choose activity'),
+            items: widget.activities
+                .map((a) => DropdownMenuItem(value: a, child: Text(a.name)))
+                .toList(),
+            onChanged: (val) {
+              if (stopwatch.isRunning) return;
+              setState(() {
+                selectedActivity = val;
+                elapsed = Duration.zero;
+                stopwatch.reset();
+              });
+            },
+          ),
+          const SizedBox(height: 20),
+          Text(
+            formatDuration(elapsed),
+            style: const TextStyle(fontSize: 48),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: stopwatch.isRunning ? null : startTimer,
+                child: const Text('Start'),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: stopwatch.isRunning ? stopTimer : null,
+                child: const Text('Stop'),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: stopwatch.isRunning ? null : resetTimer,
+                child: const Text('Reset'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 30),
+          const Text(
+            'Total activity time:',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: widget.activities.length,
+              itemBuilder: (context, index) {
+                final a = widget.activities[index];
+                return ListTile(
+                  title: Text(a.name),
+                  trailing: Text(formatDuration(a.totalTime)),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------- Stats Page ----------------
+
+class StatsPage extends StatelessWidget {
+  final List<Activity> activities;
+  const StatsPage({super.key, required this.activities});
+
+  String formatDuration(Duration d) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final h = twoDigits(d.inHours);
+    final m = twoDigits(d.inMinutes.remainder(60));
+    final s = twoDigits(d.inSeconds.remainder(60));
+    return '$h:$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalTime = activities.fold<Duration>(
+        Duration.zero, (sum, a) => sum + a.totalTime);
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Text(
+            'Total activity time: ${formatDuration(totalTime)}',
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+          Expanded(
+            child: ListView(
+              children: activities.map((a) {
+                final percent = totalTime.inSeconds == 0
+                    ? 0.0
+                    : a.totalTime.inSeconds / totalTime.inSeconds;
+                return ListTile(
+                  title: Text(a.name),
+                  subtitle: LinearProgressIndicator(value: percent),
+                  trailing: Text(formatDuration(a.totalTime)),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------- Activities Page ----------------
+
+class ActivitiesPage extends StatefulWidget {
+  final List<Activity> activities;
+  const ActivitiesPage({super.key, required this.activities});
+
+  @override
+  State<ActivitiesPage> createState() => _ActivitiesPageState();
+}
+
+class _ActivitiesPageState extends State<ActivitiesPage> {
+  void addActivity() {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Add Activity'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Activity name'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () {
+                final name = controller.text.trim();
+                if (name.isNotEmpty &&
+                    !widget.activities.any((a) => a.name == name)) {
+                  setState(() {
+                    widget.activities.add(Activity(name: name));
+                  });
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('Add')),
+        ],
+      ),
+    );
+  }
+
+  void renameActivity(int index) {
+    final controller =
+    TextEditingController(text: widget.activities[index].name);
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Rename Activity'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'New name'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () {
+                final name = controller.text.trim();
+                if (name.isNotEmpty) {
+                  setState(() {
+                    widget.activities[index].name = name;
+                  });
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('Save')),
+        ],
+      ),
+    );
+  }
+
+  void deleteActivity(int index) {
+    setState(() {
+      widget.activities.removeAt(index);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        ElevatedButton.icon(
+          onPressed: addActivity,
+          icon: const Icon(Icons.add),
+          label: const Text('Add Activity'),
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: widget.activities.length,
+            itemBuilder: (context, index) {
+              final a = widget.activities[index];
+              return ListTile(
+                title: Text(a.name),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () => renameActivity(index),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete),
+                      onPressed: () => deleteActivity(index),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------- Settings Page ----------------
+
+class SettingsPage extends StatelessWidget {
+  final bool isDarkMode;
+  final void Function(bool) onThemeChanged;
+
+  const SettingsPage({super.key, required this.isDarkMode, required this.onThemeChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SwitchListTile(
+        title: const Text('Dark Mode'),
+        value: isDarkMode,
+        onChanged: onThemeChanged,
+      ),
+    );
+  }
+}
+
