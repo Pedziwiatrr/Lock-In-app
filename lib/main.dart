@@ -83,8 +83,8 @@ class _HomePageState extends State<HomePage> {
         body: TabBarView(
           children: [
             TrackerPage(activities: activities.where((a) => a.visible).toList()),
-            StatsPage(activities: activities.where((a) => a.visible).toList()),
             ActivitiesPage(activities: activities, onUpdate: updateActivities),
+            StatsPage(activities: activities.where((a) => a.visible).toList()),
             SettingsPage(
               isDarkMode: widget.isDarkMode,
               onThemeChanged: widget.onThemeChanged,
