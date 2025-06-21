@@ -90,7 +90,7 @@ class _HomePageState extends State<HomePage> {
         body: TabBarView(
           children: [
             TrackerPage(
-              activities: activities.where((a) => a.visible).toList(),
+              activities: activities,
               goals: goals,
               activityLogs: activityLogs,
               onAddLog: (log) {
@@ -107,7 +107,7 @@ class _HomePageState extends State<HomePage> {
             ActivitiesPage(activities: activities, onUpdate: updateActivities),
             StatsPage(
               activityLogs: activityLogs,
-              activities: activities.where((a) => a.visible).toList(),
+              activities: activities,
               goals: goals,
             ),
             CalendarPage(activityLogs: activityLogs),
@@ -150,6 +150,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 }
+
 
 class ActivityLog {
   String activityName;
@@ -315,7 +316,10 @@ class _TrackerPageState extends State<TrackerPage> {
                     .where((log) =>
                 log.activityName == a.name &&
                     log.date.isAfter(todayStart))
-                    .fold(Duration.zero, (sum, log) => sum + log.duration);
+                    .fold(Duration.zero, (sum, log) => sum + log.duration) +
+                    (stopwatch.isRunning && selectedActivity?.name == a.name
+                        ? stopwatch.elapsed
+                        : Duration.zero);
 
                 final percent = goal.dailyGoal.inSeconds == 0
                     ? 0.0
@@ -481,7 +485,7 @@ class _StatsPageState extends State<StatsPage> {
     }
 
     return widget.activities.map((a) {
-      return Activity(name: a.name, totalTime: totals[a.name] ?? Duration.zero, visible: a.visible);
+      return Activity(name: a.name, totalTime: totals[a.name] ?? Duration.zero);
     }).toList();
   }
 
