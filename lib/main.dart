@@ -258,14 +258,14 @@ class _TrackerPageState extends State<TrackerPage> {
           const SizedBox(height: 20),
           Text(
             formatDuration(elapsed),
-            style: const TextStyle(fontSize: 48),
+            style: const TextStyle(fontSize: 80),
           ),
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               ElevatedButton(
-                onPressed: stopwatch.isRunning ? null : startTimer,
+                onPressed: (selectedActivity == null || stopwatch.isRunning) ? null : startTimer,
                 child: const Text('Start'),
               ),
               const SizedBox(width: 10),
