@@ -59,6 +59,7 @@ class _HomePageState extends State<HomePage> {
     Activity(name: 'Reading'),
     Activity(name: 'Cleaning'),
   ];
+  final List<ActivityLog> activityLogs = [];
 
   void updateActivities() {
     setState(() {});
@@ -82,9 +83,18 @@ class _HomePageState extends State<HomePage> {
         ),
         body: TabBarView(
           children: [
-            TrackerPage(activities: activities.where((a) => a.visible).toList()),
+            TrackerPage(
+              activities: activities.where((a) => a.visible).toList(),
+              onAddLog: (log) {
+                setState(() {
+                  activityLogs.add(log);
+                  final activity = activities.firstWhere((a) => a.name == log.activityName);
+                  activity.totalTime += log.duration;
+                });
+              },
+            ),
             ActivitiesPage(activities: activities, onUpdate: updateActivities),
-            StatsPage(activities: activities.where((a) => a.visible).toList()),
+            StatsPage(activityLogs: activityLogs, activities: activities.where((a) => a.visible).toList()),
             SettingsPage(
               isDarkMode: widget.isDarkMode,
               onThemeChanged: widget.onThemeChanged,
@@ -96,15 +106,27 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+class ActivityLog {
+  String activityName;
+  DateTime date;
+  Duration duration;
+
+  ActivityLog({required this.activityName, required this.date, required this.duration});
+}
+
 
 // ---------------- Tracker Page ----------------
 
 class TrackerPage extends StatefulWidget {
+  final void Function(ActivityLog) onAddLog;
   final List<Activity> activities;
-  const TrackerPage({super.key, required this.activities});
+
+  const TrackerPage({super.key, required this.activities, required this.onAddLog});
 
   @override
   State<TrackerPage> createState() => _TrackerPageState();
+
+
 }
 
 class _TrackerPageState extends State<TrackerPage> {
@@ -121,12 +143,17 @@ class _TrackerPageState extends State<TrackerPage> {
   void stopTimer() {
     if (!stopwatch.isRunning) return;
     stopwatch.stop();
+    widget.onAddLog(ActivityLog(
+      activityName: selectedActivity!.name,
+      date: DateTime.now(),
+      duration: stopwatch.elapsed,
+    ));
     setState(() {
-      selectedActivity!.totalTime += stopwatch.elapsed;
       elapsed = Duration.zero;
       stopwatch.reset();
     });
   }
+
 
   void resetTimer() {
     stopwatch.reset();
@@ -225,9 +252,58 @@ class _TrackerPageState extends State<TrackerPage> {
 
 // ---------------- Stats Page ----------------
 
-class StatsPage extends StatelessWidget {
+
+
+enum StatsPeriod { day, week, month, total }
+
+class StatsPage extends StatefulWidget {
+  final List<ActivityLog> activityLogs;
   final List<Activity> activities;
-  const StatsPage({super.key, required this.activities});
+
+  const StatsPage({super.key, required this.activityLogs, required this.activities});
+
+  @override
+  State<StatsPage> createState() => _StatsPageState();
+}
+
+class _StatsPageState extends State<StatsPage> {
+  StatsPeriod selectedPeriod = StatsPeriod.total;
+
+  List<Activity> filteredActivities() {
+    DateTime now = DateTime.now();
+    DateTime from;
+
+    switch (selectedPeriod) {
+      case StatsPeriod.day:
+        from = DateTime(now.year, now.month, now.day);
+        break;
+      case StatsPeriod.week:
+        from = now.subtract(Duration(days: now.weekday - 1));
+        break;
+      case StatsPeriod.month:
+        from = DateTime(now.year, now.month, 1);
+        break;
+      case StatsPeriod.total:
+        from = DateTime(2000); // bardzo dawno temu
+        break;
+    }
+
+    Map<String, Duration> totals = {};
+
+    for (var activity in widget.activities) {
+      totals[activity.name] = Duration.zero;
+    }
+
+    for (var log in widget.activityLogs) {
+      if (log.date.isAfter(from)) {
+        totals[log.activityName] = (totals[log.activityName] ?? Duration.zero) + log.duration;
+      }
+    }
+
+    return widget.activities.map((a) {
+      return Activity(name: a.name, totalTime: totals[a.name] ?? Duration.zero, visible: a.visible);
+    }).toList();
+  }
 
   String formatDuration(Duration d) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -239,13 +315,30 @@ class StatsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalTime = activities.fold<Duration>(
+    final filtered = filteredActivities();
+    final totalTime = filtered.fold<Duration>(
         Duration.zero, (sum, a) => sum + a.totalTime);
 
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
+          DropdownButton<StatsPeriod>(
+            value: selectedPeriod,
+            items: const [
+              DropdownMenuItem(value: StatsPeriod.day, child: Text('Last Day')),
+              DropdownMenuItem(value: StatsPeriod.week, child: Text('Last Week')),
+              DropdownMenuItem(value: StatsPeriod.month, child: Text('Last Month')),
+              DropdownMenuItem(value: StatsPeriod.total, child: Text('Total')),
+            ],
+            onChanged: (val) {
+              if (val == null) return;
+              setState(() {
+                selectedPeriod = val;
+              });
+            },
+          ),
+          const SizedBox(height: 20),
           Text(
             'Total activity time: ${formatDuration(totalTime)}',
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -253,7 +346,7 @@ class StatsPage extends StatelessWidget {
           const SizedBox(height: 20),
           Expanded(
             child: ListView(
-              children: activities.map((a) {
+              children: filtered.map((a) {
                 final percent = totalTime.inSeconds == 0
                     ? 0.0
                     : a.totalTime.inSeconds / totalTime.inSeconds;
@@ -270,6 +363,7 @@ class StatsPage extends StatelessWidget {
     );
   }
 }
+
 
 // ---------------- Activities Page ----------------
 
