@@ -68,7 +68,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           bottom: const TabBar(
@@ -76,6 +76,7 @@ class _HomePageState extends State<HomePage> {
               Tab(icon: Icon(Icons.timer), text: 'Tracker'),
               Tab(icon: Icon(Icons.list), text: 'Activities'),
               Tab(icon: Icon(Icons.bar_chart), text: 'Stats'),
+              Tab(icon: Icon(Icons.calendar_today), text: 'Calendar'),
             ],
           ),
         ),
@@ -93,6 +94,7 @@ class _HomePageState extends State<HomePage> {
             ),
             ActivitiesPage(activities: activities, onUpdate: updateActivities),
             StatsPage(activityLogs: activityLogs, activities: activities.where((a) => a.visible).toList()),
+            CalendarPage(activityLogs: activityLogs),
           ],
         ),
         floatingActionButton: FloatingActionButton(
@@ -108,6 +110,23 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    activityLogs.addAll([
+      ActivityLog(activityName: 'Studying', date: DateTime.now().subtract(Duration(days: 1)), duration: Duration(hours: 2)),
+      ActivityLog(activityName: 'Workout', date: DateTime.now().subtract(Duration(days: 2)), duration: Duration(minutes: 90)),
+      ActivityLog(activityName: 'Reading', date: DateTime.now().subtract(Duration(days: 3)), duration: Duration(hours: 1, minutes: 30)),
+      ActivityLog(activityName: 'Cleaning', date: DateTime.now(), duration: Duration(hours: 1)),
+      ActivityLog(activityName: 'Workout', date: DateTime.now().subtract(Duration(days: 32)), duration: Duration(hours: 1, minutes: 30)),
+      ActivityLog(activityName: 'Workout', date: DateTime.now().subtract(Duration(days: 367)), duration: Duration(hours: 1, minutes: 30)),
+    ]);
+    for (var log in activityLogs) {
+      final activity = activities.firstWhere((a) => a.name == log.activityName);
+      activity.totalTime += log.duration;
+    }
   }
 }
 
@@ -289,7 +308,7 @@ class _StatsPageState extends State<StatsPage> {
         from = DateTime(now.year, now.month, 1);
         break;
       case StatsPeriod.total:
-        from = DateTime(2000); // bardzo dawno temu
+        from = DateTime(2000);
         break;
     }
 
@@ -500,6 +519,48 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ---------------- Calendar Page ----------------
+
+class CalendarPage extends StatelessWidget {
+  final List<ActivityLog> activityLogs;
+
+  const CalendarPage({super.key, required this.activityLogs});
+
+  Map<DateTime, Duration> _aggregateByDay() {
+    Map<DateTime, Duration> result = {};
+    for (var log in activityLogs) {
+      final day = DateTime(log.date.year, log.date.month, log.date.day);
+      result[day] = (result[day] ?? Duration.zero) + log.duration;
+    }
+    return result;
+  }
+
+  String formatDuration(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    return '${h}h ${m}m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = _aggregateByDay();
+    final sortedDays = data.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: sortedDays.length,
+      itemBuilder: (context, index) {
+        final day = sortedDays[index];
+        final duration = data[day]!;
+        return ListTile(
+          title: Text('${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}'),
+          trailing: Text(formatDuration(duration)),
+        );
+      },
     );
   }
 }
