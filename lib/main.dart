@@ -92,6 +92,7 @@ class _HomePageState extends State<HomePage> {
             TrackerPage(
               activities: activities.where((a) => a.visible).toList(),
               goals: goals,
+              activityLogs: activityLogs,
               onAddLog: (log) {
                 setState(() {
                   activityLogs.add(log);
@@ -139,6 +140,10 @@ class _HomePageState extends State<HomePage> {
       ActivityLog(activityName: 'Workout', date: DateTime.now().subtract(Duration(days: 32)), duration: Duration(hours: 1, minutes: 30)),
       ActivityLog(activityName: 'Workout', date: DateTime.now().subtract(Duration(days: 367)), duration: Duration(hours: 1, minutes: 30)),
     ]);
+    goals = [
+      Goal(activityName: 'Studying', dailyGoal: Duration(hours: 1, minutes: 30)),
+      Goal(activityName: 'Workout', dailyGoal: Duration(hours: 1)),
+    ];
     for (var log in activityLogs) {
       final activity = activities.firstWhere((a) => a.name == log.activityName);
       activity.totalTime += log.duration;
@@ -161,12 +166,14 @@ class TrackerPage extends StatefulWidget {
   final void Function(ActivityLog) onAddLog;
   final List<Activity> activities;
   final List<Goal> goals;
+  final List<ActivityLog> activityLogs;
 
   const TrackerPage({
     Key? key,
     required this.activities,
     required this.goals,
     required this.onAddLog,
+    required this.activityLogs,
   }) : super(key: key);
 
   @override
@@ -275,7 +282,7 @@ class _TrackerPageState extends State<TrackerPage> {
           ),
           const SizedBox(height: 30),
           const Text(
-            'Total activity time:',
+            'Goals',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           Expanded(
@@ -302,14 +309,34 @@ class _TrackerPageState extends State<TrackerPage> {
                   orElse: () => Goal(activityName: a.name, dailyGoal: Duration.zero),
                 );
 
+                final today = DateTime.now();
+                final todayStart = DateTime(today.year, today.month, today.day);
+                final todayTime = widget.activityLogs
+                    .where((log) =>
+                log.activityName == a.name &&
+                    log.date.isAfter(todayStart))
+                    .fold(Duration.zero, (sum, log) => sum + log.duration);
+
                 final percent = goal.dailyGoal.inSeconds == 0
                     ? 0.0
-                    : (a.totalTime.inSeconds / goal.dailyGoal.inSeconds).clamp(0.0, 1.0);
+                    : (todayTime.inSeconds / goal.dailyGoal.inSeconds).clamp(0.0, 1.0);
+
+                final remaining = goal.dailyGoal - todayTime;
+                final remainingText = remaining.isNegative
+                    ? 'Goal completed!'
+                    : 'Remaining: ${formatDuration(remaining)}';
 
                 return ListTile(
                   title: Text(a.name),
-                  subtitle: LinearProgressIndicator(value: percent),
-                  trailing: Text(formatDuration(a.totalTime)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      LinearProgressIndicator(value: percent),
+                      SizedBox(height: 4),
+                      Text(remainingText),
+                    ],
+                  ),
+                  trailing: Text('${(percent * 100).toStringAsFixed(0)}%'),
                 );
               },
             ),
@@ -333,51 +360,69 @@ class _TrackerPageState extends State<TrackerPage> {
   State<GoalsPage> createState() => _GoalsPageState();
   }
 
-  class _GoalsPageState extends State<GoalsPage> {
+class _GoalsPageState extends State<GoalsPage> {
   late List<Goal> editableGoals;
 
   @override
   void initState() {
-  super.initState();
-  editableGoals = widget.goals.isNotEmpty
-  ? widget.goals.map((g) => Goal(activityName: g.activityName, dailyGoal: g.dailyGoal)).toList()
-      : widget.activities.map((a) => Goal(activityName: a.name, dailyGoal: Duration.zero)).toList();
+    super.initState();
+    editableGoals = widget.activities.map((a) {
+      final existingGoal = widget.goals.firstWhere(
+            (g) => g.activityName == a.name,
+        orElse: () => Goal(activityName: a.name, dailyGoal: Duration.zero),
+      );
+      return Goal(activityName: a.name, dailyGoal: existingGoal.dailyGoal);
+    }).toList();
   }
 
   void updateGoal(String activityName, String minutesText) {
-  final minutes = int.tryParse(minutesText) ?? 0;
-  setState(() {
-  final index = editableGoals.indexWhere((g) => g.activityName == activityName);
-  if (index != -1) {
-  editableGoals[index] = Goal(activityName: activityName, dailyGoal: Duration(minutes: minutes));
-  }
-  widget.onGoalChanged(editableGoals);
-  });
+    final minutes = int.tryParse(minutesText) ?? 0;
+    setState(() {
+      final index = editableGoals.indexWhere((g) => g.activityName == activityName);
+      if (index != -1) {
+        editableGoals[index] = Goal(activityName: activityName, dailyGoal: Duration(minutes: minutes));
+      } else {
+        editableGoals.add(Goal(activityName: activityName, dailyGoal: Duration(minutes: minutes)));
+      }
+      widget.onGoalChanged(editableGoals);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-  return ListView.builder(
-  itemCount: editableGoals.length,
-  itemBuilder: (context, index) {
-  final goal = editableGoals[index];
-  final controller = TextEditingController(text: goal.dailyGoal.inMinutes.toString());
-  return ListTile(
-  title: Text(goal.activityName),
-  trailing: SizedBox(
-  width: 60,
-  child: TextField(
-  controller: controller,
-  keyboardType: TextInputType.number,
-  decoration: const InputDecoration(suffixText: 'min'),
-  onSubmitted: (val) => updateGoal(goal.activityName, val),
-  ),
-  ),
-  );
-  },
-  );
+    final currentActivityNames = widget.activities.map((a) => a.name).toSet();
+    editableGoals.removeWhere((g) => !currentActivityNames.contains(g.activityName));
+    for (var activity in widget.activities) {
+      if (!editableGoals.any((g) => g.activityName == activity.name)) {
+        editableGoals.add(Goal(activityName: activity.name, dailyGoal: Duration.zero));
+      }
+    }
+
+    return ListView.builder(
+      itemCount: widget.activities.length,
+      itemBuilder: (context, index) {
+        final activity = widget.activities[index];
+        final goal = editableGoals.firstWhere(
+              (g) => g.activityName == activity.name,
+          orElse: () => Goal(activityName: activity.name, dailyGoal: Duration.zero),
+        );
+        final controller = TextEditingController(text: goal.dailyGoal.inMinutes.toString());
+        return ListTile(
+          title: Text(activity.name),
+          trailing: SizedBox(
+            width: 60,
+            child: TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(suffixText: 'min'),
+              onSubmitted: (val) => updateGoal(activity.name, val),
+            ),
+          ),
+        );
+      },
+    );
   }
-  }
+}
 
 // ---------------- Stats Page ----------------
 
