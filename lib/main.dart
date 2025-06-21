@@ -68,16 +68,14 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('LockIn Tracker'),
           bottom: const TabBar(
             tabs: [
               Tab(icon: Icon(Icons.timer), text: 'Tracker'),
               Tab(icon: Icon(Icons.list), text: 'Activities'),
               Tab(icon: Icon(Icons.bar_chart), text: 'Stats'),
-              Tab(icon: Icon(Icons.settings), text: 'Settings'),
             ],
           ),
         ),
@@ -95,11 +93,18 @@ class _HomePageState extends State<HomePage> {
             ),
             ActivitiesPage(activities: activities, onUpdate: updateActivities),
             StatsPage(activityLogs: activityLogs, activities: activities.where((a) => a.visible).toList()),
-            SettingsPage(
-              isDarkMode: widget.isDarkMode,
-              onThemeChanged: widget.onThemeChanged,
-            ),
           ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => SettingsPage(
+                isDarkMode: widget.isDarkMode,
+                onThemeChanged: widget.onThemeChanged,
+              ),
+            ));
+          },
+          child: const Icon(Icons.settings),
         ),
       ),
     );
@@ -509,11 +514,14 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SwitchListTile(
-        title: const Text('Dark Mode'),
-        value: isDarkMode,
-        onChanged: onThemeChanged,
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: Center(
+        child: SwitchListTile(
+          title: const Text('Dark Mode'),
+          value: isDarkMode,
+          onChanged: onThemeChanged,
+        ),
       ),
     );
   }
