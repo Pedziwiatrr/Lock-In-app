@@ -432,95 +432,103 @@ class _TrackerPageState extends State<TrackerPage> {
       return isTimed ? totalDuration > Duration.zero : completions > 0;
     }).toList();
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          DropdownButton<Activity>(
-            value: widget.selectedActivity,
-            hint: const Text('Choose activity'),
-            items: widget.activities
-                .map((a) => DropdownMenuItem(value: a, child: Text(a.name)))
-                .toList(),
-            onChanged: widget.onSelectActivity,
-          ),
-          const SizedBox(height: 20),
-          if (widget.selectedActivity is TimedActivity)
-            Text(
-              formatDuration(widget.elapsed),
-              style: const TextStyle(fontSize: 80),
-            )
-          else if (widget.selectedActivity is CheckableActivity)
-            Text(
-              '$todayCompletions time(s)',
-              style: const TextStyle(fontSize: 80),
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DropdownButton<Activity>(
+              value: widget.selectedActivity,
+              hint: const Text('Choose activity'),
+              isExpanded: true,
+              items: widget.activities
+                  .map((a) => DropdownMenuItem(value: a, child: Text(a.name)))
+                  .toList(),
+              onChanged: widget.onSelectActivity,
             ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (widget.selectedActivity is TimedActivity) ...[
-                ElevatedButton(
-                  onPressed: (widget.selectedActivity == null || widget.isRunning)
-                      ? null
-                      : widget.onStartTimer,
-                  child: const Text('Start'),
+            const SizedBox(height: 20),
+            if (widget.selectedActivity is TimedActivity)
+              Center(
+                child: Text(
+                  formatDuration(widget.elapsed),
+                  style: const TextStyle(fontSize: 80),
                 ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: widget.isRunning ? widget.onStopTimer : null,
-                  child: const Text('Stop'),
+              )
+            else if (widget.selectedActivity is CheckableActivity)
+              Center(
+                child: Text(
+                  '$todayCompletions time(s)',
+                  style: const TextStyle(fontSize: 80),
                 ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero)
-                      ? null
-                      : widget.onResetTimer,
-                  child: const Text('Reset'),
-                ),
-              ] else if (widget.selectedActivity is CheckableActivity)
-                ElevatedButton(
-                  onPressed: widget.selectedActivity == null ? null : widget.onCheckActivity,
-                  child: const Text('Check'),
-                ),
-            ],
-          ),
-          const SizedBox(height: 30),
-          const Text(
-            'Today',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          filteredTodayActivities.isEmpty
-              ? const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text('No activities logged today.'),
-          )
-              : Column(
-            children: filteredTodayActivities.map((entry) {
-              final activityName = entry.key;
-              final activityData = entry.value;
-              final isTimed = activityData['isTimed'] as bool;
-              final totalDuration = activityData['totalDuration'] as Duration;
-              final completions = activityData['completions'] as int;
+              ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (widget.selectedActivity is TimedActivity) ...[
+                  ElevatedButton(
+                    onPressed: (widget.selectedActivity == null || widget.isRunning)
+                        ? null
+                        : widget.onStartTimer,
+                    child: const Text('Start'),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: widget.isRunning ? widget.onStopTimer : null,
+                    child: const Text('Stop'),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero)
+                        ? null
+                        : widget.onResetTimer,
+                    child: const Text('Reset'),
+                  ),
+                ] else if (widget.selectedActivity is CheckableActivity)
+                  ElevatedButton(
+                    onPressed: widget.selectedActivity == null ? null : widget.onCheckActivity,
+                    child: const Text('Check'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 30),
+            const Text(
+              'Today',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            filteredTodayActivities.isEmpty
+                ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('No activities logged today.'),
+            )
+                : Column(
+              children: filteredTodayActivities.map((entry) {
+                final activityName = entry.key;
+                final activityData = entry.value;
+                final isTimed = activityData['isTimed'] as bool;
+                final totalDuration = activityData['totalDuration'] as Duration;
+                final completions = activityData['completions'] as int;
 
-              return ListTile(
-                title: Text(activityName),
-                trailing: Text(
-                  isTimed
-                      ? formatDuration(totalDuration)
-                      : '$completions time(s)',
-                  style: const TextStyle(fontSize: 18),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Goals',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          Expanded(
-            child: ListView.builder(
+                return ListTile(
+                  title: Text(activityName),
+                  trailing: Text(
+                    isTimed
+                        ? formatDuration(totalDuration)
+                        : '$completions time(s)',
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Goals',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
               itemCount: widget.activities.where((a) {
                 final goal = widget.goals.firstWhere(
                       (g) => g.activityName == a.name,
@@ -594,8 +602,8 @@ class _TrackerPageState extends State<TrackerPage> {
                 );
               },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
