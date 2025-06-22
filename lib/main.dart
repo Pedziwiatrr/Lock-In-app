@@ -486,17 +486,23 @@ class _TrackerPageState extends State<TrackerPage> {
     final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
     final Map<String, Map<String, dynamic>> todayActivities = {};
 
+    for (var activity in widget.activities) {
+      todayActivities[activity.name] = {
+        'isTimed': activity is TimedActivity,
+        'totalDuration': Duration.zero,
+        'completions': 0,
+      };
+    }
+
     for (var log in widget.activityLogs) {
       if (log.date.isAfter(todayStart) && log.date.isBefore(todayEnd)) {
         final activityName = log.activityName;
-        final activity = widget.activities.firstWhere(
-              (a) => a.name == activityName,
-          orElse: () => TimedActivity(name: activityName),
-        );
-
         if (!todayActivities.containsKey(activityName)) {
           todayActivities[activityName] = {
-            'isTimed': activity is TimedActivity,
+            'isTimed': widget.activities.firstWhere(
+                  (a) => a.name == activityName,
+              orElse: () => TimedActivity(name: activityName),
+            ) is TimedActivity,
             'totalDuration': Duration.zero,
             'completions': 0,
           };
@@ -505,7 +511,8 @@ class _TrackerPageState extends State<TrackerPage> {
         if (log.isCheckable) {
           todayActivities[activityName]!['completions'] += 1;
         } else {
-          todayActivities[activityName]!['totalDuration'] += log.duration;
+          todayActivities[activityName]!['totalDuration'] =
+              (todayActivities[activityName]!['totalDuration'] as Duration) + log.duration;
         }
       }
     }
@@ -520,8 +527,9 @@ class _TrackerPageState extends State<TrackerPage> {
         };
       }
 
-      if (widget.selectedActivity is TimedActivity && widget.elapsed > Duration.zero) {
-        todayActivities[activityName]!['totalDuration'] = widget.elapsed;
+      if (widget.selectedActivity is TimedActivity) {
+        todayActivities[activityName]!['totalDuration'] =
+            (todayActivities[activityName]!['totalDuration'] as Duration) + widget.elapsed;
       }
     }
 
