@@ -101,7 +101,7 @@ class _HomePageState extends State<HomePage> {
     activityLogs.addAll([
       ActivityLog(
         activityName: 'Studying',
-        date: DateTime.now().subtract(const Duration(days: 0)),
+        date: DateTime.now(),
         duration: const Duration(hours: 2),
       ),
       ActivityLog(
@@ -135,7 +135,13 @@ class _HomePageState extends State<HomePage> {
         duration: const Duration(hours: 1, minutes: 30),
       ),
       ActivityLog(
-        activityName: 'Gym',
+        activityName: 'Pójście na trening',
+        date: DateTime.now(),
+        duration: Duration.zero,
+        isCheckable: true,
+      ),
+      ActivityLog(
+        activityName: 'Pójście na trening',
         date: DateTime.now(),
         duration: Duration.zero,
         isCheckable: true,
@@ -144,7 +150,7 @@ class _HomePageState extends State<HomePage> {
     goals = [
       Goal(activityName: 'Studying', dailyGoal: const Duration(hours: 1, minutes: 30)),
       Goal(activityName: 'Workout', dailyGoal: const Duration(hours: 1)),
-      Goal(activityName: 'Gym', dailyGoal: const Duration(minutes: 1)),
+      Goal(activityName: 'Pójście na trening', dailyGoal: const Duration(minutes: 1)),
     ];
     for (var log in activityLogs) {
       final activity = activities.firstWhere(
@@ -313,8 +319,43 @@ class _TrackerPageState extends State<TrackerPage> {
     return '$h:$m:$s';
   }
 
+  Map<String, Map<String, dynamic>> getTodayActivities() {
+    final today = DateTime.now();
+    final todayStart = DateTime(today.year, today.month, today.day);
+    final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
+    final Map<String, Map<String, dynamic>> todayActivities = {};
+
+    for (var log in widget.activityLogs) {
+      if (log.date.isAfter(todayStart) && log.date.isBefore(todayEnd)) {
+        final activityName = log.activityName;
+        final activity = widget.activities.firstWhere(
+              (a) => a.name == activityName,
+          orElse: () => TimedActivity(name: activityName),
+        );
+
+        if (!todayActivities.containsKey(activityName)) {
+          todayActivities[activityName] = {
+            'isTimed': activity is TimedActivity,
+            'totalDuration': Duration.zero,
+            'completions': 0,
+          };
+        }
+
+        if (log.isCheckable) {
+          todayActivities[activityName]!['completions'] += 1;
+        } else {
+          todayActivities[activityName]!['totalDuration'] += log.duration;
+        }
+      }
+    }
+
+    return todayActivities;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final todayActivities = getTodayActivities();
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -351,7 +392,9 @@ class _TrackerPageState extends State<TrackerPage> {
             children: [
               if (selectedActivity is TimedActivity) ...[
                 ElevatedButton(
-                  onPressed: (selectedActivity == null || stopwatch.isRunning) ? null : startTimer,
+                  onPressed: (selectedActivity == null || stopwatch.isRunning)
+                      ? null
+                      : startTimer,
                   child: const Text('Start'),
                 ),
                 const SizedBox(width: 10),
@@ -372,6 +415,38 @@ class _TrackerPageState extends State<TrackerPage> {
             ],
           ),
           const SizedBox(height: 30),
+          const Text(
+            'Today',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          todayActivities.isEmpty
+              ? const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('No activities logged today.'),
+          )
+              : SizedBox(
+            height: 150,
+            child: ListView.builder(
+              itemCount: todayActivities.length,
+              itemBuilder: (context, index) {
+                final activityName = todayActivities.keys.elementAt(index);
+                final activityData = todayActivities[activityName]!;
+                final isTimed = activityData['isTimed'] as bool;
+                final totalDuration = activityData['totalDuration'] as Duration;
+                final completions = activityData['completions'] as int;
+
+                return ListTile(
+                  title: Text(activityName),
+                  trailing: Text(
+                    isTimed
+                        ? formatDuration(totalDuration)
+                        : '$completions time(s)',
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
           const Text(
             'Goals',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
