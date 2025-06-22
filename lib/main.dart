@@ -260,14 +260,24 @@ class _TrackerPageState extends State<TrackerPage> {
   Duration elapsed = Duration.zero;
 
   void startTimer() {
-    if (selectedActivity == null || stopwatch.isRunning) return;
+    if (selectedActivity == null || selectedActivity is! TimedActivity) return;
     stopwatch.start();
     _tick();
   }
 
   void stopTimer() {
     if (!stopwatch.isRunning) return;
-    stopwatch.stop();
+    setState(() {
+      stopwatch.stop();
+      elapsed = stopwatch.elapsed;
+    });
+  }
+
+  void resetTimer() {
+    if (selectedActivity == null || stopwatch.elapsed == Duration.zero) return;
+    if (stopwatch.isRunning) {
+      stopwatch.stop();
+    }
     widget.onAddLog(ActivityLog(
       activityName: selectedActivity!.name,
       date: DateTime.now(),
@@ -288,16 +298,7 @@ class _TrackerPageState extends State<TrackerPage> {
       duration: Duration.zero,
       isCheckable: true,
     ));
-    setState(() {
-      selectedActivity = null;
-    });
-  }
-
-  void resetTimer() {
-    stopwatch.reset();
-    setState(() {
-      elapsed = Duration.zero;
-    });
+    setState(() {});
   }
 
   void _tick() {
@@ -319,54 +320,66 @@ class _TrackerPageState extends State<TrackerPage> {
     return '$h:$m:$s';
   }
 
-Map<String, Map<String, dynamic>> getTodayActivities() {
-  final today = DateTime.now();
-  final todayStart = DateTime(today.year, today.month, today.day);
-  final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
-  final Map<String, Map<String, dynamic>> todayActivities = {};
+  Map<String, Map<String, dynamic>> getTodayActivities() {
+    final today = DateTime.now();
+    final todayStart = DateTime(today.year, today.month, today.day);
+    final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
+    final Map<String, Map<String, dynamic>> todayActivities = {};
 
-  for (var log in widget.activityLogs) {
-    if (log.date.isAfter(todayStart) && log.date.isBefore(todayEnd)) {
-      final activityName = log.activityName;
-      final activity = widget.activities.firstWhere(
-            (a) => a.name == activityName,
-        orElse: () => TimedActivity(name: activityName),
-      );
+    for (var log in widget.activityLogs) {
+      if (log.date.isAfter(todayStart) && log.date.isBefore(todayEnd)) {
+        final activityName = log.activityName;
+        final activity = widget.activities.firstWhere(
+              (a) => a.name == activityName,
+          orElse: () => TimedActivity(name: activityName),
+        );
 
+        if (!todayActivities.containsKey(activityName)) {
+          todayActivities[activityName] = {
+            'isTimed': activity is TimedActivity,
+            'totalDuration': Duration.zero,
+            'completions': 0,
+          };
+        }
+
+        if (log.isCheckable) {
+          todayActivities[activityName]!['completions'] += 1;
+        } else {
+          todayActivities[activityName]!['totalDuration'] += log.duration;
+        }
+      }
+    }
+
+    if (stopwatch.isRunning && selectedActivity is TimedActivity) {
+      final activityName = selectedActivity!.name;
       if (!todayActivities.containsKey(activityName)) {
         todayActivities[activityName] = {
-          'isTimed': activity is TimedActivity,
+          'isTimed': true,
           'totalDuration': Duration.zero,
           'completions': 0,
         };
       }
-
-      if (log.isCheckable) {
-        todayActivities[activityName]!['completions'] += 1;
-      } else {
-        todayActivities[activityName]!['totalDuration'] += log.duration;
-      }
+      todayActivities[activityName]!['totalDuration'] += stopwatch.elapsed;
     }
-  }
 
-  if (stopwatch.isRunning && selectedActivity is TimedActivity) {
-    final activityName = selectedActivity!.name;
-    if (!todayActivities.containsKey(activityName)) {
-      todayActivities[activityName] = {
-        'isTimed': true,
-        'totalDuration': Duration.zero,
-        'completions': 0,
-      };
-    }
-    todayActivities[activityName]!['totalDuration'] += stopwatch.elapsed;
+    return todayActivities;
   }
-
-  return todayActivities;
-}
 
   @override
   Widget build(BuildContext context) {
     final todayActivities = getTodayActivities();
+    final today = DateTime.now();
+    final todayStart = DateTime(today.year, today.month, today.day);
+    final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
+    final todayCompletions = selectedActivity != null && selectedActivity is CheckableActivity
+        ? widget.activityLogs
+        .where((log) =>
+    log.activityName == selectedActivity!.name &&
+        log.date.isAfter(todayStart) &&
+        log.date.isBefore(todayEnd) &&
+        log.isCheckable)
+        .length
+        : 0;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -394,9 +407,9 @@ Map<String, Map<String, dynamic>> getTodayActivities() {
               style: const TextStyle(fontSize: 80),
             )
           else if (selectedActivity is CheckableActivity)
-            const Text(
-              'Mark as completed',
-              style: TextStyle(fontSize: 24),
+            Text(
+              '$todayCompletions time(s)',
+              style: const TextStyle(fontSize: 80),
             ),
           const SizedBox(height: 20),
           Row(
@@ -416,7 +429,9 @@ Map<String, Map<String, dynamic>> getTodayActivities() {
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton(
-                  onPressed: stopwatch.isRunning ? null : resetTimer,
+                  onPressed: (selectedActivity == null || stopwatch.elapsed == Duration.zero)
+                      ? null
+                      : resetTimer,
                   child: const Text('Reset'),
                 ),
               ] else if (selectedActivity is CheckableActivity)
@@ -490,8 +505,12 @@ Map<String, Map<String, dynamic>> getTodayActivities() {
 
                 final today = DateTime.now();
                 final todayStart = DateTime(today.year, today.month, today.day);
+                final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
                 final todayTime = widget.activityLogs
-                    .where((log) => log.activityName == a.name && log.date.isAfter(todayStart))
+                    .where((log) =>
+                log.activityName == a.name &&
+                    log.date.isAfter(todayStart) &&
+                    log.date.isBefore(todayEnd))
                     .fold(Duration.zero, (sum, log) => sum + log.duration) +
                     (stopwatch.isRunning && selectedActivity?.name == a.name && a is TimedActivity
                         ? stopwatch.elapsed
@@ -501,6 +520,7 @@ Map<String, Map<String, dynamic>> getTodayActivities() {
                     .where((log) =>
                 log.activityName == a.name &&
                     log.date.isAfter(todayStart) &&
+                    log.date.isBefore(todayEnd) &&
                     log.isCheckable)
                     .length;
 
