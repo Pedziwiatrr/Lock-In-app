@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:math';
 
 void main() {
   runApp(const LockInTrackerApp());
@@ -420,7 +421,7 @@ class _HomePageState extends State<HomePage> {
               activities: activities,
               goals: goals,
             ),
-            CalendarPage(activityLogs: activityLogs),
+            CalendarPage(activityLogs: activityLogs, goals: goals),
           ],
         ),
         floatingActionButton: FloatingActionButton(
@@ -1127,8 +1128,13 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
 
 class CalendarPage extends StatelessWidget {
   final List<ActivityLog> activityLogs;
+  final List<Goal> goals;
 
-  const CalendarPage({super.key, required this.activityLogs});
+  const CalendarPage({
+    super.key,
+    required this.activityLogs,
+    required this.goals,
+  });
 
   Map<DateTime, Duration> _aggregateByDay() {
     Map<DateTime, Duration> result = {};
@@ -1139,6 +1145,79 @@ class CalendarPage extends StatelessWidget {
     return result;
   }
 
+  Map<DateTime, Map<String, dynamic>> _calculateGoalProgress() {
+    final progress = <DateTime, Map<String, dynamic>>{};
+    final dayData = _aggregateByDay();
+
+    final today = DateTime.now();
+    final minDate = activityLogs.isNotEmpty
+        ? activityLogs
+        .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
+        .reduce((a, b) => a.isBefore(b) ? a : b)
+        : DateTime(2000);
+    final daysDiff = today.difference(minDate).inDays;
+
+    for (int i = 0; i <= daysDiff; i++) {
+      final day = today.subtract(Duration(days: i));
+      final dayStart = DateTime(day.year, day.month, day.day);
+      final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
+      final dayKey = DateTime(day.year, day.month, day.day);
+
+      int completedGoals = 0;
+      final totalGoals =
+          goals.where((g) => g.dailyGoal > Duration.zero).length;
+
+      for (var goal in goals.where((g) => g.dailyGoal > Duration.zero)) {
+        final activity = activityLogs
+            .where((log) =>
+        log.activityName == goal.activityName &&
+            log.date.isAfter(dayStart) &&
+            log.date.isBefore(dayEnd))
+            .toList();
+
+        bool isCompleted = false;
+        if (activity.isNotEmpty) {
+          if (activity.any((log) => log.isCheckable)) {
+            final completions = activity.where((log) => log.isCheckable).length;
+            if (completions >= goal.dailyGoal.inMinutes) {
+              isCompleted = true;
+            }
+          } else {
+            final totalTime = activity.fold<Duration>(
+                Duration.zero, (sum, log) => sum + log.duration);
+            if (totalTime >= goal.dailyGoal) {
+              isCompleted = true;
+            }
+          }
+        }
+
+        if (isCompleted) {
+          completedGoals++;
+        }
+      }
+
+      Color color;
+      if (totalGoals == 0) {
+        color = Colors.grey;
+      } else if (completedGoals == totalGoals) {
+        color = Colors.green;
+      } else if (completedGoals > 0) {
+        color = Colors.yellow;
+      } else {
+        color = Colors.red;
+      }
+
+      progress[dayKey] = {
+        'completedGoals': completedGoals,
+        'totalGoals': totalGoals,
+        'color': color,
+        'duration': dayData[dayKey] ?? Duration.zero,
+      };
+    }
+
+    return progress;
+  }
+
   String formatDuration(Duration d) {
     final h = d.inHours;
     final m = d.inMinutes.remainder(60);
@@ -1147,18 +1226,32 @@ class CalendarPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = _aggregateByDay();
-    final sortedDays = data.keys.toList()..sort((a, b) => b.compareTo(a));
+    final progress = _calculateGoalProgress();
+    final sortedDays = progress.keys.toList()..sort((a, b) => b.compareTo(a));
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: sortedDays.length,
       itemBuilder: (context, index) {
         final day = sortedDays[index];
-        final duration = data[day]!;
+        final dayData = progress[day]!;
+        final duration = dayData['duration'] as Duration;
+        final completedGoals = dayData['completedGoals'] as int;
+        final totalGoals = dayData['totalGoals'] as int;
+        final color = dayData['color'] as Color;
+
         return ListTile(
+          leading: Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color,
+            ),
+          ),
           title: Text(
               '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}'),
+          subtitle: Text('Completed goals: $completedGoals/$totalGoals'),
           trailing: Text(formatDuration(duration)),
         );
       },
