@@ -172,6 +172,7 @@ class _HomePageState extends State<HomePage> {
   Stopwatch stopwatch = Stopwatch();
   Duration elapsed = Duration.zero;
   Timer? _timer;
+  DateTime selectedDate = DateTime.now();
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -285,9 +286,14 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _saveData() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
-    await prefs.setString('activityLogs', jsonEncode(activityLogs.map((log) => log.toJson()).toList()));
-    await prefs.setString('goals', jsonEncode(goals.map((g) => g.toJson()).toList()));
+    try {
+      await prefs.setString('activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
+      await prefs.setString('activityLogs', jsonEncode(activityLogs.map((log) => log.toJson()).toList()));
+      await prefs.setString('goals', jsonEncode(goals.map((g) => g.toJson()).toList()));
+      print('Data saved: ${activities.length} activities, ${activityLogs.length} logs, ${goals.length} goals');
+    } catch (e) {
+      print('Error saving data: $e');
+    }
   }
 
   void startTimer() {
@@ -311,36 +317,41 @@ class _HomePageState extends State<HomePage> {
       stopwatch.stop();
       _timer?.cancel();
     }
-    activityLogs.add(ActivityLog(
+    final log = ActivityLog(
       activityName: selectedActivity!.name,
-      date: DateTime.now(),
+      date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day, DateTime.now().hour, DateTime.now().minute),
       duration: stopwatch.elapsed,
       isCheckable: false,
-    ));
-    final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
-    if (activity is TimedActivity) {
-      activity.totalTime += stopwatch.elapsed;
-    }
+    );
     setState(() {
+      activityLogs.add(log);
+      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      if (activity is TimedActivity) {
+        activity.totalTime += stopwatch.elapsed;
+      }
       elapsed = Duration.zero;
       stopwatch.reset();
     });
+    print('Timer reset: Added log for ${log.activityName} on ${log.date} with duration ${log.duration}');
     _saveData();
   }
 
   void checkActivity() {
     if (selectedActivity == null) return;
-    activityLogs.add(ActivityLog(
+    final log = ActivityLog(
       activityName: selectedActivity!.name,
-      date: DateTime.now(),
+      date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day, DateTime.now().hour, DateTime.now().minute),
       duration: Duration.zero,
       isCheckable: true,
-    ));
-    final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
-    if (activity is CheckableActivity) {
-      activity.completionCount += 1;
-    }
-    setState(() {});
+    );
+    setState(() {
+      activityLogs.add(log);
+      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      if (activity is CheckableActivity) {
+        activity.completionCount += 1;
+      }
+    });
+    print('Check activity: Added log for ${log.activityName} on ${log.date}');
     _saveData();
   }
 
@@ -359,6 +370,7 @@ class _HomePageState extends State<HomePage> {
 
   void updateActivities() {
     setState(() {});
+    print('Activities updated: ${activities.length} activities');
     _saveData();
   }
 
@@ -368,6 +380,12 @@ class _HomePageState extends State<HomePage> {
       selectedActivity = activity;
       elapsed = Duration.zero;
       stopwatch.reset();
+    });
+  }
+
+  void selectDate(DateTime date) {
+    setState(() {
+      selectedDate = date;
     });
   }
 
@@ -407,9 +425,11 @@ class _HomePageState extends State<HomePage> {
               goals: goals,
               activityLogs: activityLogs,
               selectedActivity: selectedActivity,
+              selectedDate: selectedDate,
               elapsed: elapsed,
               isRunning: stopwatch.isRunning,
               onSelectActivity: selectActivity,
+              onSelectDate: selectDate,
               onStartTimer: startTimer,
               onStopTimer: stopTimer,
               onResetTimer: resetTimer,
@@ -455,9 +475,11 @@ class TrackerPage extends StatefulWidget {
   final List<Goal> goals;
   final List<ActivityLog> activityLogs;
   final Activity? selectedActivity;
+  final DateTime selectedDate;
   final Duration elapsed;
   final bool isRunning;
   final void Function(Activity?) onSelectActivity;
+  final void Function(DateTime) onSelectDate;
   final VoidCallback onStartTimer;
   final VoidCallback onStopTimer;
   final VoidCallback onResetTimer;
@@ -469,9 +491,11 @@ class TrackerPage extends StatefulWidget {
     required this.goals,
     required this.activityLogs,
     required this.selectedActivity,
+    required this.selectedDate,
     required this.elapsed,
     required this.isRunning,
     required this.onSelectActivity,
+    required this.onSelectDate,
     required this.onStartTimer,
     required this.onStopTimer,
     required this.onResetTimer,
@@ -491,14 +515,13 @@ class _TrackerPageState extends State<TrackerPage> {
     return '$h:$m:$s';
   }
 
-  Map<String, Map<String, dynamic>> getTodayActivities() {
-    final today = DateTime.now();
-    final todayStart = DateTime(today.year, today.month, today.day);
-    final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
-    final Map<String, Map<String, dynamic>> todayActivities = {};
+  Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
+    final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
+    final Map<String, Map<String, dynamic>> dateActivities = {};
 
     for (var activity in widget.activities) {
-      todayActivities[activity.name] = {
+      dateActivities[activity.name] = {
         'isTimed': activity is TimedActivity,
         'totalDuration': Duration.zero,
         'completions': 0,
@@ -506,10 +529,10 @@ class _TrackerPageState extends State<TrackerPage> {
     }
 
     for (var log in widget.activityLogs) {
-      if (log.date.isAfter(todayStart) && log.date.isBefore(todayEnd)) {
+      if (log.date.isAfter(dateStart) && log.date.isBefore(dateEnd)) {
         final activityName = log.activityName;
-        if (!todayActivities.containsKey(activityName)) {
-          todayActivities[activityName] = {
+        if (!dateActivities.containsKey(activityName)) {
+          dateActivities[activityName] = {
             'isTimed': widget.activities.firstWhere(
                   (a) => a.name == activityName,
               orElse: () => TimedActivity(name: activityName),
@@ -520,18 +543,18 @@ class _TrackerPageState extends State<TrackerPage> {
         }
 
         if (log.isCheckable) {
-          todayActivities[activityName]!['completions'] += 1;
+          dateActivities[activityName]!['completions'] += 1;
         } else {
-          todayActivities[activityName]!['totalDuration'] =
-              (todayActivities[activityName]!['totalDuration'] as Duration) + log.duration;
+          dateActivities[activityName]!['totalDuration'] =
+              (dateActivities[activityName]!['totalDuration'] as Duration) + log.duration;
         }
       }
     }
 
-    if (widget.selectedActivity != null) {
+    if (widget.selectedActivity != null && widget.selectedDate.day == DateTime.now().day) {
       final activityName = widget.selectedActivity!.name;
-      if (!todayActivities.containsKey(activityName)) {
-        todayActivities[activityName] = {
+      if (!dateActivities.containsKey(activityName)) {
+        dateActivities[activityName] = {
           'isTimed': widget.selectedActivity is TimedActivity,
           'totalDuration': Duration.zero,
           'completions': 0,
@@ -539,31 +562,30 @@ class _TrackerPageState extends State<TrackerPage> {
       }
 
       if (widget.selectedActivity is TimedActivity) {
-        todayActivities[activityName]!['totalDuration'] =
-            (todayActivities[activityName]!['totalDuration'] as Duration) + widget.elapsed;
+        dateActivities[activityName]!['totalDuration'] =
+            (dateActivities[activityName]!['totalDuration'] as Duration) + widget.elapsed;
       }
     }
 
-    return todayActivities;
+    return dateActivities;
   }
 
   @override
   Widget build(BuildContext context) {
-    final todayActivities = getTodayActivities();
-    final today = DateTime.now();
-    final todayStart = DateTime(today.year, today.month, today.day);
-    final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
-    final todayCompletions = widget.selectedActivity != null && widget.selectedActivity is CheckableActivity
+    final dateActivities = getActivitiesForSelectedDate();
+    final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
+    final dateCompletions = widget.selectedActivity != null && widget.selectedActivity is CheckableActivity
         ? widget.activityLogs
         .where((log) =>
     log.activityName == widget.selectedActivity!.name &&
-        log.date.isAfter(todayStart) &&
-        log.date.isBefore(todayEnd) &&
+        log.date.isAfter(dateStart) &&
+        log.date.isBefore(dateEnd) &&
         log.isCheckable)
         .length
         : 0;
 
-    final filteredTodayActivities = todayActivities.entries.where((entry) {
+    final filteredDateActivities = dateActivities.entries.where((entry) {
       final activityData = entry.value;
       final isTimed = activityData['isTimed'] as bool;
       final totalDuration = activityData['totalDuration'] as Duration;
@@ -577,14 +599,37 @@ class _TrackerPageState extends State<TrackerPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            DropdownButton<Activity>(
-              value: widget.selectedActivity,
-              hint: const Text('Choose activity'),
-              isExpanded: true,
-              items: widget.activities
-                  .map((a) => DropdownMenuItem(value: a, child: Text(a.name)))
-                  .toList(),
-              onChanged: widget.onSelectActivity,
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButton<Activity>(
+                    value: widget.selectedActivity,
+                    hint: const Text('Choose activity'),
+                    isExpanded: true,
+                    items: widget.activities
+                        .map((a) => DropdownMenuItem(value: a, child: Text(a.name)))
+                        .toList(),
+                    onChanged: widget.onSelectActivity,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () async {
+                    final pickedDate = await showDatePicker(
+                      context: context,
+                      initialDate: widget.selectedDate,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now(),
+                    );
+                    if (pickedDate != null) {
+                      widget.onSelectDate(pickedDate);
+                    }
+                  },
+                  child: Text(
+                    '${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year}',
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             if (widget.selectedActivity is TimedActivity)
@@ -597,7 +642,7 @@ class _TrackerPageState extends State<TrackerPage> {
             else if (widget.selectedActivity is CheckableActivity)
               Center(
                 child: Text(
-                  '$todayCompletions time(s)',
+                  '$dateCompletions time(s)',
                   style: const TextStyle(fontSize: 60),
                 ),
               ),
@@ -607,7 +652,7 @@ class _TrackerPageState extends State<TrackerPage> {
               children: [
                 if (widget.selectedActivity is TimedActivity) ...[
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.isRunning)
+                    onPressed: (widget.selectedActivity == null || widget.isRunning || widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : widget.onStartTimer,
                     child: const Text('Start'),
@@ -619,30 +664,34 @@ class _TrackerPageState extends State<TrackerPage> {
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero)
+                    onPressed: (widget.selectedActivity == null ||
+                        widget.elapsed == Duration.zero ||
+                        widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : widget.onResetTimer,
-                    child: const Text('Reset'),
+                    child: const Text('Finish'),
                   ),
                 ] else if (widget.selectedActivity is CheckableActivity)
                   ElevatedButton(
-                    onPressed: widget.selectedActivity == null ? null : widget.onCheckActivity,
+                    onPressed: (widget.selectedActivity == null || widget.selectedDate.isAfter(DateTime.now()))
+                        ? null
+                        : widget.onCheckActivity,
                     child: const Text('Check'),
                   ),
               ],
             ),
             const SizedBox(height: 30),
-            const Text(
-              'Today',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              'Selected Date (${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year})',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            filteredTodayActivities.isEmpty
+            filteredDateActivities.isEmpty
                 ? const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('No activities logged today.'),
+              child: Text('No activities logged for this date.'),
             )
                 : Column(
-              children: filteredTodayActivities.map((entry) {
+              children: filteredDateActivities.map((entry) {
                 final activityName = entry.key;
                 final activityData = entry.value;
                 final isTimed = activityData['isTimed'] as bool;
@@ -688,42 +737,43 @@ class _TrackerPageState extends State<TrackerPage> {
                   orElse: () => Goal(activityName: a.name, goalDuration: Duration.zero),
                 );
 
-                final today = DateTime.now();
-                final todayStart = DateTime(today.year, today.month, today.day);
-                final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
-                final todayTime = widget.activityLogs
+                final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+                final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
+                final dateTime = widget.activityLogs
                     .where((log) =>
                 log.activityName == a.name &&
-                    log.date.isAfter(todayStart) &&
-                    log.date.isBefore(todayEnd))
+                    log.date.isAfter(dateStart) &&
+                    log.date.isBefore(dateEnd))
                     .fold(Duration.zero, (sum, log) => sum + log.duration) +
-                    (widget.isRunning && widget.selectedActivity?.name == a.name && a is TimedActivity
+                    (widget.isRunning &&
+                        widget.selectedActivity?.name == a.name &&
+                        widget.selectedDate.day == DateTime.now().day
                         ? widget.elapsed
                         : Duration.zero);
 
-                final todayCompletions = widget.activityLogs
+                final dateCompletions = widget.activityLogs
                     .where((log) =>
                 log.activityName == a.name &&
-                    log.date.isAfter(todayStart) &&
-                    log.date.isBefore(todayEnd) &&
+                    log.date.isAfter(dateStart) &&
+                    log.date.isBefore(dateEnd) &&
                     log.isCheckable)
                     .length;
 
                 final percent = a is TimedActivity
                     ? goal.goalDuration.inSeconds == 0
                     ? 0.0
-                    : (todayTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0)
+                    : (dateTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0)
                     : goal.goalDuration.inMinutes == 0
                     ? 0.0
-                    : (todayCompletions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
+                    : (dateCompletions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
 
                 final remainingText = a is TimedActivity
-                    ? (goal.goalDuration - todayTime).isNegative
+                    ? (goal.goalDuration - dateTime).isNegative
                     ? 'Goal completed!'
-                    : 'Remaining: ${formatDuration(goal.goalDuration - todayTime)}'
-                    : todayCompletions >= goal.goalDuration.inMinutes
+                    : 'Remaining: ${formatDuration(goal.goalDuration - dateTime)}'
+                    : dateCompletions >= goal.goalDuration.inMinutes
                     ? 'Goal completed!'
-                    : 'Remaining: ${goal.goalDuration.inMinutes - todayCompletions} completion(s)';
+                    : 'Remaining: ${goal.goalDuration.inMinutes - dateCompletions} completion(s)';
 
                 return ListTile(
                   title: Text(a.name),
@@ -1105,6 +1155,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                         ? TimedActivity(name: name)
                         : CheckableActivity(name: name));
                   });
+                  print('Added activity: $name (${_isTimedActivity ? 'Timed' : 'Checkable'})');
                   widget.onUpdate();
                 }
                 Navigator.pop(context);
@@ -1141,6 +1192,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                 setState(() {
                   widget.activities[index].name = name;
                 });
+                print('Renamed activity to: $name');
                 widget.onUpdate();
               }
               Navigator.pop(context);
@@ -1153,9 +1205,11 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   }
 
   void deleteActivity(int index) {
+    final name = widget.activities[index].name;
     setState(() {
       widget.activities.removeAt(index);
     });
+    print('Deleted activity: $name');
     widget.onUpdate();
   }
 
@@ -1167,6 +1221,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
       final activity = widget.activities.removeAt(oldIndex);
       widget.activities.insert(newIndex, activity);
     });
+    print('Reordered activities');
     widget.onUpdate();
   }
 
