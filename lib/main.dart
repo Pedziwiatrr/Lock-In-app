@@ -59,19 +59,29 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
   }
 }
 
+enum GoalType { daily, weekly }
+
 class Goal {
   String activityName;
-  Duration dailyGoal;
-  Goal({required this.activityName, required this.dailyGoal});
+  Duration goalDuration;
+  GoalType goalType;
+
+  Goal({
+    required this.activityName,
+    required this.goalDuration,
+    this.goalType = GoalType.daily,
+  });
 
   Map<String, dynamic> toJson() => {
     'activityName': activityName,
-    'dailyGoal': dailyGoal.inSeconds,
+    'goalDuration': goalDuration.inSeconds,
+    'goalType': goalType.toString(),
   };
 
   factory Goal.fromJson(Map<String, dynamic> json) => Goal(
     activityName: json['activityName'],
-    dailyGoal: Duration(seconds: json['dailyGoal']),
+    goalDuration: Duration(seconds: json['dailyGoal'] ?? json['goalDuration']),
+    goalType: json['goalType'] == GoalType.weekly.toString() ? GoalType.weekly : GoalType.daily,
   );
 }
 
@@ -248,9 +258,9 @@ class _HomePageState extends State<HomePage> {
       goals = goalsList.map((json) => Goal.fromJson(json)).toList();
     } else {
       goals = [
-        Goal(activityName: 'Studying', dailyGoal: const Duration(hours: 1, minutes: 30)),
-        Goal(activityName: 'Workout', dailyGoal: const Duration(hours: 1)),
-        Goal(activityName: 'Went Gym', dailyGoal: const Duration(minutes: 1)),
+        Goal(activityName: 'Studying', goalDuration: const Duration(hours: 1, minutes: 30)),
+        Goal(activityName: 'Workout', goalDuration: const Duration(hours: 1)),
+        Goal(activityName: 'Went Gym', goalDuration: const Duration(minutes: 1)),
       ];
     }
 
@@ -659,23 +669,23 @@ class _TrackerPageState extends State<TrackerPage> {
               itemCount: widget.activities.where((a) {
                 final goal = widget.goals.firstWhere(
                       (g) => g.activityName == a.name,
-                  orElse: () => Goal(activityName: a.name, dailyGoal: Duration.zero),
+                  orElse: () => Goal(activityName: a.name, goalDuration: Duration.zero),
                 );
-                return goal.dailyGoal > Duration.zero;
+                return goal.goalDuration > Duration.zero;
               }).length,
               itemBuilder: (context, index) {
                 final filteredActivities = widget.activities.where((a) {
                   final goal = widget.goals.firstWhere(
                         (g) => g.activityName == a.name,
-                    orElse: () => Goal(activityName: a.name, dailyGoal: Duration.zero),
+                    orElse: () => Goal(activityName: a.name, goalDuration: Duration.zero),
                   );
-                  return goal.dailyGoal > Duration.zero;
+                  return goal.goalDuration > Duration.zero;
                 }).toList();
 
                 final a = filteredActivities[index];
                 final goal = widget.goals.firstWhere(
                       (g) => g.activityName == a.name,
-                  orElse: () => Goal(activityName: a.name, dailyGoal: Duration.zero),
+                  orElse: () => Goal(activityName: a.name, goalDuration: Duration.zero),
                 );
 
                 final today = DateTime.now();
@@ -700,20 +710,20 @@ class _TrackerPageState extends State<TrackerPage> {
                     .length;
 
                 final percent = a is TimedActivity
-                    ? goal.dailyGoal.inSeconds == 0
+                    ? goal.goalDuration.inSeconds == 0
                     ? 0.0
-                    : (todayTime.inSeconds / goal.dailyGoal.inSeconds).clamp(0.0, 1.0)
-                    : goal.dailyGoal.inMinutes == 0
+                    : (todayTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0)
+                    : goal.goalDuration.inMinutes == 0
                     ? 0.0
-                    : (todayCompletions / goal.dailyGoal.inMinutes).clamp(0.0, 1.0);
+                    : (todayCompletions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
 
                 final remainingText = a is TimedActivity
-                    ? (goal.dailyGoal - todayTime).isNegative
+                    ? (goal.goalDuration - todayTime).isNegative
                     ? 'Goal completed!'
-                    : 'Remaining: ${formatDuration(goal.dailyGoal - todayTime)}'
-                    : todayCompletions >= goal.dailyGoal.inMinutes
+                    : 'Remaining: ${formatDuration(goal.goalDuration - todayTime)}'
+                    : todayCompletions >= goal.goalDuration.inMinutes
                     ? 'Goal completed!'
-                    : 'Remaining: ${goal.dailyGoal.inMinutes - todayCompletions} completion(s)';
+                    : 'Remaining: ${goal.goalDuration.inMinutes - todayCompletions} completion(s)';
 
                 return ListTile(
                   title: Text(a.name),
@@ -723,6 +733,7 @@ class _TrackerPageState extends State<TrackerPage> {
                       LinearProgressIndicator(value: percent),
                       const SizedBox(height: 4),
                       Text(remainingText),
+                      Text(goal.goalType == GoalType.daily ? 'Daily' : 'Weekly'),
                     ],
                   ),
                   trailing: Text('${(percent * 100).toStringAsFixed(0)}%'),
@@ -761,25 +772,31 @@ class _GoalsPageState extends State<GoalsPage> {
     editableGoals = widget.activities.map((a) {
       final existingGoal = widget.goals.firstWhere(
             (g) => g.activityName == a.name,
-        orElse: () => Goal(activityName: a.name, dailyGoal: Duration.zero),
+        orElse: () => Goal(activityName: a.name, goalDuration: Duration.zero),
       );
-      return Goal(activityName: a.name, dailyGoal: existingGoal.dailyGoal);
+      return Goal(
+        activityName: a.name,
+        goalDuration: existingGoal.goalDuration,
+        goalType: existingGoal.goalType,
+      );
     }).toList();
   }
 
-  void updateGoal(String activityName, String valueText, bool isTimed) {
+  void updateGoal(String activityName, String valueText, bool isTimed, GoalType goalType) {
     final value = int.tryParse(valueText) ?? 0;
     setState(() {
       final index = editableGoals.indexWhere((g) => g.activityName == activityName);
       if (index != -1) {
         editableGoals[index] = Goal(
           activityName: activityName,
-          dailyGoal: isTimed ? Duration(minutes: value) : Duration(minutes: value),
+          goalDuration: isTimed ? Duration(minutes: value) : Duration(minutes: value),
+          goalType: goalType,
         );
       } else {
         editableGoals.add(Goal(
           activityName: activityName,
-          dailyGoal: isTimed ? Duration(minutes: value) : Duration(minutes: value),
+          goalDuration: isTimed ? Duration(minutes: value) : Duration(minutes: value),
+          goalType: goalType,
         ));
       }
       widget.onGoalChanged(editableGoals);
@@ -792,7 +809,7 @@ class _GoalsPageState extends State<GoalsPage> {
     editableGoals.removeWhere((g) => !currentActivityNames.contains(g.activityName));
     for (var activity in widget.activities) {
       if (!editableGoals.any((g) => g.activityName == activity.name)) {
-        editableGoals.add(Goal(activityName: activity.name, dailyGoal: Duration.zero));
+        editableGoals.add(Goal(activityName: activity.name, goalDuration: Duration.zero));
       }
     }
 
@@ -802,21 +819,39 @@ class _GoalsPageState extends State<GoalsPage> {
         final activity = widget.activities[index];
         final goal = editableGoals.firstWhere(
               (g) => g.activityName == activity.name,
-          orElse: () => Goal(activityName: activity.name, dailyGoal: Duration.zero),
+          orElse: () => Goal(activityName: activity.name, goalDuration: Duration.zero),
         );
-        final controller = TextEditingController(text: goal.dailyGoal.inMinutes.toString());
+        final controller = TextEditingController(text: goal.goalDuration.inMinutes.toString());
+        bool isDaily = goal.goalType == GoalType.daily;
+
         return ListTile(
           title: Text(activity.name),
-          trailing: SizedBox(
-            width: 80,
-            child: TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                suffixText: activity is TimedActivity ? 'min' : 'times',
+          subtitle: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    suffixText: activity is TimedActivity ? 'min' : 'times',
+                  ),
+                  onSubmitted: (val) => updateGoal(activity.name, val, activity is TimedActivity, isDaily ? GoalType.daily : GoalType.weekly),
+                ),
               ),
-              onSubmitted: (val) => updateGoal(activity.name, val, activity is TimedActivity),
-            ),
+              const SizedBox(width: 8),
+              DropdownButton<bool>(
+                value: isDaily,
+                items: const [
+                  DropdownMenuItem(value: true, child: Text('Daily')),
+                  DropdownMenuItem(value: false, child: Text('Weekly')),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    updateGoal(activity.name, controller.text, activity is TimedActivity, val ? GoalType.daily : GoalType.weekly);
+                  }
+                },
+              ),
+            ],
           ),
         );
       },
@@ -848,9 +883,9 @@ class _StatsPageState extends State<StatsPage> {
   Duration getGoalForActivity(String name) {
     final goal = widget.goals.firstWhere(
           (g) => g.activityName == name,
-      orElse: () => Goal(activityName: name, dailyGoal: Duration.zero),
+      orElse: () => Goal(activityName: name, goalDuration: Duration.zero),
     );
-    return goal.dailyGoal;
+    return goal.goalDuration;
   }
 
   Map<String, dynamic> filteredActivities() {
@@ -1187,53 +1222,77 @@ class _CalendarPageState extends State<CalendarPage> {
       final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
       final dayKey = DateTime(day.year, day.month, day.day);
 
-      int completedGoals = 0;
-      final totalGoals = widget.goals.where((g) => g.dailyGoal > Duration.zero).length;
+      int completedDailyGoals = 0;
+      int totalDailyGoals = widget.goals.where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.daily).length;
 
-      for (var goal in widget.goals.where((g) => g.dailyGoal > Duration.zero)) {
+      int completedWeeklyGoals = 0;
+      int totalWeeklyGoals = widget.goals.where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.weekly).length;
+
+      final weekStart = day.subtract(Duration(days: day.weekday - 1));
+      final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59, milliseconds: 999));
+
+      for (var goal in widget.goals.where((g) => g.goalDuration > Duration.zero)) {
         final activity = widget.activityLogs
             .where((log) =>
         log.activityName == goal.activityName &&
-            log.date.isAfter(dayStart) &&
-            log.date.isBefore(dayEnd))
+            log.date.isAfter(goal.goalType == GoalType.daily ? dayStart : weekStart) &&
+            log.date.isBefore(goal.goalType == GoalType.daily ? dayEnd : weekEnd))
             .toList();
 
         bool isCompleted = false;
         if (activity.isNotEmpty) {
           if (activity.any((log) => log.isCheckable)) {
             final completions = activity.where((log) => log.isCheckable).length;
-            if (completions >= goal.dailyGoal.inMinutes) {
+            if (completions >= goal.goalDuration.inMinutes) {
               isCompleted = true;
             }
           } else {
             final totalTime = activity.fold<Duration>(
                 Duration.zero, (sum, log) => sum + log.duration);
-            if (totalTime >= goal.dailyGoal) {
+            if (totalTime >= goal.goalDuration) {
               isCompleted = true;
             }
           }
         }
 
         if (isCompleted) {
-          completedGoals++;
+          if (goal.goalType == GoalType.daily) {
+            completedDailyGoals++;
+          } else {
+            completedWeeklyGoals++;
+          }
         }
       }
 
-      Color color;
-      if (totalGoals == 0) {
-        color = Colors.grey;
-      } else if (completedGoals == totalGoals) {
-        color = Colors.green;
-      } else if (completedGoals > 0) {
-        color = Colors.yellow;
+      Color dailyColor;
+      if (totalDailyGoals == 0) {
+        dailyColor = Colors.grey;
+      } else if (completedDailyGoals == totalDailyGoals) {
+        dailyColor = Colors.green;
+      } else if (completedDailyGoals > 0) {
+        dailyColor = Colors.yellow;
       } else {
-        color = Colors.red;
+        dailyColor = Colors.red;
+      }
+
+      Color weeklyColor;
+      if (totalWeeklyGoals == 0) {
+        weeklyColor = Colors.grey;
+      } else if (completedWeeklyGoals == totalWeeklyGoals) {
+        weeklyColor = Colors.green;
+      } else if (completedWeeklyGoals > 0) {
+        weeklyColor = Colors.yellow;
+      } else {
+        weeklyColor = Colors.red;
       }
 
       progress[dayKey] = {
-        'completedGoals': completedGoals,
-        'totalGoals': totalGoals,
-        'color': color,
+        'completedDailyGoals': completedDailyGoals,
+        'totalDailyGoals': totalDailyGoals,
+        'dailyColor': dailyColor,
+        'completedWeeklyGoals': completedWeeklyGoals,
+        'totalWeeklyGoals': totalWeeklyGoals,
+        'weeklyColor': weeklyColor,
         'duration': dayData[dayKey] ?? Duration.zero,
       };
     }
@@ -1281,22 +1340,45 @@ class _CalendarPageState extends State<CalendarPage> {
               final day = sortedDays[index];
               final dayData = progress[day]!;
               final duration = dayData['duration'] as Duration;
-              final completedGoals = dayData['completedGoals'] as int;
-              final totalGoals = dayData['totalGoals'] as int;
-              final color = dayData['color'] as Color;
+              final completedDailyGoals = dayData['completedDailyGoals'] as int;
+              final totalDailyGoals = dayData['totalDailyGoals'] as int;
+              final dailyColor = dayData['dailyColor'] as Color;
+              final completedWeeklyGoals = dayData['completedWeeklyGoals'] as int;
+              final totalWeeklyGoals = dayData['totalWeeklyGoals'] as int;
+              final weeklyColor = dayData['weeklyColor'] as Color;
 
               return ListTile(
-                leading: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color,
-                  ),
+                leading: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: dailyColor,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: weeklyColor,
+                      ),
+                    ),
+                  ],
                 ),
                 title: Text(
                     '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}'),
-                subtitle: Text('Completed goals: $completedGoals/$totalGoals'),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Completed daily goals: $completedDailyGoals/$totalDailyGoals'),
+                    Text('Completed weekly goals: $completedWeeklyGoals/$totalWeeklyGoals'),
+                  ],
+                ),
                 trailing: Text(formatDuration(duration)),
               );
             },
@@ -1306,8 +1388,6 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 }
-
-
 
 class SettingsPage extends StatelessWidget {
   final bool isDarkMode;
