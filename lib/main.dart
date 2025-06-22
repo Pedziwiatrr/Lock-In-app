@@ -350,16 +350,19 @@ class _TrackerPageState extends State<TrackerPage> {
       }
     }
 
-    if (stopwatch.isRunning && selectedActivity is TimedActivity) {
+    if (selectedActivity != null) {
       final activityName = selectedActivity!.name;
       if (!todayActivities.containsKey(activityName)) {
         todayActivities[activityName] = {
-          'isTimed': true,
+          'isTimed': selectedActivity is TimedActivity,
           'totalDuration': Duration.zero,
           'completions': 0,
         };
       }
-      todayActivities[activityName]!['totalDuration'] += stopwatch.elapsed;
+
+      if (selectedActivity is TimedActivity && stopwatch.elapsed > Duration.zero) {
+        todayActivities[activityName]!['totalDuration'] = stopwatch.elapsed;
+      }
     }
 
     return todayActivities;
@@ -381,13 +384,21 @@ class _TrackerPageState extends State<TrackerPage> {
         .length
         : 0;
 
+    final filteredTodayActivities = todayActivities.entries.where((entry) {
+      final activityData = entry.value;
+      final isTimed = activityData['isTimed'] as bool;
+      final totalDuration = activityData['totalDuration'] as Duration;
+      final completions = activityData['completions'] as int;
+      return isTimed ? totalDuration > Duration.zero : completions > 0;
+    }).toList();
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           DropdownButton<Activity>(
             value: selectedActivity,
-            hint: const Text('Choose activity'),
+            hint: Text('Choose activity'),
             items: widget.activities
                 .map((a) => DropdownMenuItem(value: a, child: Text(a.name)))
                 .toList(),
@@ -446,33 +457,29 @@ class _TrackerPageState extends State<TrackerPage> {
             'Today',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          todayActivities.isEmpty
+          filteredTodayActivities.isEmpty
               ? const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Text('No activities logged today.'),
           )
-              : SizedBox(
-            height: 150,
-            child: ListView.builder(
-              itemCount: todayActivities.length,
-              itemBuilder: (context, index) {
-                final activityName = todayActivities.keys.elementAt(index);
-                final activityData = todayActivities[activityName]!;
-                final isTimed = activityData['isTimed'] as bool;
-                final totalDuration = activityData['totalDuration'] as Duration;
-                final completions = activityData['completions'] as int;
+              : Column(
+            children: filteredTodayActivities.map((entry) {
+              final activityName = entry.key;
+              final activityData = entry.value;
+              final isTimed = activityData['isTimed'] as bool;
+              final totalDuration = activityData['totalDuration'] as Duration;
+              final completions = activityData['completions'] as int;
 
-                return ListTile(
-                  title: Text(activityName),
-                  trailing: Text(
-                    isTimed
-                        ? formatDuration(totalDuration)
-                        : '$completions time(s)',
-                    style: const TextStyle(fontSize: 18),
-                  ),
-                );
-              },
-            ),
+              return ListTile(
+                title: Text(activityName),
+                trailing: Text(
+                  isTimed
+                      ? formatDuration(totalDuration)
+                      : '$completions time(s)',
+                  style: const TextStyle(fontSize: 18),
+                ),
+              );
+            }).toList(),
           ),
           const SizedBox(height: 20),
           const Text(
