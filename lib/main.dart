@@ -1126,7 +1126,9 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   }
 }
 
-class CalendarPage extends StatelessWidget {
+enum CalendarPeriod { week, month, threeMonths, allTime }
+
+class CalendarPage extends StatefulWidget {
   final List<ActivityLog> activityLogs;
   final List<Goal> goals;
 
@@ -1136,9 +1138,16 @@ class CalendarPage extends StatelessWidget {
     required this.goals,
   });
 
+  @override
+  State<CalendarPage> createState() => _CalendarPageState();
+}
+
+class _CalendarPageState extends State<CalendarPage> {
+  CalendarPeriod selectedPeriod = CalendarPeriod.allTime;
+
   Map<DateTime, Duration> _aggregateByDay() {
     Map<DateTime, Duration> result = {};
-    for (var log in activityLogs) {
+    for (var log in widget.activityLogs) {
       final day = DateTime(log.date.year, log.date.month, log.date.day);
       result[day] = (result[day] ?? Duration.zero) + log.duration;
     }
@@ -1148,13 +1157,28 @@ class CalendarPage extends StatelessWidget {
   Map<DateTime, Map<String, dynamic>> _calculateGoalProgress() {
     final progress = <DateTime, Map<String, dynamic>>{};
     final dayData = _aggregateByDay();
-
     final today = DateTime.now();
-    final minDate = activityLogs.isNotEmpty
-        ? activityLogs
-        .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
-        .reduce((a, b) => a.isBefore(b) ? a : b)
-        : DateTime(2000);
+
+    DateTime minDate;
+    switch (selectedPeriod) {
+      case CalendarPeriod.week:
+        minDate = today.subtract(const Duration(days: 7));
+        break;
+      case CalendarPeriod.month:
+        minDate = today.subtract(const Duration(days: 30));
+        break;
+      case CalendarPeriod.threeMonths:
+        minDate = today.subtract(const Duration(days: 90));
+        break;
+      case CalendarPeriod.allTime:
+        minDate = widget.activityLogs.isNotEmpty
+            ? widget.activityLogs
+            .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
+            .reduce((a, b) => a.isBefore(b) ? a : b)
+            : DateTime(2000);
+        break;
+    }
+
     final daysDiff = today.difference(minDate).inDays;
 
     for (int i = 0; i <= daysDiff; i++) {
@@ -1164,11 +1188,10 @@ class CalendarPage extends StatelessWidget {
       final dayKey = DateTime(day.year, day.month, day.day);
 
       int completedGoals = 0;
-      final totalGoals =
-          goals.where((g) => g.dailyGoal > Duration.zero).length;
+      final totalGoals = widget.goals.where((g) => g.dailyGoal > Duration.zero).length;
 
-      for (var goal in goals.where((g) => g.dailyGoal > Duration.zero)) {
-        final activity = activityLogs
+      for (var goal in widget.goals.where((g) => g.dailyGoal > Duration.zero)) {
+        final activity = widget.activityLogs
             .where((log) =>
         log.activityName == goal.activityName &&
             log.date.isAfter(dayStart) &&
@@ -1229,35 +1252,62 @@ class CalendarPage extends StatelessWidget {
     final progress = _calculateGoalProgress();
     final sortedDays = progress.keys.toList()..sort((a, b) => b.compareTo(a));
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: sortedDays.length,
-      itemBuilder: (context, index) {
-        final day = sortedDays[index];
-        final dayData = progress[day]!;
-        final duration = dayData['duration'] as Duration;
-        final completedGoals = dayData['completedGoals'] as int;
-        final totalGoals = dayData['totalGoals'] as int;
-        final color = dayData['color'] as Color;
-
-        return ListTile(
-          leading: Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-            ),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: DropdownButton<CalendarPeriod>(
+            value: selectedPeriod,
+            isExpanded: true,
+            items: const [
+              DropdownMenuItem(value: CalendarPeriod.week, child: Text('Last Week')),
+              DropdownMenuItem(value: CalendarPeriod.month, child: Text('Last Month')),
+              DropdownMenuItem(value: CalendarPeriod.threeMonths, child: Text('Last 3 Months')),
+              DropdownMenuItem(value: CalendarPeriod.allTime, child: Text('All Time')),
+            ],
+            onChanged: (val) {
+              if (val == null) return;
+              setState(() {
+                selectedPeriod = val;
+              });
+            },
           ),
-          title: Text(
-              '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}'),
-          subtitle: Text('Completed goals: $completedGoals/$totalGoals'),
-          trailing: Text(formatDuration(duration)),
-        );
-      },
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: sortedDays.length,
+            itemBuilder: (context, index) {
+              final day = sortedDays[index];
+              final dayData = progress[day]!;
+              final duration = dayData['duration'] as Duration;
+              final completedGoals = dayData['completedGoals'] as int;
+              final totalGoals = dayData['totalGoals'] as int;
+              final color = dayData['color'] as Color;
+
+              return ListTile(
+                leading: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color,
+                  ),
+                ),
+                title: Text(
+                    '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}'),
+                subtitle: Text('Completed goals: $completedGoals/$totalGoals'),
+                trailing: Text(formatDuration(duration)),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
+
+
 
 class SettingsPage extends StatelessWidget {
   final bool isDarkMode;
