@@ -303,7 +303,9 @@ class _TrackerPageState extends State<TrackerPage> {
   void _tick() {
     Future.delayed(const Duration(seconds: 1), () {
       if (stopwatch.isRunning) {
-        setState(() {});
+        setState(() {
+          elapsed = stopwatch.elapsed;
+        });
         _tick();
       }
     });
