@@ -27,17 +27,19 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
       theme: ThemeData.light(),
       darkTheme: ThemeData.dark(),
       themeMode: _themeMode,
-      home: HomePage(onThemeChanged: toggleTheme, isDarkMode: _themeMode == ThemeMode.dark),
+      home: HomePage(
+        onThemeChanged: toggleTheme,
+        isDarkMode: _themeMode == ThemeMode.dark,
+      ),
     );
   }
 }
-
 
 class HomePage extends StatefulWidget {
   final void Function(bool) onThemeChanged;
   final bool isDarkMode;
 
-  HomePage({super.key, required this.onThemeChanged, required this.isDarkMode});
+  const HomePage({super.key, required this.onThemeChanged, required this.isDarkMode});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -49,26 +51,115 @@ class Goal {
   Goal({required this.activityName, required this.dailyGoal});
 }
 
-class Activity {
+abstract class Activity {
   String name;
-  Duration totalTime;
-  bool visible;
+  Activity({required this.name});
+}
 
-  Activity({required this.name, this.totalTime = Duration.zero, this.visible = true});
+class TimedActivity extends Activity {
+  Duration totalTime;
+  TimedActivity({required super.name, this.totalTime = Duration.zero});
+}
+
+class CheckableActivity extends Activity {
+  int completionCount;
+  CheckableActivity({required super.name, this.completionCount = 0});
+}
+
+class ActivityLog {
+  String activityName;
+  DateTime date;
+  Duration duration;
+  bool isCheckable;
+
+  ActivityLog({
+    required this.activityName,
+    required this.date,
+    required this.duration,
+    this.isCheckable = false,
+  });
 }
 
 class _HomePageState extends State<HomePage> {
   final List<Activity> activities = [
-    Activity(name: 'Studying'),
-    Activity(name: 'Workout'),
-    Activity(name: 'Reading'),
-    Activity(name: 'Cleaning'),
+    TimedActivity(name: 'Studying'),
+    TimedActivity(name: 'Workout'),
+    TimedActivity(name: 'Reading'),
+    TimedActivity(name: 'Cleaning'),
+    CheckableActivity(name: 'Pójście na trening'),
   ];
   final List<ActivityLog> activityLogs = [];
   List<Goal> goals = [];
 
   void updateActivities() {
     setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    activityLogs.addAll([
+      ActivityLog(
+        activityName: 'Studying',
+        date: DateTime.now().subtract(const Duration(days: 0)),
+        duration: const Duration(hours: 2),
+      ),
+      ActivityLog(
+        activityName: 'Studying',
+        date: DateTime.now().subtract(const Duration(days: 1)),
+        duration: const Duration(hours: 2),
+      ),
+      ActivityLog(
+        activityName: 'Workout',
+        date: DateTime.now().subtract(const Duration(days: 2)),
+        duration: const Duration(minutes: 90),
+      ),
+      ActivityLog(
+        activityName: 'Reading',
+        date: DateTime.now().subtract(const Duration(days: 3)),
+        duration: const Duration(hours: 1, minutes: 30),
+      ),
+      ActivityLog(
+        activityName: 'Cleaning',
+        date: DateTime.now(),
+        duration: const Duration(hours: 1),
+      ),
+      ActivityLog(
+        activityName: 'Workout',
+        date: DateTime.now().subtract(const Duration(days: 32)),
+        duration: const Duration(hours: 1, minutes: 30),
+      ),
+      ActivityLog(
+        activityName: 'Workout',
+        date: DateTime.now().subtract(const Duration(days: 367)),
+        duration: const Duration(hours: 1, minutes: 30),
+      ),
+      ActivityLog(
+        activityName: 'Gym',
+        date: DateTime.now(),
+        duration: Duration.zero,
+        isCheckable: true,
+      ),
+    ]);
+    goals = [
+      Goal(activityName: 'Studying', dailyGoal: const Duration(hours: 1, minutes: 30)),
+      Goal(activityName: 'Workout', dailyGoal: const Duration(hours: 1)),
+      Goal(activityName: 'Gym', dailyGoal: const Duration(minutes: 1)),
+    ];
+    for (var log in activityLogs) {
+      final activity = activities.firstWhere(
+            (a) => a.name == log.activityName,
+        orElse: () {
+          print('Warning: No activity found for ${log.activityName}');
+          return TimedActivity(name: log.activityName);
+        },
+      );
+      if (activity is TimedActivity && !log.isCheckable) {
+        activity.totalTime += log.duration;
+      } else if (activity is CheckableActivity && log.isCheckable) {
+        activity.completionCount += 1;
+      }
+    }
   }
 
   @override
@@ -97,13 +188,23 @@ class _HomePageState extends State<HomePage> {
                 setState(() {
                   activityLogs.add(log);
                   final activity = activities.firstWhere((a) => a.name == log.activityName);
-                  activity.totalTime += log.duration;
+                  if (activity is TimedActivity) {
+                    activity.totalTime += log.duration;
+                  } else if (activity is CheckableActivity) {
+                    activity.completionCount += 1;
+                  }
                 });
               },
             ),
-            GoalsPage(goals: goals, activities: activities, onGoalChanged: (newGoals) {
-              setState(() { goals = newGoals; });
-            },),
+            GoalsPage(
+              goals: goals,
+              activities: activities,
+              onGoalChanged: (newGoals) {
+                setState(() {
+                  goals = newGoals;
+                });
+              },
+            ),
             ActivitiesPage(activities: activities, onUpdate: updateActivities),
             StatsPage(
               activityLogs: activityLogs,
@@ -127,41 +228,7 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
-  @override
-  void initState() {
-    super.initState();
-    activityLogs.addAll([
-      ActivityLog(activityName: 'Studying', date: DateTime.now().subtract(Duration(days: 0)), duration: Duration(hours: 2)),
-      ActivityLog(activityName: 'Studying', date: DateTime.now().subtract(Duration(days: 1)), duration: Duration(hours: 2)),
-      ActivityLog(activityName: 'Workout', date: DateTime.now().subtract(Duration(days: 2)), duration: Duration(minutes: 90)),
-      ActivityLog(activityName: 'Reading', date: DateTime.now().subtract(Duration(days: 3)), duration: Duration(hours: 1, minutes: 30)),
-      ActivityLog(activityName: 'Cleaning', date: DateTime.now(), duration: Duration(hours: 1)),
-      ActivityLog(activityName: 'Workout', date: DateTime.now().subtract(Duration(days: 32)), duration: Duration(hours: 1, minutes: 30)),
-      ActivityLog(activityName: 'Workout', date: DateTime.now().subtract(Duration(days: 367)), duration: Duration(hours: 1, minutes: 30)),
-    ]);
-    goals = [
-      Goal(activityName: 'Studying', dailyGoal: Duration(hours: 1, minutes: 30)),
-      Goal(activityName: 'Workout', dailyGoal: Duration(hours: 1)),
-    ];
-    for (var log in activityLogs) {
-      final activity = activities.firstWhere((a) => a.name == log.activityName);
-      activity.totalTime += log.duration;
-    }
-  }
 }
-
-
-class ActivityLog {
-  String activityName;
-  DateTime date;
-  Duration duration;
-
-  ActivityLog({required this.activityName, required this.date, required this.duration});
-}
-
-
-// ---------------- Tracker Page ----------------
 
 class TrackerPage extends StatefulWidget {
   final void Function(ActivityLog) onAddLog;
@@ -170,17 +237,15 @@ class TrackerPage extends StatefulWidget {
   final List<ActivityLog> activityLogs;
 
   const TrackerPage({
-    Key? key,
+    super.key,
+    required this.onAddLog,
     required this.activities,
     required this.goals,
-    required this.onAddLog,
     required this.activityLogs,
-  }) : super(key: key);
+  });
 
   @override
   State<TrackerPage> createState() => _TrackerPageState();
-
-
 }
 
 class _TrackerPageState extends State<TrackerPage> {
@@ -201,6 +266,7 @@ class _TrackerPageState extends State<TrackerPage> {
       activityName: selectedActivity!.name,
       date: DateTime.now(),
       duration: stopwatch.elapsed,
+      isCheckable: false,
     ));
     setState(() {
       elapsed = Duration.zero;
@@ -208,6 +274,18 @@ class _TrackerPageState extends State<TrackerPage> {
     });
   }
 
+  void checkActivity() {
+    if (selectedActivity == null) return;
+    widget.onAddLog(ActivityLog(
+      activityName: selectedActivity!.name,
+      date: DateTime.now(),
+      duration: Duration.zero,
+      isCheckable: true,
+    ));
+    setState(() {
+      selectedActivity = null;
+    });
+  }
 
   void resetTimer() {
     stopwatch.reset();
@@ -257,28 +335,40 @@ class _TrackerPageState extends State<TrackerPage> {
             },
           ),
           const SizedBox(height: 20),
-          Text(
-            formatDuration(elapsed),
-            style: const TextStyle(fontSize: 80),
-          ),
+          if (selectedActivity is TimedActivity)
+            Text(
+              formatDuration(elapsed),
+              style: const TextStyle(fontSize: 80),
+            )
+          else if (selectedActivity is CheckableActivity)
+            const Text(
+              'Mark as completed',
+              style: TextStyle(fontSize: 24),
+            ),
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ElevatedButton(
-                onPressed: (selectedActivity == null || stopwatch.isRunning) ? null : startTimer,
-                child: const Text('Start'),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: stopwatch.isRunning ? stopTimer : null,
-                child: const Text('Stop'),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton(
-                onPressed: stopwatch.isRunning ? null : resetTimer,
-                child: const Text('Reset'),
-              ),
+              if (selectedActivity is TimedActivity) ...[
+                ElevatedButton(
+                  onPressed: (selectedActivity == null || stopwatch.isRunning) ? null : startTimer,
+                  child: const Text('Start'),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: stopwatch.isRunning ? stopTimer : null,
+                  child: const Text('Stop'),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: stopwatch.isRunning ? null : resetTimer,
+                  child: const Text('Reset'),
+                ),
+              ] else if (selectedActivity is CheckableActivity)
+                ElevatedButton(
+                  onPressed: selectedActivity == null ? null : checkActivity,
+                  child: const Text('Check'),
+                ),
             ],
           ),
           const SizedBox(height: 30),
@@ -313,22 +403,34 @@ class _TrackerPageState extends State<TrackerPage> {
                 final today = DateTime.now();
                 final todayStart = DateTime(today.year, today.month, today.day);
                 final todayTime = widget.activityLogs
-                    .where((log) =>
-                log.activityName == a.name &&
-                    log.date.isAfter(todayStart))
+                    .where((log) => log.activityName == a.name && log.date.isAfter(todayStart))
                     .fold(Duration.zero, (sum, log) => sum + log.duration) +
-                    (stopwatch.isRunning && selectedActivity?.name == a.name
+                    (stopwatch.isRunning && selectedActivity?.name == a.name && a is TimedActivity
                         ? stopwatch.elapsed
                         : Duration.zero);
 
-                final percent = goal.dailyGoal.inSeconds == 0
-                    ? 0.0
-                    : (todayTime.inSeconds / goal.dailyGoal.inSeconds).clamp(0.0, 1.0);
+                final todayCompletions = widget.activityLogs
+                    .where((log) =>
+                log.activityName == a.name &&
+                    log.date.isAfter(todayStart) &&
+                    log.isCheckable)
+                    .length;
 
-                final remaining = goal.dailyGoal - todayTime;
-                final remainingText = remaining.isNegative
+                final percent = a is TimedActivity
+                    ? goal.dailyGoal.inSeconds == 0
+                    ? 0.0
+                    : (todayTime.inSeconds / goal.dailyGoal.inSeconds).clamp(0.0, 1.0)
+                    : goal.dailyGoal.inMinutes == 0
+                    ? 0.0
+                    : (todayCompletions / goal.dailyGoal.inMinutes).clamp(0.0, 1.0);
+
+                final remainingText = a is TimedActivity
+                    ? (goal.dailyGoal - todayTime).isNegative
                     ? 'Goal completed!'
-                    : 'Remaining: ${formatDuration(remaining)}';
+                    : 'Remaining: ${formatDuration(goal.dailyGoal - todayTime)}'
+                    : todayCompletions >= goal.dailyGoal.inMinutes
+                    ? 'Goal completed!'
+                    : 'Remaining: ${goal.dailyGoal.inMinutes - todayCompletions} completion(s)';
 
                 return ListTile(
                   title: Text(a.name),
@@ -336,7 +438,7 @@ class _TrackerPageState extends State<TrackerPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       LinearProgressIndicator(value: percent),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(remainingText),
                     ],
                   ),
@@ -351,18 +453,21 @@ class _TrackerPageState extends State<TrackerPage> {
   }
 }
 
-// ---------------- Goal Page ----------------
-
-  class GoalsPage extends StatefulWidget {
+class GoalsPage extends StatefulWidget {
   final List<Goal> goals;
   final List<Activity> activities;
   final void Function(List<Goal>) onGoalChanged;
 
-  const GoalsPage({super.key, required this.goals, required this.activities, required this.onGoalChanged});
+  const GoalsPage({
+    super.key,
+    required this.goals,
+    required this.activities,
+    required this.onGoalChanged,
+  });
 
   @override
   State<GoalsPage> createState() => _GoalsPageState();
-  }
+}
 
 class _GoalsPageState extends State<GoalsPage> {
   late List<Goal> editableGoals;
@@ -379,14 +484,20 @@ class _GoalsPageState extends State<GoalsPage> {
     }).toList();
   }
 
-  void updateGoal(String activityName, String minutesText) {
-    final minutes = int.tryParse(minutesText) ?? 0;
+  void updateGoal(String activityName, String valueText, bool isTimed) {
+    final value = int.tryParse(valueText) ?? 0;
     setState(() {
       final index = editableGoals.indexWhere((g) => g.activityName == activityName);
       if (index != -1) {
-        editableGoals[index] = Goal(activityName: activityName, dailyGoal: Duration(minutes: minutes));
+        editableGoals[index] = Goal(
+          activityName: activityName,
+          dailyGoal: isTimed ? Duration(minutes: value) : Duration(minutes: value),
+        );
       } else {
-        editableGoals.add(Goal(activityName: activityName, dailyGoal: Duration(minutes: minutes)));
+        editableGoals.add(Goal(
+          activityName: activityName,
+          dailyGoal: isTimed ? Duration(minutes: value) : Duration(minutes: value),
+        ));
       }
       widget.onGoalChanged(editableGoals);
     });
@@ -414,12 +525,14 @@ class _GoalsPageState extends State<GoalsPage> {
         return ListTile(
           title: Text(activity.name),
           trailing: SizedBox(
-            width: 60,
+            width: 80,
             child: TextField(
               controller: controller,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(suffixText: 'min'),
-              onSubmitted: (val) => updateGoal(activity.name, val),
+              decoration: InputDecoration(
+                suffixText: activity is TimedActivity ? 'min' : 'times',
+              ),
+              onSubmitted: (val) => updateGoal(activity.name, val, activity is TimedActivity),
             ),
           ),
         );
@@ -428,10 +541,6 @@ class _GoalsPageState extends State<GoalsPage> {
   }
 }
 
-// ---------------- Stats Page ----------------
-
-
-
 enum StatsPeriod { day, week, month, total }
 
 class StatsPage extends StatefulWidget {
@@ -439,7 +548,12 @@ class StatsPage extends StatefulWidget {
   final List<Activity> activities;
   final List<Goal> goals;
 
-  const StatsPage({super.key, required this.activityLogs, required this.activities, required this.goals});
+  const StatsPage({
+    super.key,
+    required this.activityLogs,
+    required this.activities,
+    required this.goals,
+  });
 
   @override
   State<StatsPage> createState() => _StatsPageState();
@@ -449,11 +563,14 @@ class _StatsPageState extends State<StatsPage> {
   StatsPeriod selectedPeriod = StatsPeriod.total;
 
   Duration getGoalForActivity(String name) {
-    final goal = widget.goals.firstWhere((g) => g.activityName == name, orElse: () => Goal(activityName: name, dailyGoal: Duration.zero));
+    final goal = widget.goals.firstWhere(
+          (g) => g.activityName == name,
+      orElse: () => Goal(activityName: name, dailyGoal: Duration.zero),
+    );
     return goal.dailyGoal;
   }
 
-  List<Activity> filteredActivities() {
+  Map<String, dynamic> filteredActivities() {
     DateTime now = DateTime.now();
     DateTime from;
 
@@ -472,21 +589,25 @@ class _StatsPageState extends State<StatsPage> {
         break;
     }
 
-    Map<String, Duration> totals = {};
+    Map<String, Duration> timeTotals = {};
+    Map<String, int> completionTotals = {};
 
     for (var activity in widget.activities) {
-      totals[activity.name] = Duration.zero;
+      timeTotals[activity.name] = Duration.zero;
+      completionTotals[activity.name] = 0;
     }
 
     for (var log in widget.activityLogs) {
       if (log.date.isAfter(from)) {
-        totals[log.activityName] = (totals[log.activityName] ?? Duration.zero) + log.duration;
+        if (log.isCheckable) {
+          completionTotals[log.activityName] = (completionTotals[log.activityName] ?? 0) + 1;
+        } else {
+          timeTotals[log.activityName] = (timeTotals[log.activityName] ?? Duration.zero) + log.duration;
+        }
       }
     }
 
-    return widget.activities.map((a) {
-      return Activity(name: a.name, totalTime: totals[a.name] ?? Duration.zero);
-    }).toList();
+    return {'timeTotals': timeTotals, 'completionTotals': completionTotals};
   }
 
   String formatDuration(Duration d) {
@@ -499,9 +620,10 @@ class _StatsPageState extends State<StatsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = filteredActivities();
-    final totalTime = filtered.fold<Duration>(
-        Duration.zero, (sum, a) => sum + a.totalTime);
+    final stats = filteredActivities();
+    final timeTotals = stats['timeTotals'] as Map<String, Duration>;
+    final completionTotals = stats['completionTotals'] as Map<String, int>;
+    final totalTime = timeTotals.values.fold<Duration>(Duration.zero, (sum, t) => sum + t);
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -524,21 +646,27 @@ class _StatsPageState extends State<StatsPage> {
           ),
           const SizedBox(height: 20),
           Text(
-            'Total activity time: ${formatDuration(totalTime)}',
+            'Total timed activity: ${formatDuration(totalTime)}',
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
           Expanded(
             child: ListView(
-              children: filtered.map((a) {
+              children: widget.activities.map((a) {
                 final goalDuration = getGoalForActivity(a.name);
-                final percent = goalDuration.inSeconds == 0
+                final percent = a is TimedActivity
+                    ? goalDuration.inSeconds == 0
                     ? 0.0
-                    : (a.totalTime.inSeconds / goalDuration.inSeconds).clamp(0.0, 1.0);
+                    : ((timeTotals[a.name]?.inSeconds ?? 0) / goalDuration.inSeconds).clamp(0.0, 1.0)
+                    : goalDuration.inMinutes == 0
+                    ? 0.0
+                    : ((completionTotals[a.name] ?? 0) / goalDuration.inMinutes).clamp(0.0, 1.0);
                 return ListTile(
                   title: Text(a.name),
                   subtitle: LinearProgressIndicator(value: percent),
-                  trailing: Text(formatDuration(a.totalTime)),
+                  trailing: Text(a is TimedActivity
+                      ? formatDuration(timeTotals[a.name] ?? Duration.zero)
+                      : '${completionTotals[a.name] ?? 0} times'),
                 );
               }).toList(),
             ),
@@ -549,57 +677,93 @@ class _StatsPageState extends State<StatsPage> {
   }
 }
 
-
-// ---------------- Activities Page ----------------
-
 class ActivitiesPage extends StatefulWidget {
   final List<Activity> activities;
   final VoidCallback onUpdate;
 
-  const ActivitiesPage({super.key, required this.activities, required this.onUpdate});
+  const ActivitiesPage({
+    super.key,
+    required this.activities,
+    required this.onUpdate,
+  });
 
   @override
   State<ActivitiesPage> createState() => _ActivitiesPageState();
 }
 
-
 class _ActivitiesPageState extends State<ActivitiesPage> {
+  bool _isTimedActivity = true;
+
   void addActivity() {
     final controller = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add Activity'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Activity name'),
-        ),
-        actions: [
-          TextButton(
+      builder: (_) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add Activity'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: 'Activity name'),
+              ),
+              Row(
+                children: [
+                  Radio<bool>(
+                    value: true,
+                    groupValue: _isTimedActivity,
+                    onChanged: (val) {
+                      setDialogState(() {
+                        _isTimedActivity = val!;
+                      });
+                    },
+                  ),
+                  const Text('Timed'),
+                  Radio<bool>(
+                    value: false,
+                    groupValue: _isTimedActivity,
+                    onChanged: (val) {
+                      setDialogState(() {
+                        _isTimedActivity = val!;
+                      });
+                    },
+                  ),
+                  const Text('Checkable'),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
-          TextButton(
+              child: const Text('Cancel'),
+            ),
+            TextButton(
               onPressed: () {
                 final name = controller.text.trim();
-                if (name.isNotEmpty &&
-                    !widget.activities.any((a) => a.name == name)) {
+                if (name.isNotEmpty && !widget.activities.any((a) => a.name == name)) {
                   setState(() {
-                    widget.activities.add(Activity(name: name));
+                    widget.activities.add(_isTimedActivity
+                        ? TimedActivity(name: name)
+                        : CheckableActivity(name: name));
                   });
+                  widget.onUpdate();
                 }
                 Navigator.pop(context);
               },
-              child: const Text('Add')),
-        ],
+              child: const Text('Add'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   void renameActivity(int index) {
-    final controller =
-    TextEditingController(text: widget.activities[index].name);
+    final controller = TextEditingController(text: widget.activities[index].name);
 
     showDialog(
       context: context,
@@ -612,19 +776,22 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
-              onPressed: () {
-                final name = controller.text.trim();
-                if (name.isNotEmpty) {
-                  setState(() {
-                    widget.activities[index].name = name;
-                  });
-                }
-                Navigator.pop(context);
-              },
-              child: const Text('Save')),
+            onPressed: () {
+              final name = controller.text.trim();
+              if (name.isNotEmpty) {
+                setState(() {
+                  widget.activities[index].name = name;
+                });
+                widget.onUpdate();
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
@@ -634,6 +801,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     setState(() {
       widget.activities.removeAt(index);
     });
+    widget.onUpdate();
   }
 
   @override
@@ -652,19 +820,10 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
               final a = widget.activities[index];
               return ListTile(
                 title: Text(a.name),
+                subtitle: Text(a is TimedActivity ? 'Timed' : 'Checkable'),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      icon: Icon(a.visible ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () {
-                        setState(() {
-                          a.visible = !a.visible;
-                        });
-                        widget.onUpdate();
-                      },
-                    ),
-
                     IconButton(
                       icon: const Icon(Icons.edit),
                       onPressed: () => renameActivity(index),
@@ -683,8 +842,6 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     );
   }
 }
-
-// ---------------- Calendar Page ----------------
 
 class CalendarPage extends StatelessWidget {
   final List<ActivityLog> activityLogs;
@@ -718,7 +875,8 @@ class CalendarPage extends StatelessWidget {
         final day = sortedDays[index];
         final duration = data[day]!;
         return ListTile(
-          title: Text('${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}'),
+          title: Text(
+              '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}'),
           trailing: Text(formatDuration(duration)),
         );
       },
@@ -726,13 +884,15 @@ class CalendarPage extends StatelessWidget {
   }
 }
 
-// ---------------- Settings Page ----------------
-
 class SettingsPage extends StatelessWidget {
   final bool isDarkMode;
   final void Function(bool) onThemeChanged;
 
-  const SettingsPage({super.key, required this.isDarkMode, required this.onThemeChanged});
+  const SettingsPage({
+    super.key,
+    required this.isDarkMode,
+    required this.onThemeChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -748,4 +908,3 @@ class SettingsPage extends StatelessWidget {
     );
   }
 }
-
