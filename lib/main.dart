@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 void main() {
   runApp(const LockInTrackerApp());
@@ -90,9 +91,87 @@ class _HomePageState extends State<HomePage> {
   ];
   final List<ActivityLog> activityLogs = [];
   List<Goal> goals = [];
+  Activity? selectedActivity;
+  Stopwatch stopwatch = Stopwatch();
+  Duration elapsed = Duration.zero;
+  Timer? _timer;
+
+  void startTimer() {
+    if (selectedActivity == null || selectedActivity is! TimedActivity) return;
+    stopwatch.start();
+    _tick();
+  }
+
+  void stopTimer() {
+    if (!stopwatch.isRunning) return;
+    setState(() {
+      stopwatch.stop();
+      elapsed = stopwatch.elapsed;
+    });
+    _timer?.cancel();
+  }
+
+  void resetTimer() {
+    if (selectedActivity == null || stopwatch.elapsed == Duration.zero) return;
+    if (stopwatch.isRunning) {
+      stopwatch.stop();
+      _timer?.cancel();
+    }
+    activityLogs.add(ActivityLog(
+      activityName: selectedActivity!.name,
+      date: DateTime.now(),
+      duration: stopwatch.elapsed,
+      isCheckable: false,
+    ));
+    final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+    if (activity is TimedActivity) {
+      activity.totalTime += stopwatch.elapsed;
+    }
+    setState(() {
+      elapsed = Duration.zero;
+      stopwatch.reset();
+    });
+  }
+
+  void checkActivity() {
+    if (selectedActivity == null) return;
+    activityLogs.add(ActivityLog(
+      activityName: selectedActivity!.name,
+      date: DateTime.now(),
+      duration: Duration.zero,
+      isCheckable: true,
+    ));
+    final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+    if (activity is CheckableActivity) {
+      activity.completionCount += 1;
+    }
+    setState(() {});
+  }
+
+  void _tick() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (stopwatch.isRunning) {
+        setState(() {
+          elapsed = stopwatch.elapsed;
+        });
+      } else {
+        timer.cancel();
+      }
+    });
+  }
 
   void updateActivities() {
     setState(() {});
+  }
+
+  void selectActivity(Activity? activity) {
+    if (stopwatch.isRunning) return;
+    setState(() {
+      selectedActivity = activity;
+      elapsed = Duration.zero;
+      stopwatch.reset();
+    });
   }
 
   @override
@@ -169,6 +248,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  void dispose() {
+    _timer?.cancel();
+    stopwatch.stop();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 5,
@@ -190,17 +276,14 @@ class _HomePageState extends State<HomePage> {
               activities: activities,
               goals: goals,
               activityLogs: activityLogs,
-              onAddLog: (log) {
-                setState(() {
-                  activityLogs.add(log);
-                  final activity = activities.firstWhere((a) => a.name == log.activityName);
-                  if (activity is TimedActivity) {
-                    activity.totalTime += log.duration;
-                  } else if (activity is CheckableActivity) {
-                    activity.completionCount += 1;
-                  }
-                });
-              },
+              selectedActivity: selectedActivity,
+              elapsed: elapsed,
+              isRunning: stopwatch.isRunning,
+              onSelectActivity: selectActivity,
+              onStartTimer: startTimer,
+              onStopTimer: stopTimer,
+              onResetTimer: resetTimer,
+              onCheckActivity: checkActivity,
             ),
             GoalsPage(
               goals: goals,
@@ -237,17 +320,31 @@ class _HomePageState extends State<HomePage> {
 }
 
 class TrackerPage extends StatefulWidget {
-  final void Function(ActivityLog) onAddLog;
   final List<Activity> activities;
   final List<Goal> goals;
   final List<ActivityLog> activityLogs;
+  final Activity? selectedActivity;
+  final Duration elapsed;
+  final bool isRunning;
+  final void Function(Activity?) onSelectActivity;
+  final VoidCallback onStartTimer;
+  final VoidCallback onStopTimer;
+  final VoidCallback onResetTimer;
+  final VoidCallback onCheckActivity;
 
   const TrackerPage({
     super.key,
-    required this.onAddLog,
     required this.activities,
     required this.goals,
     required this.activityLogs,
+    required this.selectedActivity,
+    required this.elapsed,
+    required this.isRunning,
+    required this.onSelectActivity,
+    required this.onStartTimer,
+    required this.onStopTimer,
+    required this.onResetTimer,
+    required this.onCheckActivity,
   });
 
   @override
@@ -255,63 +352,6 @@ class TrackerPage extends StatefulWidget {
 }
 
 class _TrackerPageState extends State<TrackerPage> {
-  Activity? selectedActivity;
-  Stopwatch stopwatch = Stopwatch();
-  Duration elapsed = Duration.zero;
-
-  void startTimer() {
-    if (selectedActivity == null || selectedActivity is! TimedActivity) return;
-    stopwatch.start();
-    _tick();
-  }
-
-  void stopTimer() {
-    if (!stopwatch.isRunning) return;
-    setState(() {
-      stopwatch.stop();
-      elapsed = stopwatch.elapsed;
-    });
-  }
-
-  void resetTimer() {
-    if (selectedActivity == null || stopwatch.elapsed == Duration.zero) return;
-    if (stopwatch.isRunning) {
-      stopwatch.stop();
-    }
-    widget.onAddLog(ActivityLog(
-      activityName: selectedActivity!.name,
-      date: DateTime.now(),
-      duration: stopwatch.elapsed,
-      isCheckable: false,
-    ));
-    setState(() {
-      elapsed = Duration.zero;
-      stopwatch.reset();
-    });
-  }
-
-  void checkActivity() {
-    if (selectedActivity == null) return;
-    widget.onAddLog(ActivityLog(
-      activityName: selectedActivity!.name,
-      date: DateTime.now(),
-      duration: Duration.zero,
-      isCheckable: true,
-    ));
-    setState(() {});
-  }
-
-  void _tick() {
-    Future.delayed(const Duration(seconds: 1), () {
-      if (stopwatch.isRunning) {
-        setState(() {
-          elapsed = stopwatch.elapsed;
-        });
-        _tick();
-      }
-    });
-  }
-
   String formatDuration(Duration d) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final h = twoDigits(d.inHours);
@@ -350,18 +390,18 @@ class _TrackerPageState extends State<TrackerPage> {
       }
     }
 
-    if (selectedActivity != null) {
-      final activityName = selectedActivity!.name;
+    if (widget.selectedActivity != null) {
+      final activityName = widget.selectedActivity!.name;
       if (!todayActivities.containsKey(activityName)) {
         todayActivities[activityName] = {
-          'isTimed': selectedActivity is TimedActivity,
+          'isTimed': widget.selectedActivity is TimedActivity,
           'totalDuration': Duration.zero,
           'completions': 0,
         };
       }
 
-      if (selectedActivity is TimedActivity && stopwatch.elapsed > Duration.zero) {
-        todayActivities[activityName]!['totalDuration'] = stopwatch.elapsed;
+      if (widget.selectedActivity is TimedActivity && widget.elapsed > Duration.zero) {
+        todayActivities[activityName]!['totalDuration'] = widget.elapsed;
       }
     }
 
@@ -374,10 +414,10 @@ class _TrackerPageState extends State<TrackerPage> {
     final today = DateTime.now();
     final todayStart = DateTime(today.year, today.month, today.day);
     final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
-    final todayCompletions = selectedActivity != null && selectedActivity is CheckableActivity
+    final todayCompletions = widget.selectedActivity != null && widget.selectedActivity is CheckableActivity
         ? widget.activityLogs
         .where((log) =>
-    log.activityName == selectedActivity!.name &&
+    log.activityName == widget.selectedActivity!.name &&
         log.date.isAfter(todayStart) &&
         log.date.isBefore(todayEnd) &&
         log.isCheckable)
@@ -397,27 +437,20 @@ class _TrackerPageState extends State<TrackerPage> {
       child: Column(
         children: [
           DropdownButton<Activity>(
-            value: selectedActivity,
-            hint: Text('Choose activity'),
+            value: widget.selectedActivity,
+            hint: const Text('Choose activity'),
             items: widget.activities
                 .map((a) => DropdownMenuItem(value: a, child: Text(a.name)))
                 .toList(),
-            onChanged: (val) {
-              if (stopwatch.isRunning) return;
-              setState(() {
-                selectedActivity = val;
-                elapsed = Duration.zero;
-                stopwatch.reset();
-              });
-            },
+            onChanged: widget.onSelectActivity,
           ),
           const SizedBox(height: 20),
-          if (selectedActivity is TimedActivity)
+          if (widget.selectedActivity is TimedActivity)
             Text(
-              formatDuration(elapsed),
+              formatDuration(widget.elapsed),
               style: const TextStyle(fontSize: 80),
             )
-          else if (selectedActivity is CheckableActivity)
+          else if (widget.selectedActivity is CheckableActivity)
             Text(
               '$todayCompletions time(s)',
               style: const TextStyle(fontSize: 80),
@@ -426,28 +459,28 @@ class _TrackerPageState extends State<TrackerPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (selectedActivity is TimedActivity) ...[
+              if (widget.selectedActivity is TimedActivity) ...[
                 ElevatedButton(
-                  onPressed: (selectedActivity == null || stopwatch.isRunning)
+                  onPressed: (widget.selectedActivity == null || widget.isRunning)
                       ? null
-                      : startTimer,
+                      : widget.onStartTimer,
                   child: const Text('Start'),
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton(
-                  onPressed: stopwatch.isRunning ? stopTimer : null,
+                  onPressed: widget.isRunning ? widget.onStopTimer : null,
                   child: const Text('Stop'),
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton(
-                  onPressed: (selectedActivity == null || stopwatch.elapsed == Duration.zero)
+                  onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero)
                       ? null
-                      : resetTimer,
+                      : widget.onResetTimer,
                   child: const Text('Reset'),
                 ),
-              ] else if (selectedActivity is CheckableActivity)
+              ] else if (widget.selectedActivity is CheckableActivity)
                 ElevatedButton(
-                  onPressed: selectedActivity == null ? null : checkActivity,
+                  onPressed: widget.selectedActivity == null ? null : widget.onCheckActivity,
                   child: const Text('Check'),
                 ),
             ],
@@ -519,8 +552,8 @@ class _TrackerPageState extends State<TrackerPage> {
                     log.date.isAfter(todayStart) &&
                     log.date.isBefore(todayEnd))
                     .fold(Duration.zero, (sum, log) => sum + log.duration) +
-                    (stopwatch.isRunning && selectedActivity?.name == a.name && a is TimedActivity
-                        ? stopwatch.elapsed
+                    (widget.isRunning && widget.selectedActivity?.name == a.name && a is TimedActivity
+                        ? widget.elapsed
                         : Duration.zero);
 
                 final todayCompletions = widget.activityLogs
