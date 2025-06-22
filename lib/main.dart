@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'dart:async';
 
 void main() {
@@ -15,10 +17,30 @@ class LockInTrackerApp extends StatefulWidget {
 class _LockInTrackerAppState extends State<LockInTrackerApp> {
   ThemeMode _themeMode = ThemeMode.dark;
 
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isDark = prefs.getBool('isDarkMode') ?? true;
+    setState(() {
+      _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+    });
+  }
+
+  Future<void> _saveTheme(bool isDark) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDarkMode', isDark);
+  }
+
   void toggleTheme(bool isDark) {
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     });
+    _saveTheme(isDark);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTheme();
   }
 
   @override
@@ -36,35 +58,61 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
   }
 }
 
-class HomePage extends StatefulWidget {
-  final void Function(bool) onThemeChanged;
-  final bool isDarkMode;
-
-  const HomePage({super.key, required this.onThemeChanged, required this.isDarkMode});
-
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
 class Goal {
   String activityName;
   Duration dailyGoal;
   Goal({required this.activityName, required this.dailyGoal});
+
+  Map<String, dynamic> toJson() => {
+    'activityName': activityName,
+    'dailyGoal': dailyGoal.inSeconds,
+  };
+
+  factory Goal.fromJson(Map<String, dynamic> json) => Goal(
+    activityName: json['activityName'],
+    dailyGoal: Duration(seconds: json['dailyGoal']),
+  );
 }
 
 abstract class Activity {
   String name;
   Activity({required this.name});
+
+  Map<String, dynamic> toJson();
 }
 
 class TimedActivity extends Activity {
   Duration totalTime;
   TimedActivity({required super.name, this.totalTime = Duration.zero});
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'TimedActivity',
+    'name': name,
+    'totalTime': totalTime.inSeconds,
+  };
+
+  factory TimedActivity.fromJson(Map<String, dynamic> json) => TimedActivity(
+    name: json['name'],
+    totalTime: Duration(seconds: json['totalTime']),
+  );
 }
 
 class CheckableActivity extends Activity {
   int completionCount;
   CheckableActivity({required super.name, this.completionCount = 0});
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'CheckableActivity',
+    'name': name,
+    'completionCount': completionCount,
+  };
+
+  factory CheckableActivity.fromJson(Map<String, dynamic> json) => CheckableActivity(
+    name: json['name'],
+    completionCount: json['completionCount'],
+  );
 }
 
 class ActivityLog {
@@ -79,22 +127,157 @@ class ActivityLog {
     required this.duration,
     this.isCheckable = false,
   });
+
+  Map<String, dynamic> toJson() => {
+    'activityName': activityName,
+    'date': date.toIso8601String(),
+    'duration': duration.inSeconds,
+    'isCheckable': isCheckable,
+  };
+
+  factory ActivityLog.fromJson(Map<String, dynamic> json) => ActivityLog(
+    activityName: json['activityName'],
+    date: DateTime.parse(json['date']),
+    duration: Duration(seconds: json['duration']),
+    isCheckable: json['isCheckable'],
+  );
+}
+
+class HomePage extends StatefulWidget {
+  final void Function(bool) onThemeChanged;
+  final bool isDarkMode;
+
+  const HomePage({super.key, required this.onThemeChanged, required this.isDarkMode});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  final List<Activity> activities = [
-    TimedActivity(name: 'Studying'),
-    TimedActivity(name: 'Workout'),
-    TimedActivity(name: 'Reading'),
-    TimedActivity(name: 'Cleaning'),
-    CheckableActivity(name: 'Went Gym'),
-  ];
-  final List<ActivityLog> activityLogs = [];
+  List<Activity> activities = [];
+  List<ActivityLog> activityLogs = [];
   List<Goal> goals = [];
   Activity? selectedActivity;
   Stopwatch stopwatch = Stopwatch();
   Duration elapsed = Duration.zero;
   Timer? _timer;
+
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final activitiesJson = prefs.getString('activities');
+    final logsJson = prefs.getString('activityLogs');
+    final goalsJson = prefs.getString('goals');
+
+    if (activitiesJson != null) {
+      final List<dynamic> activitiesList = jsonDecode(activitiesJson);
+      activities = activitiesList.map((json) {
+        if (json['type'] == 'TimedActivity') {
+          return TimedActivity.fromJson(json);
+        } else {
+          return CheckableActivity.fromJson(json);
+        }
+      }).toList();
+    } else {
+      activities = [
+        TimedActivity(name: 'Studying'),
+        TimedActivity(name: 'Workout'),
+        TimedActivity(name: 'Reading'),
+        TimedActivity(name: 'Cleaning'),
+        CheckableActivity(name: 'Went Gym'),
+      ];
+    }
+
+    if (logsJson != null) {
+      final List<dynamic> logsList = jsonDecode(logsJson);
+      activityLogs = logsList.map((json) => ActivityLog.fromJson(json)).toList();
+    } else {
+      activityLogs = [
+        ActivityLog(
+          activityName: 'Studying',
+          date: DateTime.now(),
+          duration: const Duration(hours: 2),
+        ),
+        ActivityLog(
+          activityName: 'Studying',
+          date: DateTime.now().subtract(const Duration(days: 1)),
+          duration: const Duration(hours: 2),
+        ),
+        ActivityLog(
+          activityName: 'Workout',
+          date: DateTime.now().subtract(const Duration(days: 2)),
+          duration: const Duration(minutes: 90),
+        ),
+        ActivityLog(
+          activityName: 'Reading',
+          date: DateTime.now().subtract(const Duration(days: 3)),
+          duration: const Duration(hours: 1, minutes: 30),
+        ),
+        ActivityLog(
+          activityName: 'Cleaning',
+          date: DateTime.now(),
+          duration: const Duration(hours: 1),
+        ),
+        ActivityLog(
+          activityName: 'Workout',
+          date: DateTime.now().subtract(const Duration(days: 32)),
+          duration: const Duration(hours: 1, minutes: 30),
+        ),
+        ActivityLog(
+          activityName: 'Workout',
+          date: DateTime.now().subtract(const Duration(days: 367)),
+          duration: const Duration(hours: 1, minutes: 30),
+        ),
+        ActivityLog(
+          activityName: 'Went Gym',
+          date: DateTime.now(),
+          duration: Duration.zero,
+          isCheckable: true,
+        ),
+        ActivityLog(
+          activityName: 'Went Gym',
+          date: DateTime.now(),
+          duration: Duration.zero,
+          isCheckable: true,
+        ),
+      ];
+    }
+
+    if (goalsJson != null) {
+      final List<dynamic> goalsList = jsonDecode(goalsJson);
+      goals = goalsList.map((json) => Goal.fromJson(json)).toList();
+    } else {
+      goals = [
+        Goal(activityName: 'Studying', dailyGoal: const Duration(hours: 1, minutes: 30)),
+        Goal(activityName: 'Workout', dailyGoal: const Duration(hours: 1)),
+        Goal(activityName: 'Went Gym', dailyGoal: const Duration(minutes: 1)),
+      ];
+    }
+
+    for (var log in activityLogs) {
+      final activity = activities.firstWhere(
+            (a) => a.name == log.activityName,
+        orElse: () {
+          final newActivity = TimedActivity(name: log.activityName);
+          activities.add(newActivity);
+          return newActivity;
+        },
+      );
+      if (activity is TimedActivity && !log.isCheckable) {
+        activity.totalTime += log.duration;
+      } else if (activity is CheckableActivity && log.isCheckable) {
+        activity.completionCount += 1;
+      }
+    }
+
+    setState(() {});
+  }
+
+  Future<void> _saveData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
+    await prefs.setString('activityLogs', jsonEncode(activityLogs.map((log) => log.toJson()).toList()));
+    await prefs.setString('goals', jsonEncode(goals.map((g) => g.toJson()).toList()));
+  }
 
   void startTimer() {
     if (selectedActivity == null || selectedActivity is! TimedActivity) return;
@@ -131,6 +314,7 @@ class _HomePageState extends State<HomePage> {
       elapsed = Duration.zero;
       stopwatch.reset();
     });
+    _saveData();
   }
 
   void checkActivity() {
@@ -146,6 +330,7 @@ class _HomePageState extends State<HomePage> {
       activity.completionCount += 1;
     }
     setState(() {});
+    _saveData();
   }
 
   void _tick() {
@@ -163,6 +348,7 @@ class _HomePageState extends State<HomePage> {
 
   void updateActivities() {
     setState(() {});
+    _saveData();
   }
 
   void selectActivity(Activity? activity) {
@@ -177,74 +363,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    activityLogs.addAll([
-      ActivityLog(
-        activityName: 'Studying',
-        date: DateTime.now(),
-        duration: const Duration(hours: 2),
-      ),
-      ActivityLog(
-        activityName: 'Studying',
-        date: DateTime.now().subtract(const Duration(days: 1)),
-        duration: const Duration(hours: 2),
-      ),
-      ActivityLog(
-        activityName: 'Workout',
-        date: DateTime.now().subtract(const Duration(days: 2)),
-        duration: const Duration(minutes: 90),
-      ),
-      ActivityLog(
-        activityName: 'Reading',
-        date: DateTime.now().subtract(const Duration(days: 3)),
-        duration: const Duration(hours: 1, minutes: 30),
-      ),
-      ActivityLog(
-        activityName: 'Cleaning',
-        date: DateTime.now(),
-        duration: const Duration(hours: 1),
-      ),
-      ActivityLog(
-        activityName: 'Workout',
-        date: DateTime.now().subtract(const Duration(days: 32)),
-        duration: const Duration(hours: 1, minutes: 30),
-      ),
-      ActivityLog(
-        activityName: 'Workout',
-        date: DateTime.now().subtract(const Duration(days: 367)),
-        duration: const Duration(hours: 1, minutes: 30),
-      ),
-      ActivityLog(
-        activityName: 'Went Gym',
-        date: DateTime.now(),
-        duration: Duration.zero,
-        isCheckable: true,
-      ),
-      ActivityLog(
-        activityName: 'Went Gym',
-        date: DateTime.now(),
-        duration: Duration.zero,
-        isCheckable: true,
-      ),
-    ]);
-    goals = [
-      Goal(activityName: 'Studying', dailyGoal: const Duration(hours: 1, minutes: 30)),
-      Goal(activityName: 'Workout', dailyGoal: const Duration(hours: 1)),
-      Goal(activityName: 'Went Gym', dailyGoal: const Duration(minutes: 1)),
-    ];
-    for (var log in activityLogs) {
-      final activity = activities.firstWhere(
-            (a) => a.name == log.activityName,
-        orElse: () {
-          print('Warning: No activity found for ${log.activityName}');
-          return TimedActivity(name: log.activityName);
-        },
-      );
-      if (activity is TimedActivity && !log.isCheckable) {
-        activity.totalTime += log.duration;
-      } else if (activity is CheckableActivity && log.isCheckable) {
-        activity.completionCount += 1;
-      }
-    }
+    _loadData();
   }
 
   @override
@@ -292,6 +411,7 @@ class _HomePageState extends State<HomePage> {
                 setState(() {
                   goals = newGoals;
                 });
+                _saveData();
               },
             ),
             ActivitiesPage(activities: activities, onUpdate: updateActivities),
@@ -513,9 +633,7 @@ class _TrackerPageState extends State<TrackerPage> {
                 return ListTile(
                   title: Text(activityName),
                   trailing: Text(
-                    isTimed
-                        ? formatDuration(totalDuration)
-                        : '$completions time(s)',
+                    isTimed ? formatDuration(totalDuration) : '$completions time(s)',
                     style: const TextStyle(fontSize: 18),
                   ),
                 );
