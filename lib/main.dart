@@ -795,12 +795,12 @@ class _GoalsPageState extends State<GoalsPage> {
       } else {
         editableGoals.add(Goal(
           activityName: activityName,
-          goalDuration: isTimed ? Duration(minutes: value) : Duration(minutes: value),
-          goalType: goalType,
+          goalDuration: Duration.zero,
+          goalType: GoalType.daily,
         ));
-      }
-      widget.onGoalChanged(editableGoals);
-    });
+        }
+            widget.onGoalChanged(editableGoals);
+      });
   }
 
   @override
@@ -880,14 +880,6 @@ class StatsPage extends StatefulWidget {
 class _StatsPageState extends State<StatsPage> {
   StatsPeriod selectedPeriod = StatsPeriod.total;
 
-  Duration getGoalForActivity(String name) {
-    final goal = widget.goals.firstWhere(
-          (g) => g.activityName == name,
-      orElse: () => Goal(activityName: name, goalDuration: Duration.zero),
-    );
-    return goal.goalDuration;
-  }
-
   Map<String, dynamic> filteredActivities() {
     DateTime now = DateTime.now();
     DateTime from;
@@ -925,7 +917,19 @@ class _StatsPageState extends State<StatsPage> {
       }
     }
 
-    return {'timeTotals': timeTotals, 'completionTotals': completionTotals};
+    final totalTimedDuration = widget.activities
+        .where((a) => a is TimedActivity)
+        .fold<Duration>(Duration.zero, (sum, a) => sum + (timeTotals[a.name] ?? Duration.zero));
+    final totalCheckableInstances = widget.activities
+        .where((a) => a is CheckableActivity)
+        .fold<int>(0, (sum, a) => sum + (completionTotals[a.name] ?? 0));
+
+    return {
+      'timeTotals': timeTotals,
+      'completionTotals': completionTotals,
+      'totalTimedDuration': totalTimedDuration,
+      'totalCheckableInstances': totalCheckableInstances,
+    };
   }
 
   String formatDuration(Duration d) {
@@ -941,6 +945,8 @@ class _StatsPageState extends State<StatsPage> {
     final stats = filteredActivities();
     final timeTotals = stats['timeTotals'] as Map<String, Duration>;
     final completionTotals = stats['completionTotals'] as Map<String, int>;
+    final totalTimedDuration = stats['totalTimedDuration'] as Duration;
+    final totalCheckableInstances = stats['totalCheckableInstances'] as int;
     final totalTime = timeTotals.values.fold<Duration>(Duration.zero, (sum, t) => sum + t);
 
     return Padding(
@@ -971,14 +977,13 @@ class _StatsPageState extends State<StatsPage> {
           Expanded(
             child: ListView(
               children: widget.activities.map((a) {
-                final goalDuration = getGoalForActivity(a.name);
                 final percent = a is TimedActivity
-                    ? goalDuration.inSeconds == 0
+                    ? totalTimedDuration.inSeconds == 0
                     ? 0.0
-                    : ((timeTotals[a.name]?.inSeconds ?? 0) / goalDuration.inSeconds).clamp(0.0, 1.0)
-                    : goalDuration.inMinutes == 0
+                    : ((timeTotals[a.name]?.inSeconds ?? 0) / totalTimedDuration.inSeconds).clamp(0.0, 1.0)
+                    : totalCheckableInstances == 0
                     ? 0.0
-                    : ((completionTotals[a.name] ?? 0) / goalDuration.inMinutes).clamp(0.0, 1.0);
+                    : ((completionTotals[a.name] ?? 0) / totalCheckableInstances).clamp(0.0, 1.0);
                 return ListTile(
                   title: Text(a.name),
                   subtitle: LinearProgressIndicator(value: percent),
