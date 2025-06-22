@@ -86,7 +86,7 @@ class _HomePageState extends State<HomePage> {
     TimedActivity(name: 'Workout'),
     TimedActivity(name: 'Reading'),
     TimedActivity(name: 'Cleaning'),
-    CheckableActivity(name: 'Pójście na trening'),
+    CheckableActivity(name: 'Went Gym'),
   ];
   final List<ActivityLog> activityLogs = [];
   List<Goal> goals = [];
@@ -135,13 +135,13 @@ class _HomePageState extends State<HomePage> {
         duration: const Duration(hours: 1, minutes: 30),
       ),
       ActivityLog(
-        activityName: 'Pójście na trening',
+        activityName: 'Went Gym',
         date: DateTime.now(),
         duration: Duration.zero,
         isCheckable: true,
       ),
       ActivityLog(
-        activityName: 'Pójście na trening',
+        activityName: 'Went Gym',
         date: DateTime.now(),
         duration: Duration.zero,
         isCheckable: true,
@@ -150,7 +150,7 @@ class _HomePageState extends State<HomePage> {
     goals = [
       Goal(activityName: 'Studying', dailyGoal: const Duration(hours: 1, minutes: 30)),
       Goal(activityName: 'Workout', dailyGoal: const Duration(hours: 1)),
-      Goal(activityName: 'Pójście na trening', dailyGoal: const Duration(minutes: 1)),
+      Goal(activityName: 'Went Gym', dailyGoal: const Duration(minutes: 1)),
     ];
     for (var log in activityLogs) {
       final activity = activities.firstWhere(
@@ -303,9 +303,7 @@ class _TrackerPageState extends State<TrackerPage> {
   void _tick() {
     Future.delayed(const Duration(seconds: 1), () {
       if (stopwatch.isRunning) {
-        setState(() {
-          elapsed = stopwatch.elapsed;
-        });
+        setState(() {});
         _tick();
       }
     });
@@ -319,38 +317,50 @@ class _TrackerPageState extends State<TrackerPage> {
     return '$h:$m:$s';
   }
 
-  Map<String, Map<String, dynamic>> getTodayActivities() {
-    final today = DateTime.now();
-    final todayStart = DateTime(today.year, today.month, today.day);
-    final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
-    final Map<String, Map<String, dynamic>> todayActivities = {};
+Map<String, Map<String, dynamic>> getTodayActivities() {
+  final today = DateTime.now();
+  final todayStart = DateTime(today.year, today.month, today.day);
+  final todayEnd = DateTime(today.year, today.month, today.day, 23, 59, 59, 999);
+  final Map<String, Map<String, dynamic>> todayActivities = {};
 
-    for (var log in widget.activityLogs) {
-      if (log.date.isAfter(todayStart) && log.date.isBefore(todayEnd)) {
-        final activityName = log.activityName;
-        final activity = widget.activities.firstWhere(
-              (a) => a.name == activityName,
-          orElse: () => TimedActivity(name: activityName),
-        );
+  for (var log in widget.activityLogs) {
+    if (log.date.isAfter(todayStart) && log.date.isBefore(todayEnd)) {
+      final activityName = log.activityName;
+      final activity = widget.activities.firstWhere(
+            (a) => a.name == activityName,
+        orElse: () => TimedActivity(name: activityName),
+      );
 
-        if (!todayActivities.containsKey(activityName)) {
-          todayActivities[activityName] = {
-            'isTimed': activity is TimedActivity,
-            'totalDuration': Duration.zero,
-            'completions': 0,
-          };
-        }
+      if (!todayActivities.containsKey(activityName)) {
+        todayActivities[activityName] = {
+          'isTimed': activity is TimedActivity,
+          'totalDuration': Duration.zero,
+          'completions': 0,
+        };
+      }
 
-        if (log.isCheckable) {
-          todayActivities[activityName]!['completions'] += 1;
-        } else {
-          todayActivities[activityName]!['totalDuration'] += log.duration;
-        }
+      if (log.isCheckable) {
+        todayActivities[activityName]!['completions'] += 1;
+      } else {
+        todayActivities[activityName]!['totalDuration'] += log.duration;
       }
     }
-
-    return todayActivities;
   }
+
+  if (stopwatch.isRunning && selectedActivity is TimedActivity) {
+    final activityName = selectedActivity!.name;
+    if (!todayActivities.containsKey(activityName)) {
+      todayActivities[activityName] = {
+        'isTimed': true,
+        'totalDuration': Duration.zero,
+        'completions': 0,
+      };
+    }
+    todayActivities[activityName]!['totalDuration'] += stopwatch.elapsed;
+  }
+
+  return todayActivities;
+}
 
   @override
   Widget build(BuildContext context) {
@@ -441,6 +451,7 @@ class _TrackerPageState extends State<TrackerPage> {
                     isTimed
                         ? formatDuration(totalDuration)
                         : '$completions time(s)',
+                    style: const TextStyle(fontSize: 18),
                   ),
                 );
               },
