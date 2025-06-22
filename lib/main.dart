@@ -795,12 +795,12 @@ class _GoalsPageState extends State<GoalsPage> {
       } else {
         editableGoals.add(Goal(
           activityName: activityName,
-          goalDuration: Duration.zero,
-          goalType: GoalType.daily,
+          goalDuration: isTimed ? Duration(minutes: value) : Duration(minutes: value),
+          goalType: goalType,
         ));
-        }
-            widget.onGoalChanged(editableGoals);
-      });
+      }
+      widget.onGoalChanged(editableGoals);
+    });
   }
 
   @override
@@ -809,7 +809,11 @@ class _GoalsPageState extends State<GoalsPage> {
     editableGoals.removeWhere((g) => !currentActivityNames.contains(g.activityName));
     for (var activity in widget.activities) {
       if (!editableGoals.any((g) => g.activityName == activity.name)) {
-        editableGoals.add(Goal(activityName: activity.name, goalDuration: Duration.zero));
+        editableGoals.add(Goal(
+          activityName: activity.name,
+          goalDuration: Duration.zero,
+          goalType: GoalType.daily,
+        ));
       }
     }
 
@@ -819,7 +823,11 @@ class _GoalsPageState extends State<GoalsPage> {
         final activity = widget.activities[index];
         final goal = editableGoals.firstWhere(
               (g) => g.activityName == activity.name,
-          orElse: () => Goal(activityName: activity.name, goalDuration: Duration.zero),
+          orElse: () => Goal(
+            activityName: activity.name,
+            goalDuration: Duration.zero,
+            goalType: GoalType.daily,
+          ),
         );
         final controller = TextEditingController(text: goal.goalDuration.inMinutes.toString());
         bool isDaily = goal.goalType == GoalType.daily;
@@ -835,7 +843,8 @@ class _GoalsPageState extends State<GoalsPage> {
                   decoration: InputDecoration(
                     suffixText: activity is TimedActivity ? 'min' : 'times',
                   ),
-                  onSubmitted: (val) => updateGoal(activity.name, val, activity is TimedActivity, isDaily ? GoalType.daily : GoalType.weekly),
+                  onSubmitted: (val) => updateGoal(
+                      activity.name, val, activity is TimedActivity, isDaily ? GoalType.daily : GoalType.weekly),
                 ),
               ),
               const SizedBox(width: 8),
@@ -847,7 +856,8 @@ class _GoalsPageState extends State<GoalsPage> {
                 ],
                 onChanged: (val) {
                   if (val != null) {
-                    updateGoal(activity.name, controller.text, activity is TimedActivity, val ? GoalType.daily : GoalType.weekly);
+                    updateGoal(activity.name, controller.text, activity is TimedActivity,
+                        val ? GoalType.daily : GoalType.weekly);
                   }
                 },
               ),
@@ -940,6 +950,20 @@ class _StatsPageState extends State<StatsPage> {
     return '$h:$m:$s';
   }
 
+  void _onReorder(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) {
+        newIndex -= 1;
+      }
+      final Activity activity = widget.activities.removeAt(oldIndex);
+      widget.activities.insert(newIndex, activity);
+    });
+
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('activities', jsonEncode(widget.activities.map((a) => a.toJson()).toList()));
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final stats = filteredActivities();
@@ -975,8 +999,11 @@ class _StatsPageState extends State<StatsPage> {
           ),
           const SizedBox(height: 20),
           Expanded(
-            child: ListView(
-              children: widget.activities.map((a) {
+            child: ReorderableListView(
+              onReorder: _onReorder,
+              children: widget.activities.asMap().entries.map((entry) {
+                final index = entry.key;
+                final a = entry.value;
                 final percent = a is TimedActivity
                     ? totalTimedDuration.inSeconds == 0
                     ? 0.0
@@ -985,11 +1012,16 @@ class _StatsPageState extends State<StatsPage> {
                     ? 0.0
                     : ((completionTotals[a.name] ?? 0) / totalCheckableInstances).clamp(0.0, 1.0);
                 return ListTile(
+                  key: ValueKey(a.name),
                   title: Text(a.name),
                   subtitle: LinearProgressIndicator(value: percent),
-                  trailing: Text(a is TimedActivity
-                      ? formatDuration(timeTotals[a.name] ?? Duration.zero)
-                      : '${completionTotals[a.name] ?? 0} times'),
+                  trailing: Text(
+                    a is TimedActivity
+                        ? formatDuration(timeTotals[a.name] ?? Duration.zero)
+                        : '${completionTotals[a.name] ?? 0} times',
+                    style: const TextStyle(fontSize: 20),
+                  ),
+                  leading: Icon(Icons.drag_handle),
                 );
               }).toList(),
             ),
@@ -1077,7 +1109,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                 }
                 Navigator.pop(context);
               },
-              child: const Text('Add'),
+              child: const Text('Save'),
             ),
           ],
         ),
@@ -1127,6 +1159,17 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     widget.onUpdate();
   }
 
+  void _onReorder(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) {
+        newIndex -= 1;
+      }
+      final activity = widget.activities.removeAt(oldIndex);
+      widget.activities.insert(newIndex, activity);
+    });
+    widget.onUpdate();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -1137,11 +1180,13 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
           label: const Text('Add Activity'),
         ),
         Expanded(
-          child: ListView.builder(
-            itemCount: widget.activities.length,
-            itemBuilder: (context, index) {
-              final a = widget.activities[index];
+          child: ReorderableListView(
+            onReorder: _onReorder,
+            children: widget.activities.asMap().entries.map((entry) {
+              final index = entry.key;
+              final a = entry.value;
               return ListTile(
+                key: ValueKey(a.name),
                 title: Text(a.name),
                 subtitle: Text(a is TimedActivity ? 'Timed' : 'Checkable'),
                 trailing: Row(
@@ -1157,8 +1202,9 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                     ),
                   ],
                 ),
+                leading: const Icon(Icons.drag_handle),
               );
-            },
+            }).toList(),
           ),
         ),
       ],
@@ -1291,7 +1337,7 @@ class _CalendarPageState extends State<CalendarPage> {
         weeklyColor = Colors.red;
       }
 
-      progress[dayKey] = {
+      progress[day] = {
         'completedDailyGoals': completedDailyGoals,
         'totalDailyGoals': totalDailyGoals,
         'dailyColor': dailyColor,
@@ -1376,7 +1422,8 @@ class _CalendarPageState extends State<CalendarPage> {
                   ],
                 ),
                 title: Text(
-                    '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}'),
+                  '${day.day.toString().padLeft(2, '0')}-${day.month.toString().padLeft(2, '0')}-${day.year}',
+                ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
