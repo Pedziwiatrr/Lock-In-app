@@ -591,14 +591,14 @@ class _TrackerPageState extends State<TrackerPage> {
               Center(
                 child: Text(
                   formatDuration(widget.elapsed),
-                  style: const TextStyle(fontSize: 80),
+                  style: const TextStyle(fontSize: 60),
                 ),
               )
             else if (widget.selectedActivity is CheckableActivity)
               Center(
                 child: Text(
                   '$todayCompletions time(s)',
-                  style: const TextStyle(fontSize: 80),
+                  style: const TextStyle(fontSize: 60),
                 ),
               ),
             const SizedBox(height: 20),
