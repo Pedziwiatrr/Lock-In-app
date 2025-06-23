@@ -589,6 +589,11 @@ class _HomePageState extends State<HomePage> {
       child: Scaffold(
         appBar: AppBar(
             bottom: const TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 16),
+              labelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              unselectedLabelStyle: const TextStyle(fontSize: 14),
                 tabs: [
             Tab(icon: Icon(Icons.timer), text: 'Tracker'),
         Tab(icon: Icon(Icons.flag), text: 'Goals'),
