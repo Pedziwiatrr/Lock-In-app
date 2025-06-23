@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math';
@@ -187,7 +188,7 @@ class _HomePageState extends State<HomePage> {
   DateTime selectedDate = DateTime.now();
 
   static const int maxLogs = 1000;
-  static const int maxManualTimeMinutes = 100;
+  static const int maxManualTimeMinutes = 1000;
   static const int maxManualCompletions = 50;
   static const int maxActivities = 10;
   static const int maxGoals = 10;
@@ -397,7 +398,7 @@ class _HomePageState extends State<HomePage> {
       if (duration > Duration(minutes: maxManualTimeMinutes)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('Manual time cannot exceed 100 minutes.')),
+              content: Text('Manual time cannot exceed 1000 minutes.')),
         );
       } else if (activityLogs.length >= maxLogs) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -587,69 +588,69 @@ class _HomePageState extends State<HomePage> {
       length: 5,
       child: Scaffold(
         appBar: AppBar(
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.timer), text: 'Tracker'),
-              Tab(icon: Icon(Icons.flag), text: 'Goals'),
-              Tab(icon: Icon(Icons.list), text: 'Activities'),
-              Tab(icon: Icon(Icons.bar_chart), text: 'Stats'),
-              Tab(icon: Icon(Icons.calendar_today), text: 'Calendar'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            TrackerPage(
-              activities: activities,
-              goals: goals,
-              activityLogs: activityLogs,
-              selectedActivity: selectedActivity,
-              selectedDate: selectedDate,
-              elapsed: elapsed,
-              isRunning: stopwatch.isRunning,
-              onSelectActivity: selectActivity,
-              onSelectDate: selectDate,
-              onStartTimer: startTimer,
-              onStopTimer: stopTimer,
-              onResetTimer: resetTimer,
-              onCheckActivity: checkActivity,
-              onAddManualTime: addManualTime,
-              onSubtractManualTime: subtractManualTime,
-              onAddManualCompletion: addManualCompletion,
-              onSubtractManualCompletion: subtractManualCompletion,
-            ),
-            GoalsPage(
-              goals: goals,
-              activities: activities,
-              onGoalChanged: (newGoals) {
-                setState(() {
-                  goals = newGoals.take(maxGoals).toList();
-                });
-                _saveData();
-              },
-            ),
-            ActivitiesPage(activities: activities, onUpdate: updateActivities),
-            StatsPage(
-              activityLogs: activityLogs,
-              activities: activities,
-              goals: goals,
-            ),
-            CalendarPage(activityLogs: activityLogs, goals: goals),
+            bottom: const TabBar(
+                tabs: [
+            Tab(icon: Icon(Icons.timer), text: 'Tracker'),
+        Tab(icon: Icon(Icons.flag), text: 'Goals'),
+        Tab(icon: Icon(Icons.list), text: 'Activities'),
+        Tab(icon: Icon(Icons.bar_chart), text: 'Stats'),
+          Tab(icon: Icon(Icons.calendar_today), text: 'Calendar'),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => SettingsPage(
-                isDarkMode: widget.isDarkMode,
-                onThemeChanged: widget.onThemeChanged,
-                onResetData: _resetData,
-              ),
-            ));
-          },
-          child: const Icon(Icons.settings),
-        ),
       ),
+      body: TabBarView(
+        children: [
+          TrackerPage(
+            activities: activities,
+            goals: goals,
+            activityLogs: activityLogs,
+            selectedActivity: selectedActivity,
+            selectedDate: selectedDate,
+            elapsed: elapsed,
+            isRunning: stopwatch.isRunning,
+            onSelectActivity: selectActivity,
+            onSelectDate: selectDate,
+            onStartTimer: startTimer,
+            onStopTimer: stopTimer,
+            onResetTimer: resetTimer,
+            onCheckActivity: checkActivity,
+            onAddManualTime: addManualTime,
+            onSubtractManualTime: subtractManualTime,
+            onAddManualCompletion: addManualCompletion,
+            onSubtractManualCompletion: subtractManualCompletion,
+          ),
+          GoalsPage(
+            goals: goals,
+            activities: activities,
+            onGoalChanged: (newGoals) {
+              setState(() {
+                goals = newGoals.take(maxGoals).toList();
+              });
+              _saveData();
+            },
+          ),
+          ActivitiesPage(activities: activities, onUpdate: updateActivities),
+          StatsPage(
+            activityLogs: activityLogs,
+            activities: activities,
+            goals: goals,
+          ),
+          CalendarPage(activityLogs: activityLogs, goals: goals),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => SettingsPage(
+              isDarkMode: widget.isDarkMode,
+              onThemeChanged: widget.onThemeChanged,
+              onResetData: _resetData,
+            ),
+          ));
+        },
+        child: const Icon(Icons.settings),
+      ),
+    ),
     );
   }
 }
@@ -951,7 +952,7 @@ class _TrackerPageState extends State<TrackerPage> {
                         widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : widget.onCheckActivity,
-                    child: const Text('Check'),
+                    child: const Text('Check', style: TextStyle(fontSize: 20)),
                   ),
               ],
             ),
@@ -1260,7 +1261,8 @@ class _GoalsPageState extends State<GoalsPage> {
           title: Text(activity.name),
           subtitle: Row(
             children: [
-              Expanded(
+              SizedBox(
+                width: 150,
                 child: TextField(
                   controller: controller,
                   keyboardType: TextInputType.number,
@@ -1274,7 +1276,7 @@ class _GoalsPageState extends State<GoalsPage> {
                       activity is TimedActivity, isDaily ? GoalType.daily : GoalType.weekly),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 20),
               DropdownButton<bool>(
                 value: isDaily,
                 items: const [
@@ -1316,6 +1318,155 @@ class StatsPage extends StatefulWidget {
 
 class _StatsPageState extends State<StatsPage> {
   StatsPeriod selectedPeriod = StatsPeriod.total;
+  String? selectedActivity;
+
+  List<BarChartGroupData> getTimedChartData() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    List<double> totals = [];
+    int numBars;
+    DateTime startDate;
+
+    switch (selectedPeriod) {
+      case StatsPeriod.day:
+        numBars = 1;
+        startDate = today;
+        totals = List.filled(numBars, 0.0);
+        break;
+      case StatsPeriod.week:
+        numBars = 7;
+        startDate = today.subtract(Duration(days: now.weekday - 1));
+        totals = List.filled(numBars, 0.0);
+        break;
+      case StatsPeriod.month:
+        numBars = 4;
+        startDate = DateTime(now.year, now.month, 1);
+        totals = List.filled(numBars, 0.0);
+        break;
+      case StatsPeriod.total:
+        numBars = 12;
+        startDate = DateTime(now.year, now.month - 11, 1);
+        totals = List.filled(numBars, 0.0);
+        break;
+    }
+
+    for (var log in widget.activityLogs.where((log) => !log.isCheckable && (selectedActivity == null || log.activityName == selectedActivity))) {
+      final logDay = DateTime(log.date.year, log.date.month, log.date.day);
+      if (logDay.isAtSameMomentAs(startDate) || logDay.isAfter(startDate)) {
+        int index;
+        if (selectedPeriod == StatsPeriod.day) {
+          if (logDay.isAtSameMomentAs(today)) {
+            index = 0;
+          } else {
+            continue;
+          }
+        } else if (selectedPeriod == StatsPeriod.week) {
+          index = logDay.difference(startDate).inDays;
+        } else if (selectedPeriod == StatsPeriod.month) {
+          index = ((logDay.difference(startDate).inDays) / 7).floor();
+        } else {
+          index = (logDay.year - startDate.year) * 12 + logDay.month - startDate.month;
+        }
+        if (index >= 0 && index < numBars) {
+          totals[index] += log.duration.inMinutes.toDouble();
+        }
+      }
+    }
+
+
+    return totals.asMap().entries.map((entry) {
+      final index = entry.key;
+      final value = entry.value;
+      return BarChartGroupData(
+        x: index,
+        barRods: [
+          BarChartRodData(
+            toY: value,
+            color: Theme.of(context).colorScheme.primary,
+            width: 10,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+          ),
+        ],
+      );
+    }).toList();
+  }
+
+  List<BarChartGroupData> getCheckableChartData() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    List<double> totals = [];
+    int numBars;
+    DateTime startDate;
+
+    switch (selectedPeriod) {
+      case StatsPeriod.day:
+        numBars = 1;
+        startDate = today;
+        totals = List.filled(numBars, 0.0);
+        break;
+      case StatsPeriod.week:
+        numBars = 7;
+        startDate = today.subtract(Duration(days: now.weekday - 1));
+        totals = List.filled(numBars, 0.0);
+        break;
+      case StatsPeriod.month:
+        numBars = 4;
+        startDate = DateTime(now.year, now.month, 1);
+        totals = List.filled(numBars, 0.0);
+        break;
+      case StatsPeriod.total:
+        numBars = 12;
+        startDate = DateTime(now.year, now.month - 11, 1);
+        totals = List.filled(numBars, 0.0);
+        break;
+    }
+
+    for (var log in widget.activityLogs.where((log) => log.isCheckable && (selectedActivity == null || log.activityName == selectedActivity))) {
+      final logDay = DateTime(log.date.year, log.date.month, log.date.day);
+      if (logDay.isAtSameMomentAs(startDate) || logDay.isAfter(startDate)) {
+        int index;
+        if (selectedPeriod == StatsPeriod.day) {
+          if (logDay.isAtSameMomentAs(today)) {
+            index = 0;
+          } else {
+            continue;
+          }
+        } else if (selectedPeriod == StatsPeriod.week) {
+          index = logDay.difference(startDate).inDays;
+        } else if (selectedPeriod == StatsPeriod.month) {
+          index = ((logDay.difference(startDate).inDays) / 7).floor();
+        } else {
+          index = (logDay.year - startDate.year) * 12 + logDay.month - startDate.month;
+        }
+        if (index >= 0 && index < numBars) {
+          totals[index] += 1.0;
+        }
+      }
+    }
+
+
+    return totals.asMap().entries.map((entry) {
+      final index = entry.key;
+      final value = entry.value;
+      return BarChartGroupData(
+        x: index,
+        barRods: [
+          BarChartRodData(
+            toY: value,
+            color: Theme.of(context).colorScheme.secondary,
+            width: 10,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+          ),
+        ],
+      );
+    }).toList();
+  }
+
+  String formatDuration(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    return '${h}h ${m}m';
+  }
 
   Map<String, dynamic> filteredActivities() {
     DateTime now = DateTime.now();
@@ -1332,7 +1483,11 @@ class _StatsPageState extends State<StatsPage> {
         from = DateTime(now.year, now.month, 1);
         break;
       case StatsPeriod.total:
-        from = DateTime(2000);
+        from = widget.activityLogs.isNotEmpty
+            ? widget.activityLogs
+            .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
+            .reduce((a, b) => a.isBefore(b) ? a : b)
+            : DateTime(2000);
         break;
     }
 
@@ -1345,24 +1500,26 @@ class _StatsPageState extends State<StatsPage> {
     }
 
     for (var log in widget.activityLogs) {
-      if (log.date.isAfter(from)) {
+      if (log.date.isAfter(from) || log.date.isAtSameMomentAs(from)) {
         if (log.isCheckable) {
-          completionTotals[log.activityName] =
-              (completionTotals[log.activityName] ?? 0) + 1;
+          completionTotals[log.activityName] = (completionTotals[log.activityName] ?? 0) + 1;
         } else {
-          timeTotals[log.activityName] =
-              (timeTotals[log.activityName] ?? Duration.zero) + log.duration;
+          timeTotals[log.activityName] = (timeTotals[log.activityName] ?? Duration.zero) + log.duration;
         }
       }
     }
 
-    final totalTimedDuration = widget.activities
+    final totalTimedDuration = selectedActivity == null
+        ? widget.activities
         .where((a) => a is TimedActivity)
-        .fold<Duration>(
-        Duration.zero, (sum, a) => sum + (timeTotals[a.name] ?? Duration.zero));
-    final totalCheckableInstances = widget.activities
+        .fold<Duration>(Duration.zero, (sum, a) => sum + (timeTotals[a.name] ?? Duration.zero))
+        : timeTotals[selectedActivity] ?? Duration.zero;
+
+    final totalCheckableInstances = selectedActivity == null
+        ? widget.activities
         .where((a) => a is CheckableActivity)
-        .fold<int>(0, (sum, a) => sum + (completionTotals[a.name] ?? 0));
+        .fold<int>(0, (sum, a) => sum + (completionTotals[a.name] ?? 0))
+        : completionTotals[selectedActivity] ?? 0;
 
     return {
       'timeTotals': timeTotals,
@@ -1372,27 +1529,12 @@ class _StatsPageState extends State<StatsPage> {
     };
   }
 
-  String formatDuration(Duration d) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final h = twoDigits(d.inHours);
-    final m = twoDigits(d.inMinutes.remainder(60));
-    final s = twoDigits(d.inSeconds.remainder(60));
-    return '$h:$m:$s';
-  }
-
-  void _onReorder(int oldIndex, int newIndex) {
-    setState(() {
-      if (newIndex > oldIndex) {
-        newIndex -= 1;
-      }
-      final Activity activity = widget.activities.removeAt(oldIndex);
-      widget.activities.insert(newIndex, activity);
-    });
-
-    SharedPreferences.getInstance().then((prefs) {
-      prefs.setString(
-          'activities', jsonEncode(widget.activities.map((a) => a.toJson()).toList()));
-    });
+  double getMaxY(List<BarChartGroupData> barGroups) {
+    if (barGroups.isEmpty) return 10.0;
+    final maxValue = barGroups
+        .map((group) => group.barRods.first.toY)
+        .reduce((a, b) => a > b ? a : b);
+    return maxValue > 0 ? maxValue * 1.2 : 10.0;
   }
 
   @override
@@ -1400,51 +1542,88 @@ class _StatsPageState extends State<StatsPage> {
     final stats = filteredActivities();
     final timeTotals = stats['timeTotals'] as Map<String, Duration>;
     final completionTotals = stats['completionTotals'] as Map<String, int>;
-    final totalTimedDuration = stats['totalTimedDuration'] as Duration;
-    final totalCheckableInstances = stats['totalCheckableInstances'] as int;
-    final totalTime =
-    timeTotals.values.fold<Duration>(Duration.zero, (sum, t) => sum + t);
+    final totalTime = stats['totalTimedDuration'] as Duration;
+    final totalCheckable = stats['totalCheckableInstances'] as int;
+    final isCheckableSelected = selectedActivity != null &&
+        widget.activities
+            .firstWhere((a) => a.name == selectedActivity, orElse: () => widget.activities.first)
+        is CheckableActivity;
+
+    final timedChartData = getTimedChartData();
+    final checkableChartData = getCheckableChartData();
+
+    const monthLabels = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
 
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          DropdownButton<StatsPeriod>(
-            value: selectedPeriod,
-            items: const [
-              DropdownMenuItem(value: StatsPeriod.day, child: Text('Last Day')),
-              DropdownMenuItem(value: StatsPeriod.week, child: Text('Last Week')),
-              DropdownMenuItem(value: StatsPeriod.month, child: Text('Last Month')),
-              DropdownMenuItem(value: StatsPeriod.total, child: Text('Total')),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DropdownButton<StatsPeriod>(
+              value: selectedPeriod,
+              isExpanded: true,
+              items: const [
+                DropdownMenuItem(value: StatsPeriod.day, child: Text('Last Day')),
+                DropdownMenuItem(value: StatsPeriod.week, child: Text('Last Week')),
+                DropdownMenuItem(value: StatsPeriod.month, child: Text('Last Month')),
+                DropdownMenuItem(value: StatsPeriod.total, child: Text('Total')),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() => selectedPeriod = val);
+                }
+              },
+            ),
+            const SizedBox(height: 10),
+            DropdownButton<String?>(
+              value: selectedActivity,
+              isExpanded: true,
+              hint: const Text('Choose activity for stats and charts'),
+              items: [
+                const DropdownMenuItem<String?>(value: null, child: Text('All Activities')),
+                ...widget.activities
+                    .map((a) => DropdownMenuItem<String?>(value: a.name, child: Text(a.name)))
+                    .toList(),
+              ],
+              onChanged: (val) {
+                setState(() => selectedActivity = val);
+              },
+            ),
+            const SizedBox(height: 20),
+            if (!isCheckableSelected) ...[
+              Text(
+                selectedActivity == null
+                    ? 'Total timed activity: ${formatDuration(totalTime)}'
+                    : 'Total time for $selectedActivity: ${formatDuration(totalTime)}',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
             ],
-            onChanged: (val) {
-              if (val == null) return;
-              setState(() {
-                selectedPeriod = val;
-              });
-            },
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Total timed activity: ${formatDuration(totalTime)}',
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: ReorderableListView(
-              onReorder: _onReorder,
-              children: widget.activities.asMap().entries.map((entry) {
-                final index = entry.key;
-                final a = entry.value;
+            if (selectedActivity == null || isCheckableSelected) ...[
+              const SizedBox(height: 10),
+              Text(
+                selectedActivity == null
+                    ? 'Total checkable completions: $totalCheckable'
+                    : 'Total completions for $selectedActivity: $totalCheckable',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+            ],
+            const SizedBox(height: 20),
+            Column(
+              children: (selectedActivity == null
+                  ? widget.activities
+                  : widget.activities.where((a) => a.name == selectedActivity))
+                  .map((a) {
                 final percent = a is TimedActivity
-                    ? totalTimedDuration.inSeconds == 0
+                    ? (stats['totalTimedDuration'] as Duration).inSeconds == 0
                     ? 0.0
                     : ((timeTotals[a.name]?.inSeconds ?? 0) /
-                    totalTimedDuration.inSeconds)
+                    (stats['totalTimedDuration'] as Duration).inSeconds)
                     .clamp(0.0, 1.0)
-                    : totalCheckableInstances == 0
+                    : (stats['totalCheckableInstances'] as int) == 0
                     ? 0.0
-                    : ((completionTotals[a.name] ?? 0) / totalCheckableInstances)
+                    : ((completionTotals[a.name] ?? 0) /
+                    (stats['totalCheckableInstances'] as int))
                     .clamp(0.0, 1.0);
                 return ListTile(
                   key: ValueKey(a.name),
@@ -1456,419 +1635,577 @@ class _StatsPageState extends State<StatsPage> {
                         : '${completionTotals[a.name] ?? 0} times',
                     style: const TextStyle(fontSize: 20),
                   ),
-                  leading: Icon(Icons.drag_handle),
+                  leading: const Icon(Icons.drag_handle),
+                  onTap: () {
+                    setState(() {
+                      final oldIndex = widget.activities.indexOf(a);
+                      final newIndex = oldIndex == 0 ? widget.activities.length - 1 : oldIndex - 1;
+                      final activity = widget.activities.removeAt(oldIndex);
+                      widget.activities.insert(newIndex, activity);
+                      SharedPreferences.getInstance().then((prefs) {
+                        prefs.setString(
+                            'activities', jsonEncode(widget.activities.map((a) => a.toJson()).toList()));
+                      });
+                    });
+                  },
                 );
               }).toList(),
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            Text(
+              selectedPeriod == StatsPeriod.week ? 'Time Spent per Day' : 'Time Spent per Week',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            timedChartData.isEmpty || timedChartData.every((group) => group.barRods.first.toY == 0)
+                ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Text('No timed activity data available for this period.'),
+            )
+                : SizedBox(
+              height: 150,
+              child: BarChart(
+                BarChartData(
+                  gridData: const FlGridData(show: true, drawVerticalLine: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        getTitlesWidget: (value, meta) => Text(
+                          '${value.toInt()}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          if (selectedPeriod == StatsPeriod.day) {
+                            return const Text('');
+                          } else if (selectedPeriod == StatsPeriod.week) {
+                            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                days[value.toInt()],
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            );
+                          } else {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                selectedPeriod == StatsPeriod.month
+                                    ? 'W${value.toInt() + 1}'
+                                    : monthLabels[value.toInt() % 12],
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.withOpacity(0.2))),
+                  barGroups: timedChartData,
+                  maxY: getMaxY(timedChartData),
+                  barTouchData: BarTouchData(
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
+                        '${rod.toY.toInt()} min',
+                        const TextStyle(fontSize: 12, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              selectedPeriod == StatsPeriod.week ? 'Completions per Day' : 'Completions per Week',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            checkableChartData.isEmpty || checkableChartData.every((group) => group.barRods.first.toY == 0)
+                ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Text('No checkable activity data available for this period.'),
+            )
+                : SizedBox(
+              height: 150,
+              child: BarChart(
+                BarChartData(
+                  gridData: const FlGridData(show: true, drawVerticalLine: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        getTitlesWidget: (value, meta) => Text(
+                          '${value.toInt()}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          if (selectedPeriod == StatsPeriod.day) {
+                            return const Text('');
+                          } else if (selectedPeriod == StatsPeriod.week) {
+                            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                days[value.toInt()],
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            );
+                          } else {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                selectedPeriod == StatsPeriod.month
+                                    ? 'W${value.toInt() + 1}'
+                                    : monthLabels[value.toInt() % 12],
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.withOpacity(0.2))),
+                  barGroups: checkableChartData,
+                  maxY: getMaxY(checkableChartData),
+                  barTouchData: BarTouchData(
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
+                        '${rod.toY.toInt()} completions',
+                        const TextStyle(fontSize: 12, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class ActivitiesPage extends StatefulWidget {
-  final List<Activity> activities;
-  final VoidCallback onUpdate;
+final List<Activity> activities;
+final VoidCallback onUpdate;
 
-  const ActivitiesPage({
-    super.key,
-    required this.activities,
-    required this.onUpdate,
-  });
+const ActivitiesPage({
+super.key,
+required this.activities,
+required this.onUpdate,
+});
 
-  @override
-  State<ActivitiesPage> createState() => _ActivitiesPageState();
+@override
+State<ActivitiesPage> createState() => _ActivitiesPageState();
 }
 
 class _ActivitiesPageState extends State<ActivitiesPage> {
-  bool _isTimedActivity = true;
-  static const int maxActivities = 10;
-  static const int maxNameLength = 50;
+bool _isTimedActivity = true;
+static const int maxActivities = 10;
+static const int maxNameLength = 50;
 
-  void addActivity() {
-    if (widget.activities.length >= maxActivities) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Maximum 10 activities allowed.')),
-      );
-      return;
-    }
+void addActivity() {
+if (widget.activities.length >= maxActivities) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Maximum 10 activities allowed.')),
+);
+return;
+}
 
-    final controller = TextEditingController();
+final controller = TextEditingController();
 
-    showDialog(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add Activity'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                decoration:
-                const InputDecoration(hintText: 'Activity name (max 50 chars)'),
-                maxLength: maxNameLength,
-                inputFormatters: [
-                  LengthLimitingTextInputFormatter(maxNameLength),
-                ],
-              ),
-              Row(
-                children: [
-                  Radio<bool>(
-                    value: true,
-                    groupValue: _isTimedActivity,
-                    onChanged: (val) {
-                      setDialogState(() {
-                        _isTimedActivity = val!;
-                      });
-                    },
-                  ),
-                  const Text('Timed'),
-                  Radio<bool>(
-                    value: false,
-                    groupValue: _isTimedActivity,
-                    onChanged: (val) {
-                      setDialogState(() {
-                        _isTimedActivity = val!;
-                      });
-                    },
-                  ),
-                  const Text('Checkable'),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                final name = controller.text.trim();
-                if (name.isNotEmpty &&
-                    name.length <= maxNameLength &&
-                    !widget.activities.any((a) => a.name == name)) {
-                  setState(() {
-                    widget.activities.add(_isTimedActivity
-                        ? TimedActivity(name: name)
-                        : CheckableActivity(name: name));
-                  });
-                  print('Added activity: $name (${_isTimedActivity ? 'Timed' : 'Checkable'})');
-                  widget.onUpdate();
-                  Navigator.pop(context);
-                } else if (name.length > maxNameLength) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Activity name must be 50 characters or less.')),
-                  );
-                } else if (widget.activities.any((a) => a.name == name)) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Activity name already exists.')),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Enter a valid activity name.')),
-                  );
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+showDialog(
+context: context,
+builder: (_) => StatefulBuilder(
+builder: (context, setDialogState) => AlertDialog(
+title: const Text('Add Activity'),
+content: Column(
+mainAxisSize: MainAxisSize.min,
+children: [
+TextField(
+controller: controller,
+autofocus: true,
+decoration:
+const InputDecoration(hintText: 'Activity name (max 50 chars)'),
+maxLength: maxNameLength,
+inputFormatters: [
+LengthLimitingTextInputFormatter(maxNameLength),
+],
+),
+Row(
+children: [
+Radio<bool>(
+value: true,
+groupValue: _isTimedActivity,
+onChanged: (val) {
+setDialogState(() {
+_isTimedActivity = val!;
+});
+},
+),
+const Text('Timed'),
+Radio<bool>(
+value: false,
+groupValue: _isTimedActivity,
+onChanged: (val) {
+setDialogState(() {
+_isTimedActivity = val!;
+});
+},
+),
+const Text('Checkable'),
+],
+),
+],
+),
+actions: [
+TextButton(
+onPressed: () => Navigator.pop(context),
+child: const Text('Cancel'),
+),
+TextButton(
+onPressed: () {
+final name = controller.text.trim();
+if (name.isNotEmpty &&
+name.length <= maxNameLength &&
+!widget.activities.any((a) => a.name == name)) {
+setState(() {
+widget.activities.add(_isTimedActivity
+? TimedActivity(name: name)
+    : CheckableActivity(name: name));
+});
+print('Added activity: $name (${_isTimedActivity ? 'Timed' : 'Checkable'})');
+widget.onUpdate();
+Navigator.pop(context);
+} else if (name.length > maxNameLength) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(
+content: Text('Activity name must be 50 characters or less.')),
+);
+} else if (widget.activities.any((a) => a.name == name)) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Activity name already exists.')),
+);
+} else {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Enter a valid activity name.')),
+);
+}
+},
+child: const Text('Save'),
+),
+],
+),
+),
+);
+}
 
-  void renameActivity(int index) {
-    final controller = TextEditingController(text: widget.activities[index].name);
+void renameActivity(int index) {
+final controller = TextEditingController(text: widget.activities[index].name);
 
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Rename Activity'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'New name (max 50 chars)'),
-          maxLength: maxNameLength,
-          inputFormatters: [
-            LengthLimitingTextInputFormatter(maxNameLength),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final name = controller.text.trim();
-              if (name.isNotEmpty &&
-                  name.length <= maxNameLength &&
-                  !widget.activities.any((a) => a.name == name)) {
-                setState(() {
-                  widget.activities[index].name = name;
-                });
-                print('Renamed activity to: $name');
-                widget.onUpdate();
-                Navigator.pop(context);
-              } else if (name.length > maxNameLength) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Activity name must be 50 characters or less.')),
-                );
-              } else if (widget.activities.any((a) => a.name == name)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Activity name already exists.')),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Enter a valid activity name.')),
-                );
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
+showDialog(
+context: context,
+builder: (_) => AlertDialog(
+title: const Text('Rename Activity'),
+content: TextField(
+controller: controller,
+autofocus: true,
+decoration: const InputDecoration(hintText: 'New name (max 50 chars)'),
+maxLength: maxNameLength,
+inputFormatters: [
+LengthLimitingTextInputFormatter(maxNameLength),
+],
+),
+actions: [
+TextButton(
+onPressed: () => Navigator.pop(context),
+child: const Text('Cancel'),
+),
+TextButton(
+onPressed: () {
+final name = controller.text.trim();
+if (name.isNotEmpty &&
+name.length <= maxNameLength &&
+!widget.activities.any((a) => a.name == name)) {
+setState(() {
+widget.activities[index].name = name;
+});
+print('Renamed activity to: $name');
+widget.onUpdate();
+Navigator.pop(context);
+} else if (name.length > maxNameLength) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(
+content: Text('Activity name must be 50 characters or less.')),
+);
+} else if (widget.activities.any((a) => a.name == name)) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Activity name already exists.')),
+);
+} else {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Enter a valid activity name.')),
+);
+}
+},
+child: const Text('Save'),
+),
+],
+),
+);
+}
 
-  void deleteActivity(int index) {
-    final name = widget.activities[index].name;
-    setState(() {
-      widget.activities.removeAt(index);
-    });
-    print('Deleted activity: $name');
-    widget.onUpdate();
-  }
+void deleteActivity(int index) {
+final name = widget.activities[index].name;
+setState(() {
+widget.activities.removeAt(index);
+});
+print('Deleted activity: $name');
+widget.onUpdate();
+}
 
-  void _onReorder(int oldIndex, int newIndex) {
-    setState(() {
-      if (newIndex > oldIndex) {
-        newIndex -= 1;
-      }
-      final activity = widget.activities.removeAt(oldIndex);
-      widget.activities.insert(newIndex, activity);
-    });
-    print('Reordered activities');
-    widget.onUpdate();
-  }
+void _onReorder(int oldIndex, int newIndex) {
+setState(() {
+if (newIndex > oldIndex) {
+newIndex -= 1;
+}
+final activity = widget.activities.removeAt(oldIndex);
+widget.activities.insert(newIndex, activity);
+});
+print('Reordered activities');
+widget.onUpdate();
+}
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        ElevatedButton.icon(
-          onPressed: addActivity,
-          icon: const Icon(Icons.add),
-          label: const Text('Add Activity'),
-        ),
-        Expanded(
-          child: ReorderableListView(
-            onReorder: _onReorder,
-            children: widget.activities.asMap().entries.map((entry) {
-              final index = entry.key;
-              final a = entry.value;
-              return ListTile(
-                key: ValueKey(a.name),
-                title: Text(a.name),
-                subtitle: Text(a is TimedActivity ? 'Timed' : 'Checkable'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit),
-                      onPressed: () => renameActivity(index),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete),
-                      onPressed: () => deleteActivity(index),
-                    ),
-                  ],
-                ),
-                leading: const Icon(Icons.drag_handle),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
+@override
+Widget build(BuildContext context) {
+return Column(
+children: [
+ElevatedButton.icon(
+onPressed: addActivity,
+icon: const Icon(Icons.add),
+label: const Text('Add Activity'),
+),
+Expanded(
+child: ReorderableListView(
+onReorder: _onReorder,
+children: widget.activities.asMap().entries.map((entry) {
+final index = entry.key;
+final a = entry.value;
+return ListTile(
+key: ValueKey(a.name),
+title: Text(a.name),
+subtitle: Text(a is TimedActivity ? 'Timed' : 'Checkable'),
+trailing: Row(
+mainAxisSize: MainAxisSize.min,
+children: [
+IconButton(
+icon: const Icon(Icons.edit),
+onPressed: () => renameActivity(index),
+),
+IconButton(
+icon: const Icon(Icons.delete),
+onPressed: () => deleteActivity(index),
+),
+],
+),
+leading: const Icon(Icons.drag_handle),
+);
+}).toList(),
+),
+),
+],
+);
+}
 }
 
 enum CalendarPeriod { week, month, threeMonths, allTime }
 
 class CalendarPage extends StatefulWidget {
-  final List<ActivityLog> activityLogs;
-  final List<Goal> goals;
+final List<ActivityLog> activityLogs;
+final List<Goal> goals;
 
-  const CalendarPage({
-    super.key,
-    required this.activityLogs,
-    required this.goals,
-  });
+const CalendarPage({
+super.key,
+required this.activityLogs,
+required this.goals,
+});
 
-  @override
-  State<CalendarPage> createState() => _CalendarPageState();
+@override
+State<CalendarPage> createState() => _CalendarPageState();
 }
 
 class _CalendarPageState extends State<CalendarPage> {
-  CalendarPeriod selectedPeriod = CalendarPeriod.allTime;
+CalendarPeriod selectedPeriod = CalendarPeriod.allTime;
 
-  Map<DateTime, Duration> _aggregateByDay() {
-    Map<DateTime, Duration> result = {};
-    for (var log in widget.activityLogs) {
-      final day = DateTime(log.date.year, log.date.month, log.date.day);
-      result[day] = (result[day] ?? Duration.zero) + log.duration;
-    }
-    return result;
-  }
+Map<DateTime, Duration> _aggregateByDay() {
+Map<DateTime, Duration> result = {};
+for (var log in widget.activityLogs) {
+final day = DateTime(log.date.year, log.date.month, log.date.day);
+result[day] = (result[day] ?? Duration.zero) + log.duration;
+}
+return result;
+}
 
-  Map<DateTime, Map<String, dynamic>> _calculateGoalProgress() {
-    final progress = <DateTime, Map<String, dynamic>>{};
-    final dayData = _aggregateByDay();
-    final today = DateTime.now();
+Map<DateTime, Map<String, dynamic>> _calculateGoalProgress() {
+final progress = <DateTime, Map<String, dynamic>>{};
+final dayData = _aggregateByDay();
+final today = DateTime.now();
 
-    DateTime minDate;
-    switch (selectedPeriod) {
-      case CalendarPeriod.week:
-        minDate = today.subtract(const Duration(days: 7));
-        break;
-      case CalendarPeriod.month:
-        minDate = today.subtract(const Duration(days: 30));
-        break;
-      case CalendarPeriod.threeMonths:
-        minDate = today.subtract(const Duration(days: 90));
-        break;
-      case CalendarPeriod.allTime:
-        minDate = widget.activityLogs.isNotEmpty
-            ? widget.activityLogs
-            .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
-            .reduce((a, b) => a.isBefore(b) ? a : b)
-            : DateTime(2000);
-        break;
-    }
+DateTime minDate;
+switch (selectedPeriod) {
+case CalendarPeriod.week:
+minDate = today.subtract(const Duration(days: 7));
+break;
+case CalendarPeriod.month:
+minDate = today.subtract(const Duration(days: 30));
+break;
+case CalendarPeriod.threeMonths:
+minDate = today.subtract(const Duration(days: 90));
+break;
+case CalendarPeriod.allTime:
+minDate = widget.activityLogs.isNotEmpty
+? widget.activityLogs
+    .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
+    .reduce((a, b) => a.isBefore(b) ? a : b)
+    : DateTime(2000);
+break;
+}
 
-    final daysDiff = today.difference(minDate).inDays;
+final daysDiff = today.difference(minDate).inDays;
 
-    for (int i = 0; i <= daysDiff; i++) {
-      final day = today.subtract(Duration(days: i));
-      final dayStart = DateTime(day.year, day.month, day.day);
-      final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
-      final dayKey = DateTime(day.year, day.month, day.day);
+for (int i = 0; i <= daysDiff; i++) {
+final day = today.subtract(Duration(days: i));
+final dayStart = DateTime(day.year, day.month, day.day);
+final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
+final dayKey = DateTime(day.year, day.month, day.day);
 
-      int completedDailyGoals = 0;
-      int totalDailyGoals = widget.goals
-          .where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.daily)
-          .length;
+int completedDailyGoals = 0;
+int totalDailyGoals = widget.goals
+    .where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.daily)
+    .length;
 
-      int completedWeeklyGoals = 0;
-      int totalWeeklyGoals = widget.goals
-          .where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.weekly)
-          .length;
+int completedWeeklyGoals = 0;
+int totalWeeklyGoals = widget.goals
+    .where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.weekly)
+    .length;
 
-      final weekStart = day.subtract(Duration(days: day.weekday - 1));
-      final weekEnd =
-      weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59, milliseconds: 999));
+final weekStart = day.subtract(Duration(days: day.weekday - 1));
+final weekEnd =
+weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59, milliseconds: 999));
 
-      for (var goal in widget.goals.where((g) => g.goalDuration > Duration.zero)) {
-        final activity = widget.activityLogs
-            .where((log) =>
-        log.activityName == goal.activityName &&
-            log.date.isAfter(
-                goal.goalType == GoalType.daily ? dayStart : weekStart) &&
-            log.date.isBefore(goal.goalType == GoalType.daily ? dayEnd : weekEnd))
-            .toList();
+for (var goal in widget.goals.where((g) => g.goalDuration > Duration.zero)) {
+final activity = widget.activityLogs
+    .where((log) =>
+log.activityName == goal.activityName &&
+log.date.isAfter(
+goal.goalType == GoalType.daily ? dayStart : weekStart) &&
+log.date.isBefore(goal.goalType == GoalType.daily ? dayEnd : weekEnd))
+    .toList();
 
-        bool isCompleted = false;
-        if (activity.isNotEmpty) {
-          if (activity.any((log) => log.isCheckable)) {
-            final completions = activity.where((log) => log.isCheckable).length;
-            if (completions >= goal.goalDuration.inMinutes) {
-              isCompleted = true;
-            }
-          } else {
-            final totalTime = activity.fold<Duration>(
-                Duration.zero, (sum, log) => sum + log.duration);
-            if (totalTime >= goal.goalDuration) {
-              isCompleted = true;
-            }
-          }
-        }
+bool isCompleted = false;
+if (activity.isNotEmpty) {
+if (activity.any((log) => log.isCheckable)) {
+final completions = activity.where((log) => log.isCheckable).length;
+if (completions >= goal.goalDuration.inMinutes) {
+isCompleted = true;
+}
+} else {
+final totalTime = activity.fold<Duration>(
+Duration.zero, (sum, log) => sum + log.duration);
+if (totalTime >= goal.goalDuration) {
+isCompleted = true;
+}
+}
+}
 
-        if (isCompleted) {
-          if (goal.goalType == GoalType.daily) {
-            completedDailyGoals++;
-          } else {
-            completedWeeklyGoals++;
-          }
-        }
-      }
+if (isCompleted) {
+if (goal.goalType == GoalType.daily) {
+completedDailyGoals++;
+} else {
+completedWeeklyGoals++;
+}
+}
+}
 
-      Color dailyColor;
-      if (totalDailyGoals == 0) {
-        dailyColor = Colors.grey;
-      } else if (completedDailyGoals == totalDailyGoals) {
-        dailyColor = Colors.green;
-      } else if (completedDailyGoals > 0) {
-        dailyColor = Colors.yellow;
-      } else {
-        dailyColor = Colors.red;
-      }
+Color dailyColor;
+if (totalDailyGoals == 0) {
+dailyColor = Colors.grey;
+} else if (completedDailyGoals == totalDailyGoals) {
+dailyColor = Colors.green;
+} else if (completedDailyGoals > 0) {
+dailyColor = Colors.yellow;
+} else {
+dailyColor = Colors.red;
+}
 
-      Color weeklyColor;
-      if (totalWeeklyGoals == 0) {
-        weeklyColor = Colors.grey;
-      } else if (completedWeeklyGoals == totalWeeklyGoals) {
-        weeklyColor = Colors.green;
-      } else if (completedWeeklyGoals > 0) {
-        weeklyColor = Colors.yellow;
-      } else {
-        weeklyColor = Colors.red;
-      }
+Color weeklyColor;
+if (totalWeeklyGoals == 0) {
+weeklyColor = Colors.grey;
+} else if (completedWeeklyGoals == totalWeeklyGoals) {
+weeklyColor = Colors.green;
+} else if (completedWeeklyGoals > 0) {
+weeklyColor = Colors.yellow;
+} else {
+weeklyColor = Colors.red;
+}
 
-      progress[day] = {
-        'completedDailyGoals': completedDailyGoals,
-        'totalDailyGoals': totalDailyGoals,
-        'dailyColor': dailyColor,
-        'completedWeeklyGoals': completedWeeklyGoals,
-        'totalWeeklyGoals': totalWeeklyGoals,
-        'weeklyColor': weeklyColor,
-        'duration': dayData[dayKey] ?? Duration.zero,
-      };
-    }
+progress[day] = {
+'completedDailyGoals': completedDailyGoals,
+'totalDailyGoals': totalDailyGoals,
+'dailyColor': dailyColor,
+'completedWeeklyGoals': completedWeeklyGoals,
+'totalWeeklyGoals': totalWeeklyGoals,
+'weeklyColor': weeklyColor,
+'duration': dayData[dayKey] ?? Duration.zero,
+};
+}
 
-    return progress;
-  }
+return progress;
+}
 
-  String formatDuration(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    return '${h}h ${m}m';
-  }
+String formatDuration(Duration d) {
+final h = d.inHours;
+final m = d.inMinutes.remainder(60);
+return '${h}h ${m}m';
+}
 
-  @override
-  Widget build(BuildContext context) {
-    final progress = _calculateGoalProgress();
-    final sortedDays = progress.keys.toList()..sort((a, b) => b.compareTo(a));
+@override
+Widget build(BuildContext context) {
+final progress = _calculateGoalProgress();
+final sortedDays = progress.keys.toList()..sort((a, b) => b.compareTo(a));
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: DropdownButton<CalendarPeriod>(
-            value: selectedPeriod,
-            isExpanded: true,
-            items: const [
-              DropdownMenuItem(value: CalendarPeriod.week, child: Text('Last Week')),
-              DropdownMenuItem(value: CalendarPeriod.month, child: Text('Last Month')),
-              DropdownMenuItem(
-                  value: CalendarPeriod.threeMonths, child: Text('Last 3 Months')),
-              DropdownMenuItem(value: CalendarPeriod.allTime, child: Text('All Time')),
+return Column(
+children: [
+Padding(
+padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+child: DropdownButton<CalendarPeriod>(
+value: selectedPeriod,
+isExpanded: true,
+items: const [
+DropdownMenuItem(value: CalendarPeriod.week, child: Text('Last Week')),
+DropdownMenuItem(value: CalendarPeriod.month, child: Text('Last Month')),
+DropdownMenuItem(
+value: CalendarPeriod.threeMonths, child: Text('Last 3 Months')),
+DropdownMenuItem(value: CalendarPeriod.allTime, child: Text('All Time')),
             ],
             onChanged: (val) {
               if (val == null) return;
