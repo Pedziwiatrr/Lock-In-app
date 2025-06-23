@@ -355,6 +355,101 @@ class _HomePageState extends State<HomePage> {
     _saveData();
   }
 
+  void addManualTime(Duration duration) {
+    if (selectedActivity == null || selectedActivity is! TimedActivity || duration <= Duration.zero) return;
+    final log = ActivityLog(
+      activityName: selectedActivity!.name,
+      date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day, DateTime.now().hour, DateTime.now().minute),
+      duration: duration,
+      isCheckable: false,
+    );
+    setState(() {
+      activityLogs.add(log);
+      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      if (activity is TimedActivity) {
+        activity.totalTime += duration;
+      }
+    });
+    print('Manual time added: ${log.activityName} on ${log.date} with duration ${log.duration}');
+    _saveData();
+  }
+
+  void subtractManualTime(Duration duration) {
+    if (selectedActivity == null || selectedActivity is! TimedActivity || duration <= Duration.zero) return;
+    final dateStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final dateEnd = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 23, 59, 59, 999);
+    final relevantLogs = activityLogs
+        .where((log) =>
+    log.activityName == selectedActivity!.name &&
+        log.date.isAfter(dateStart) &&
+        log.date.isBefore(dateEnd) &&
+        !log.isCheckable)
+        .toList();
+    if (relevantLogs.isEmpty) return;
+
+    setState(() {
+      relevantLogs.sort((a, b) => b.date.compareTo(a.date));
+      final logToRemove = relevantLogs.first;
+      activityLogs.remove(logToRemove);
+      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      if (activity is TimedActivity) {
+        activity.totalTime -= logToRemove.duration;
+        if (activity.totalTime < Duration.zero) activity.totalTime = Duration.zero;
+      }
+    });
+    print('Manual time subtracted: ${selectedActivity!.name} on $selectedDate with duration $duration');
+    _saveData();
+  }
+
+  void addManualCompletion(int count) {
+    if (selectedActivity == null || selectedActivity is! CheckableActivity || count <= 0) return;
+    setState(() {
+      for (int i = 0; i < count; i++) {
+        final log = ActivityLog(
+          activityName: selectedActivity!.name,
+          date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day, DateTime.now().hour, DateTime.now().minute),
+          duration: Duration.zero,
+          isCheckable: true,
+        );
+        activityLogs.add(log);
+        final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+        if (activity is CheckableActivity) {
+          activity.completionCount += 1;
+        }
+      }
+    });
+    print('Manual completions added: $count for ${selectedActivity!.name} on $selectedDate');
+    _saveData();
+  }
+
+  void subtractManualCompletion(int count) {
+    if (selectedActivity == null || selectedActivity is! CheckableActivity || count <= 0) return;
+    final dateStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final dateEnd = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 23, 59, 59, 999);
+    final relevantLogs = activityLogs
+        .where((log) =>
+    log.activityName == selectedActivity!.name &&
+        log.date.isAfter(dateStart) &&
+        log.date.isBefore(dateEnd) &&
+        log.isCheckable)
+        .toList();
+    if (relevantLogs.isEmpty) return;
+
+    setState(() {
+      relevantLogs.sort((a, b) => b.date.compareTo(a.date));
+      for (int i = 0; i < min(count, relevantLogs.length); i++) {
+        activityLogs.remove(relevantLogs[i]);
+        final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+        if (activity is CheckableActivity) {
+          activity.completionCount -= 1;
+          if (activity.completionCount < 0) activity.completionCount = 0;
+        }
+      }
+    });
+    print('Manual completions subtracted: $count for ${selectedActivity!.name} on $selectedDate');
+    _saveData();
+  }
+
   void _tick() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -434,6 +529,10 @@ class _HomePageState extends State<HomePage> {
               onStopTimer: stopTimer,
               onResetTimer: resetTimer,
               onCheckActivity: checkActivity,
+              onAddManualTime: addManualTime,
+              onSubtractManualTime: subtractManualTime,
+              onAddManualCompletion: addManualCompletion,
+              onSubtractManualCompletion: subtractManualCompletion,
             ),
             GoalsPage(
               goals: goals,
@@ -484,6 +583,10 @@ class TrackerPage extends StatefulWidget {
   final VoidCallback onStopTimer;
   final VoidCallback onResetTimer;
   final VoidCallback onCheckActivity;
+  final void Function(Duration) onAddManualTime;
+  final void Function(Duration) onSubtractManualTime;
+  final void Function(int) onAddManualCompletion;
+  final void Function(int) onSubtractManualCompletion;
 
   const TrackerPage({
     super.key,
@@ -500,6 +603,10 @@ class TrackerPage extends StatefulWidget {
     required this.onStopTimer,
     required this.onResetTimer,
     required this.onCheckActivity,
+    required this.onAddManualTime,
+    required this.onSubtractManualTime,
+    required this.onAddManualCompletion,
+    required this.onSubtractManualCompletion,
   });
 
   @override
@@ -570,6 +677,38 @@ class _TrackerPageState extends State<TrackerPage> {
     return dateActivities;
   }
 
+  void showInputDialog(String title, String hint, bool isTimed, Function(String) onSave) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(hintText: hint),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty && int.tryParse(value) != null && int.parse(value) > 0) {
+                onSave(value);
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dateActivities = getActivitiesForSelectedDate();
@@ -592,6 +731,21 @@ class _TrackerPageState extends State<TrackerPage> {
       final completions = activityData['completions'] as int;
       return isTimed ? totalDuration > Duration.zero : completions > 0;
     }).toList();
+
+    bool canSubtractTime = false;
+    bool canSubtractCompletion = false;
+    if (widget.selectedActivity != null) {
+      final relevantLogs = widget.activityLogs
+          .where((log) =>
+      log.activityName == widget.selectedActivity!.name &&
+          log.date.isAfter(dateStart) &&
+          log.date.isBefore(dateEnd))
+          .toList();
+      canSubtractTime = widget.selectedActivity is TimedActivity &&
+          relevantLogs.any((log) => !log.isCheckable && log.duration > Duration.zero);
+      canSubtractCompletion = widget.selectedActivity is CheckableActivity &&
+          relevantLogs.any((log) => log.isCheckable);
+    }
 
     return SingleChildScrollView(
       child: Padding(
@@ -680,6 +834,59 @@ class _TrackerPageState extends State<TrackerPage> {
                   ),
               ],
             ),
+            const SizedBox(height: 10),
+            if (widget.selectedActivity != null)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: (widget.selectedActivity == null || widget.isRunning || widget.selectedDate.isAfter(DateTime.now()))
+                        ? null
+                        : () {
+                      showInputDialog(
+                        widget.selectedActivity is TimedActivity ? 'Add Time' : 'Add Completions',
+                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
+                        widget.selectedActivity is TimedActivity,
+                            (value) {
+                          final intVal = int.parse(value);
+                          if (widget.selectedActivity is TimedActivity) {
+                            widget.onAddManualTime(Duration(minutes: intVal));
+                          } else {
+                            widget.onAddManualCompletion(intVal);
+                          }
+                        },
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                    child: const Text('+'),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: (widget.selectedActivity == null ||
+                        (widget.selectedActivity is TimedActivity && !canSubtractTime) ||
+                        (widget.selectedActivity is CheckableActivity && !canSubtractCompletion) ||
+                        widget.selectedDate.isAfter(DateTime.now()))
+                        ? null
+                        : () {
+                      showInputDialog(
+                        widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions',
+                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
+                        widget.selectedActivity is TimedActivity,
+                            (value) {
+                          final intVal = int.parse(value);
+                          if (widget.selectedActivity is TimedActivity) {
+                            widget.onSubtractManualTime(Duration(minutes: intVal));
+                          } else {
+                            widget.onSubtractManualCompletion(intVal);
+                          }
+                        },
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                    child: const Text('-'),
+                  ),
+                ],
+              ),
             const SizedBox(height: 30),
             Text(
               'Selected Date (${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year})',
@@ -796,6 +1003,8 @@ class _TrackerPageState extends State<TrackerPage> {
     );
   }
 }
+
+
 
 class GoalsPage extends StatefulWidget {
   final List<Goal> goals;
