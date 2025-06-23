@@ -54,6 +54,7 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
       home: HomePage(
         onThemeChanged: toggleTheme,
         isDarkMode: _themeMode == ThemeMode.dark,
+        onResetData: () {},
       ),
     );
   }
@@ -157,8 +158,14 @@ class ActivityLog {
 class HomePage extends StatefulWidget {
   final void Function(bool) onThemeChanged;
   final bool isDarkMode;
+  final VoidCallback onResetData;
 
-  const HomePage({super.key, required this.onThemeChanged, required this.isDarkMode});
+  const HomePage({
+    super.key,
+    required this.onThemeChanged,
+    required this.isDarkMode,
+    required this.onResetData,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -235,6 +242,23 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {
       print('Error saving data: $e');
     }
+  }
+
+  Future<void> _resetData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      activities = [];
+      activityLogs = [];
+      goals = [];
+      selectedActivity = null;
+      elapsed = Duration.zero;
+      stopwatch.reset();
+      _timer?.cancel();
+    });
+    await prefs.remove('activities');
+    await prefs.remove('activityLogs');
+    await prefs.remove('goals');
+    await _loadData(1);
   }
 
   void startTimer() {
@@ -500,6 +524,7 @@ class _HomePageState extends State<HomePage> {
               builder: (_) => SettingsPage(
                 isDarkMode: widget.isDarkMode,
                 onThemeChanged: widget.onThemeChanged,
+                onResetData: _resetData,
               ),
             ));
           },
@@ -1666,23 +1691,77 @@ class _CalendarPageState extends State<CalendarPage> {
 class SettingsPage extends StatelessWidget {
   final bool isDarkMode;
   final void Function(bool) onThemeChanged;
+  final VoidCallback onResetData;
 
   const SettingsPage({
     super.key,
     required this.isDarkMode,
     required this.onThemeChanged,
+    required this.onResetData,
   });
+
+  void _confirmReset(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Reset All Data'),
+        content: const Text('Are you sure you want to reset all activities, logs, and goals? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Confirm Reset'),
+                  content: const Text('Please confirm again to reset all data.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        onResetData();
+                        Navigator.pop(context);
+                      },
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                      child: const Text('Confirm Reset'),
+                    ),
+                  ],
+                ),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: Center(
-        child: SwitchListTile(
-          title: const Text('Dark Mode'),
-          value: isDarkMode,
-          onChanged: onThemeChanged,
-        ),
+      body: ListView(
+        children: [
+          SwitchListTile(
+            title: const Text('Dark Mode'),
+            value: isDarkMode,
+            onChanged: onThemeChanged,
+          ),
+          ListTile(
+            title: const Text('Reset All Data'),
+            subtitle: const Text('Clear all activities, logs, and goals'),
+            onTap: () => _confirmReset(context),
+            textColor: Colors.red,
+          ),
+        ],
       ),
     );
   }
