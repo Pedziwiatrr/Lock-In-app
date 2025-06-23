@@ -174,7 +174,7 @@ class _HomePageState extends State<HomePage> {
   Timer? _timer;
   DateTime selectedDate = DateTime.now();
 
-  Future<void> _loadData() async {
+  Future<void> _loadData(int shouldLoadDefaultData) async {
     final prefs = await SharedPreferences.getInstance();
     final activitiesJson = prefs.getString('activities');
     final logsJson = prefs.getString('activityLogs');
@@ -189,80 +189,21 @@ class _HomePageState extends State<HomePage> {
           return CheckableActivity.fromJson(json);
         }
       }).toList();
-    } else {
+    } else if (shouldLoadDefaultData == 1) {
       activities = [
-        TimedActivity(name: 'Studying'),
-        TimedActivity(name: 'Workout'),
-        TimedActivity(name: 'Reading'),
-        TimedActivity(name: 'Cleaning'),
-        CheckableActivity(name: 'Went Gym'),
+        TimedActivity(name: 'Focus'),
+        CheckableActivity(name: 'Drink water'),
       ];
     }
 
     if (logsJson != null) {
       final List<dynamic> logsList = jsonDecode(logsJson);
       activityLogs = logsList.map((json) => ActivityLog.fromJson(json)).toList();
-    } else {
-      activityLogs = [
-        ActivityLog(
-          activityName: 'Studying',
-          date: DateTime.now(),
-          duration: const Duration(hours: 2),
-        ),
-        ActivityLog(
-          activityName: 'Studying',
-          date: DateTime.now().subtract(const Duration(days: 1)),
-          duration: const Duration(hours: 2),
-        ),
-        ActivityLog(
-          activityName: 'Workout',
-          date: DateTime.now().subtract(const Duration(days: 2)),
-          duration: const Duration(minutes: 90),
-        ),
-        ActivityLog(
-          activityName: 'Reading',
-          date: DateTime.now().subtract(const Duration(days: 3)),
-          duration: const Duration(hours: 1, minutes: 30),
-        ),
-        ActivityLog(
-          activityName: 'Cleaning',
-          date: DateTime.now(),
-          duration: const Duration(hours: 1),
-        ),
-        ActivityLog(
-          activityName: 'Workout',
-          date: DateTime.now().subtract(const Duration(days: 32)),
-          duration: const Duration(hours: 1, minutes: 30),
-        ),
-        ActivityLog(
-          activityName: 'Workout',
-          date: DateTime.now().subtract(const Duration(days: 367)),
-          duration: const Duration(hours: 1, minutes: 30),
-        ),
-        ActivityLog(
-          activityName: 'Went Gym',
-          date: DateTime.now(),
-          duration: Duration.zero,
-          isCheckable: true,
-        ),
-        ActivityLog(
-          activityName: 'Went Gym',
-          date: DateTime.now(),
-          duration: Duration.zero,
-          isCheckable: true,
-        ),
-      ];
     }
 
     if (goalsJson != null) {
       final List<dynamic> goalsList = jsonDecode(goalsJson);
       goals = goalsList.map((json) => Goal.fromJson(json)).toList();
-    } else {
-      goals = [
-        Goal(activityName: 'Studying', goalDuration: const Duration(hours: 1, minutes: 30)),
-        Goal(activityName: 'Workout', goalDuration: const Duration(hours: 1)),
-        Goal(activityName: 'Went Gym', goalDuration: const Duration(minutes: 1)),
-      ];
     }
 
     for (var log in activityLogs) {
@@ -487,7 +428,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadData(1);
   }
 
   @override
@@ -747,6 +688,11 @@ class _TrackerPageState extends State<TrackerPage> {
           relevantLogs.any((log) => log.isCheckable);
     }
 
+    final now = DateTime.now();
+    final isToday = widget.selectedDate.year == now.year &&
+        widget.selectedDate.month == now.month &&
+        widget.selectedDate.day == now.day;
+
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -858,7 +804,7 @@ class _TrackerPageState extends State<TrackerPage> {
                       );
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                    child: const Text('+'),
+                    child: const Text('+', style: const TextStyle(fontSize:30)),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
@@ -883,13 +829,15 @@ class _TrackerPageState extends State<TrackerPage> {
                       );
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                    child: const Text('-'),
+                    child: const Text('-', style: const TextStyle(fontSize:30)),
                   ),
                 ],
               ),
             const SizedBox(height: 30),
             Text(
-              'Selected Date (${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year})',
+              isToday
+                  ? 'Today'
+                  : 'Selected Date (${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year})',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             filteredDateActivities.isEmpty
@@ -919,7 +867,18 @@ class _TrackerPageState extends State<TrackerPage> {
               'Goals',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            ListView.builder(
+            widget.activities.where((a) {
+              final goal = widget.goals.firstWhere(
+                    (g) => g.activityName == a.name,
+                orElse: () => Goal(activityName: a.name, goalDuration: Duration.zero),
+              );
+              return goal.goalDuration > Duration.zero;
+            }).isEmpty
+                ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('No goals set. Add goals in the Goals tab.'),
+            )
+                : ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: widget.activities.where((a) {
@@ -1003,7 +962,6 @@ class _TrackerPageState extends State<TrackerPage> {
     );
   }
 }
-
 
 
 class GoalsPage extends StatefulWidget {
