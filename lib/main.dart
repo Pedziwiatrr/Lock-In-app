@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math';
@@ -1264,7 +1265,6 @@ class _GoalsPageState extends State<GoalsPage> {
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     suffixText: activity is TimedActivity ? 'min' : 'times',
-                    helperText: 'Max $maxGoalMinutes',
                   ),
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
