@@ -81,8 +81,10 @@ class Goal {
 
   factory Goal.fromJson(Map<String, dynamic> json) => Goal(
     activityName: json['activityName'],
-    goalDuration: Duration(seconds: json['dailyGoal'] ?? json['goalDuration']),
-    goalType: json['goalType'] == GoalType.weekly.toString() ? GoalType.weekly : GoalType.daily,
+    goalDuration: Duration(seconds: json['goalDuration']),
+    goalType: json['goalType'] == GoalType.weekly.toString()
+        ? GoalType.weekly
+        : GoalType.daily,
   );
 }
 
@@ -121,10 +123,11 @@ class CheckableActivity extends Activity {
     'completionCount': completionCount,
   };
 
-  factory CheckableActivity.fromJson(Map<String, dynamic> json) => CheckableActivity(
-    name: json['name'],
-    completionCount: json['completionCount'],
-  );
+  factory CheckableActivity.fromJson(Map<String, dynamic> json) =>
+      CheckableActivity(
+        name: json['name'],
+        completionCount: json['completionCount'],
+      );
 }
 
 class ActivityLog {
@@ -181,6 +184,12 @@ class _HomePageState extends State<HomePage> {
   Timer? _timer;
   DateTime selectedDate = DateTime.now();
 
+  static const int maxLogs = 1000;
+  static const int maxManualTimeMinutes = 100;
+  static const int maxManualCompletions = 50;
+  static const int maxActivities = 10;
+  static const int maxGoals = 10;
+
   Future<void> _loadData(int shouldLoadDefaultData) async {
     final prefs = await SharedPreferences.getInstance();
     final activitiesJson = prefs.getString('activities');
@@ -189,13 +198,16 @@ class _HomePageState extends State<HomePage> {
 
     if (activitiesJson != null) {
       final List<dynamic> activitiesList = jsonDecode(activitiesJson);
-      activities = activitiesList.map((json) {
+      activities = activitiesList
+          .map((json) {
         if (json['type'] == 'TimedActivity') {
           return TimedActivity.fromJson(json);
         } else {
           return CheckableActivity.fromJson(json);
         }
-      }).toList();
+      })
+          .take(maxActivities)
+          .toList();
     } else if (shouldLoadDefaultData == 1) {
       activities = [
         TimedActivity(name: 'Focus'),
@@ -205,19 +217,40 @@ class _HomePageState extends State<HomePage> {
 
     if (logsJson != null) {
       final List<dynamic> logsList = jsonDecode(logsJson);
-      activityLogs = logsList.map((json) => ActivityLog.fromJson(json)).toList();
+      activityLogs = logsList
+          .map((json) => ActivityLog.fromJson(json))
+          .toList()
+          .take(maxLogs)
+          .toList();
+      activityLogs = activityLogs.map((log) {
+        if (log.activityName == 'Drink water') {
+          return ActivityLog(
+            activityName: log.activityName,
+            date: log.date,
+            duration: Duration.zero,
+            isCheckable: true,
+          );
+        }
+        return log;
+      }).toList();
     }
 
     if (goalsJson != null) {
       final List<dynamic> goalsList = jsonDecode(goalsJson);
-      goals = goalsList.map((json) => Goal.fromJson(json)).toList();
+      goals = goalsList
+          .map((json) => Goal.fromJson(json))
+          .take(maxGoals)
+          .toList();
     }
 
     for (var log in activityLogs) {
       final activity = activities.firstWhere(
             (a) => a.name == log.activityName,
         orElse: () {
-          final newActivity = TimedActivity(name: log.activityName);
+          if (activities.length >= maxActivities) return activities.first;
+          final newActivity = log.isCheckable
+              ? CheckableActivity(name: log.activityName)
+              : TimedActivity(name: log.activityName);
           activities.add(newActivity);
           return newActivity;
         },
@@ -233,12 +266,26 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _saveData() async {
+    if (activityLogs.length > maxLogs) {
+      activityLogs = activityLogs
+          .sublist(activityLogs.length - maxLogs, activityLogs.length);
+    }
+    if (activities.length > maxActivities) {
+      activities = activities.sublist(0, maxActivities);
+    }
+    if (goals.length > maxGoals) {
+      goals = goals.sublist(0, maxGoals);
+    }
     final prefs = await SharedPreferences.getInstance();
     try {
-      await prefs.setString('activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
-      await prefs.setString('activityLogs', jsonEncode(activityLogs.map((log) => log.toJson()).toList()));
-      await prefs.setString('goals', jsonEncode(goals.map((g) => g.toJson()).toList()));
-      print('Data saved: ${activities.length} activities, ${activityLogs.length} logs, ${goals.length} goals');
+      await prefs.setString(
+          'activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
+      await prefs.setString('activityLogs',
+          jsonEncode(activityLogs.map((log) => log.toJson()).toList()));
+      await prefs.setString(
+          'goals', jsonEncode(goals.map((g) => g.toJson()).toList()));
+      print(
+          'Data saved: ${activities.length} activities, ${activityLogs.length} logs, ${goals.length} goals');
     } catch (e) {
       print('Error saving data: $e');
     }
@@ -259,6 +306,7 @@ class _HomePageState extends State<HomePage> {
     await prefs.remove('activityLogs');
     await prefs.remove('goals');
     await _loadData(1);
+    print('All data reset and reinitialized');
   }
 
   void startTimer() {
@@ -282,36 +330,54 @@ class _HomePageState extends State<HomePage> {
       stopwatch.stop();
       _timer?.cancel();
     }
+    if (activityLogs.length >= maxLogs) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
+      );
+      return;
+    }
     final log = ActivityLog(
       activityName: selectedActivity!.name,
-      date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day, DateTime.now().hour, DateTime.now().minute),
+      date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day,
+          DateTime.now().hour, DateTime.now().minute),
       duration: stopwatch.elapsed,
       isCheckable: false,
     );
     setState(() {
       activityLogs.add(log);
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      final activity =
+      activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is TimedActivity) {
         activity.totalTime += stopwatch.elapsed;
       }
       elapsed = Duration.zero;
       stopwatch.reset();
     });
-    print('Timer reset: Added log for ${log.activityName} on ${log.date} with duration ${log.duration}');
+    print(
+        'Timer reset: Added log for ${log.activityName} on ${log.date} with duration ${log.duration}');
     _saveData();
   }
 
   void checkActivity() {
-    if (selectedActivity == null) return;
+    if (selectedActivity == null || activityLogs.length >= maxLogs) {
+      if (activityLogs.length >= maxLogs) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
+        );
+      }
+      return;
+    }
     final log = ActivityLog(
       activityName: selectedActivity!.name,
-      date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day, DateTime.now().hour, DateTime.now().minute),
+      date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day,
+          DateTime.now().hour, DateTime.now().minute),
       duration: Duration.zero,
       isCheckable: true,
     );
     setState(() {
       activityLogs.add(log);
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      final activity =
+      activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is CheckableActivity) {
         activity.completionCount += 1;
       }
@@ -321,28 +387,51 @@ class _HomePageState extends State<HomePage> {
   }
 
   void addManualTime(Duration duration) {
-    if (selectedActivity == null || selectedActivity is! TimedActivity || duration <= Duration.zero) return;
+    if (selectedActivity == null ||
+        selectedActivity is! TimedActivity ||
+        duration <= Duration.zero ||
+        duration > Duration(minutes: maxManualTimeMinutes) ||
+        activityLogs.length >= maxLogs) {
+      if (duration > Duration(minutes: maxManualTimeMinutes)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Manual time cannot exceed 100 minutes.')),
+        );
+      } else if (activityLogs.length >= maxLogs) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
+        );
+      }
+      return;
+    }
     final log = ActivityLog(
       activityName: selectedActivity!.name,
-      date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day, DateTime.now().hour, DateTime.now().minute),
+      date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day,
+          DateTime.now().hour, DateTime.now().minute),
       duration: duration,
       isCheckable: false,
     );
     setState(() {
       activityLogs.add(log);
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      final activity =
+      activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is TimedActivity) {
         activity.totalTime += duration;
       }
     });
-    print('Manual time added: ${log.activityName} on ${log.date} with duration ${log.duration}');
+    print(
+        'Manual time added: ${log.activityName} on ${log.date} with duration ${log.duration}');
     _saveData();
   }
 
   void subtractManualTime(Duration duration) {
-    if (selectedActivity == null || selectedActivity is! TimedActivity || duration <= Duration.zero) return;
-    final dateStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
-    final dateEnd = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 23, 59, 59, 999);
+    if (selectedActivity == null ||
+        selectedActivity is! TimedActivity ||
+        duration <= Duration.zero) return;
+    final dateStart =
+    DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final dateEnd = DateTime(selectedDate.year, selectedDate.month,
+        selectedDate.day, 23, 59, 59, 999);
     final relevantLogs = activityLogs
         .where((log) =>
     log.activityName == selectedActivity!.name &&
@@ -356,41 +445,67 @@ class _HomePageState extends State<HomePage> {
       relevantLogs.sort((a, b) => b.date.compareTo(a.date));
       final logToRemove = relevantLogs.first;
       activityLogs.remove(logToRemove);
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      final activity =
+      activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is TimedActivity) {
         activity.totalTime -= logToRemove.duration;
-        if (activity.totalTime < Duration.zero) activity.totalTime = Duration.zero;
+        if (activity.totalTime < Duration.zero)
+          activity.totalTime = Duration.zero;
       }
     });
-    print('Manual time subtracted: ${selectedActivity!.name} on $selectedDate with duration $duration');
+    print(
+        'Manual time subtracted: ${selectedActivity!.name} on $selectedDate with duration $duration');
     _saveData();
   }
 
   void addManualCompletion(int count) {
-    if (selectedActivity == null || selectedActivity is! CheckableActivity || count <= 0) return;
+    if (selectedActivity == null ||
+        selectedActivity is! CheckableActivity ||
+        count <= 0 ||
+        count > maxManualCompletions ||
+        activityLogs.length + count > maxLogs) {
+      if (count > maxManualCompletions) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Manual completions cannot exceed 50.')),
+        );
+      } else if (activityLogs.length + count > maxLogs) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
+        );
+      }
+      return;
+    }
     setState(() {
       for (int i = 0; i < count; i++) {
         final log = ActivityLog(
           activityName: selectedActivity!.name,
-          date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day, DateTime.now().hour, DateTime.now().minute),
+          date: DateTime(selectedDate.year, selectedDate.month, selectedDate.day,
+              DateTime.now().hour, DateTime.now().minute),
           duration: Duration.zero,
           isCheckable: true,
         );
         activityLogs.add(log);
-        final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+        final activity =
+        activities.firstWhere((a) => a.name == selectedActivity!.name);
         if (activity is CheckableActivity) {
           activity.completionCount += 1;
         }
       }
     });
-    print('Manual completions added: $count for ${selectedActivity!.name} on $selectedDate');
+    print(
+        'Manual completions added: $count for ${selectedActivity!.name} on $selectedDate');
     _saveData();
   }
 
   void subtractManualCompletion(int count) {
-    if (selectedActivity == null || selectedActivity is! CheckableActivity || count <= 0) return;
-    final dateStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
-    final dateEnd = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, 23, 59, 59, 999);
+    if (selectedActivity == null ||
+        selectedActivity is! CheckableActivity ||
+        count <= 0) return;
+    final dateStart =
+    DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final dateEnd = DateTime(selectedDate.year, selectedDate.month,
+        selectedDate.day, 23, 59, 59, 999);
     final relevantLogs = activityLogs
         .where((log) =>
     log.activityName == selectedActivity!.name &&
@@ -404,14 +519,16 @@ class _HomePageState extends State<HomePage> {
       relevantLogs.sort((a, b) => b.date.compareTo(a.date));
       for (int i = 0; i < min(count, relevantLogs.length); i++) {
         activityLogs.remove(relevantLogs[i]);
-        final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+        final activity =
+        activities.firstWhere((a) => a.name == selectedActivity!.name);
         if (activity is CheckableActivity) {
           activity.completionCount -= 1;
           if (activity.completionCount < 0) activity.completionCount = 0;
         }
       }
     });
-    print('Manual completions subtracted: $count for ${selectedActivity!.name} on $selectedDate');
+    print(
+        'Manual completions subtracted: $count for ${selectedActivity!.name} on $selectedDate');
     _saveData();
   }
 
@@ -504,7 +621,7 @@ class _HomePageState extends State<HomePage> {
               activities: activities,
               onGoalChanged: (newGoals) {
                 setState(() {
-                  goals = newGoals;
+                  goals = newGoals.take(maxGoals).toList();
                 });
                 _saveData();
               },
@@ -580,6 +697,9 @@ class TrackerPage extends StatefulWidget {
 }
 
 class _TrackerPageState extends State<TrackerPage> {
+  static const int maxManualTimeMinutes = 1000;
+  static const int maxManualCompletions = 100;
+
   String formatDuration(Duration d) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final h = twoDigits(d.inHours);
@@ -589,8 +709,10 @@ class _TrackerPageState extends State<TrackerPage> {
   }
 
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
-    final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
-    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
+    final dateStart =
+    DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month,
+        widget.selectedDate.day, 23, 59, 59, 999);
     final Map<String, Map<String, dynamic>> dateActivities = {};
 
     for (var activity in widget.activities) {
@@ -617,14 +739,15 @@ class _TrackerPageState extends State<TrackerPage> {
 
         if (log.isCheckable) {
           dateActivities[activityName]!['completions'] += 1;
-        } else {
+        } else if (dateActivities[activityName]!['isTimed']) {
           dateActivities[activityName]!['totalDuration'] =
               (dateActivities[activityName]!['totalDuration'] as Duration) + log.duration;
         }
       }
     }
 
-    if (widget.selectedActivity != null && widget.selectedDate.day == DateTime.now().day) {
+    if (widget.selectedActivity != null &&
+        widget.selectedDate.day == DateTime.now().day) {
       final activityName = widget.selectedActivity!.name;
       if (!dateActivities.containsKey(activityName)) {
         dateActivities[activityName] = {
@@ -643,7 +766,8 @@ class _TrackerPageState extends State<TrackerPage> {
     return dateActivities;
   }
 
-  void showInputDialog(String title, String hint, bool isTimed, Function(String) onSave) {
+  void showInputDialog(
+      String title, String hint, bool isTimed, Function(String) onSave) {
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -653,7 +777,14 @@ class _TrackerPageState extends State<TrackerPage> {
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: InputDecoration(hintText: hint),
+          decoration: InputDecoration(
+              hintText: hint,
+              helperText: isTimed
+                  ? 'Max $maxManualTimeMinutes minutes'
+                  : 'Max $maxManualCompletions completions'),
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+          ],
         ),
         actions: [
           TextButton(
@@ -663,10 +794,21 @@ class _TrackerPageState extends State<TrackerPage> {
           TextButton(
             onPressed: () {
               final value = controller.text.trim();
-              if (value.isNotEmpty && int.tryParse(value) != null && int.parse(value) > 0) {
+              final intVal = int.tryParse(value);
+              if (value.isNotEmpty &&
+                  intVal != null &&
+                  intVal > 0 &&
+                  intVal <= (isTimed ? maxManualTimeMinutes : maxManualCompletions)) {
                 onSave(value);
+                Navigator.pop(context);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        'Enter a number between 1 and ${isTimed ? maxManualTimeMinutes : maxManualCompletions}.'),
+                  ),
+                );
               }
-              Navigator.pop(context);
             },
             child: const Text('Save'),
           ),
@@ -678,9 +820,12 @@ class _TrackerPageState extends State<TrackerPage> {
   @override
   Widget build(BuildContext context) {
     final dateActivities = getActivitiesForSelectedDate();
-    final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
-    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
-    final dateCompletions = widget.selectedActivity != null && widget.selectedActivity is CheckableActivity
+    final dateStart =
+    DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month,
+        widget.selectedDate.day, 23, 59, 59, 999);
+    final dateCompletions = widget.selectedActivity != null &&
+        widget.selectedActivity is CheckableActivity
         ? widget.activityLogs
         .where((log) =>
     log.activityName == widget.selectedActivity!.name &&
@@ -777,7 +922,9 @@ class _TrackerPageState extends State<TrackerPage> {
               children: [
                 if (widget.selectedActivity is TimedActivity) ...[
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.isRunning || widget.selectedDate.isAfter(DateTime.now()))
+                    onPressed: (widget.selectedActivity == null ||
+                        widget.isRunning ||
+                        widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : widget.onStartTimer,
                     child: const Text('Start'),
@@ -798,7 +945,8 @@ class _TrackerPageState extends State<TrackerPage> {
                   ),
                 ] else if (widget.selectedActivity is CheckableActivity)
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.selectedDate.isAfter(DateTime.now()))
+                    onPressed: (widget.selectedActivity == null ||
+                        widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : widget.onCheckActivity,
                     child: const Text('Check'),
@@ -811,17 +959,24 @@ class _TrackerPageState extends State<TrackerPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.isRunning || widget.selectedDate.isAfter(DateTime.now()))
+                    onPressed: (widget.selectedActivity == null ||
+                        widget.isRunning ||
+                        widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : () {
                       showInputDialog(
-                        widget.selectedActivity is TimedActivity ? 'Add Time' : 'Add Completions',
-                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
+                        widget.selectedActivity is TimedActivity
+                            ? 'Add Time'
+                            : 'Add Completions',
+                        widget.selectedActivity is TimedActivity
+                            ? 'Enter minutes'
+                            : 'Enter number of completions',
                         widget.selectedActivity is TimedActivity,
                             (value) {
                           final intVal = int.parse(value);
                           if (widget.selectedActivity is TimedActivity) {
-                            widget.onAddManualTime(Duration(minutes: intVal));
+                            widget
+                                .onAddManualTime(Duration(minutes: intVal));
                           } else {
                             widget.onAddManualCompletion(intVal);
                           }
@@ -829,24 +984,31 @@ class _TrackerPageState extends State<TrackerPage> {
                       );
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                    child: const Text('+', style: const TextStyle(fontSize:30)),
+                    child: const Text('+', style: TextStyle(fontSize: 30)),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
                     onPressed: (widget.selectedActivity == null ||
-                        (widget.selectedActivity is TimedActivity && !canSubtractTime) ||
-                        (widget.selectedActivity is CheckableActivity && !canSubtractCompletion) ||
+                        (widget.selectedActivity is TimedActivity &&
+                            !canSubtractTime) ||
+                        (widget.selectedActivity is CheckableActivity &&
+                            !canSubtractCompletion) ||
                         widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : () {
                       showInputDialog(
-                        widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions',
-                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
+                        widget.selectedActivity is TimedActivity
+                            ? 'Subtract Time'
+                            : 'Subtract Completions',
+                        widget.selectedActivity is TimedActivity
+                            ? 'Enter minutes'
+                            : 'Enter number of completions',
                         widget.selectedActivity is TimedActivity,
                             (value) {
                           final intVal = int.parse(value);
                           if (widget.selectedActivity is TimedActivity) {
-                            widget.onSubtractManualTime(Duration(minutes: intVal));
+                            widget.onSubtractManualTime(
+                                Duration(minutes: intVal));
                           } else {
                             widget.onSubtractManualCompletion(intVal);
                           }
@@ -854,7 +1016,7 @@ class _TrackerPageState extends State<TrackerPage> {
                       );
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                    child: const Text('-', style: const TextStyle(fontSize:30)),
+                    child: const Text('-', style: TextStyle(fontSize: 30)),
                   ),
                 ],
               ),
@@ -909,7 +1071,8 @@ class _TrackerPageState extends State<TrackerPage> {
               itemCount: widget.activities.where((a) {
                 final goal = widget.goals.firstWhere(
                       (g) => g.activityName == a.name,
-                  orElse: () => Goal(activityName: a.name, goalDuration: Duration.zero),
+                  orElse: () =>
+                      Goal(activityName: a.name, goalDuration: Duration.zero),
                 );
                 return goal.goalDuration > Duration.zero;
               }).length,
@@ -917,7 +1080,8 @@ class _TrackerPageState extends State<TrackerPage> {
                 final filteredActivities = widget.activities.where((a) {
                   final goal = widget.goals.firstWhere(
                         (g) => g.activityName == a.name,
-                    orElse: () => Goal(activityName: a.name, goalDuration: Duration.zero),
+                    orElse: () =>
+                        Goal(activityName: a.name, goalDuration: Duration.zero),
                   );
                   return goal.goalDuration > Duration.zero;
                 }).toList();
@@ -925,11 +1089,14 @@ class _TrackerPageState extends State<TrackerPage> {
                 final a = filteredActivities[index];
                 final goal = widget.goals.firstWhere(
                       (g) => g.activityName == a.name,
-                  orElse: () => Goal(activityName: a.name, goalDuration: Duration.zero),
+                  orElse: () =>
+                      Goal(activityName: a.name, goalDuration: Duration.zero),
                 );
 
-                final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
-                final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
+                final dateStart = DateTime(
+                    widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+                final dateEnd = DateTime(widget.selectedDate.year,
+                    widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
                 final dateTime = widget.activityLogs
                     .where((log) =>
                 log.activityName == a.name &&
@@ -953,10 +1120,12 @@ class _TrackerPageState extends State<TrackerPage> {
                 final percent = a is TimedActivity
                     ? goal.goalDuration.inSeconds == 0
                     ? 0.0
-                    : (dateTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0)
+                    : (dateTime.inSeconds / goal.goalDuration.inSeconds)
+                    .clamp(0.0, 1.0)
                     : goal.goalDuration.inMinutes == 0
                     ? 0.0
-                    : (dateCompletions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
+                    : (dateCompletions / goal.goalDuration.inMinutes)
+                    .clamp(0.0, 1.0);
 
                 final remainingText = a is TimedActivity
                     ? (goal.goalDuration - dateTime).isNegative
@@ -974,7 +1143,8 @@ class _TrackerPageState extends State<TrackerPage> {
                       LinearProgressIndicator(value: percent),
                       const SizedBox(height: 4),
                       Text(remainingText),
-                      Text(goal.goalType == GoalType.daily ? 'Daily' : 'Weekly'),
+                      Text(
+                          goal.goalType == GoalType.daily ? 'Daily' : 'Weekly'),
                     ],
                   ),
                   trailing: Text('${(percent * 100).toStringAsFixed(0)}%'),
@@ -987,7 +1157,6 @@ class _TrackerPageState extends State<TrackerPage> {
     );
   }
 }
-
 
 class GoalsPage extends StatefulWidget {
   final List<Goal> goals;
@@ -1007,6 +1176,7 @@ class GoalsPage extends StatefulWidget {
 
 class _GoalsPageState extends State<GoalsPage> {
   late List<Goal> editableGoals;
+  static const int maxGoalMinutes = 10000;
 
   @override
   void initState() {
@@ -1024,20 +1194,28 @@ class _GoalsPageState extends State<GoalsPage> {
     }).toList();
   }
 
-  void updateGoal(String activityName, String valueText, bool isTimed, GoalType goalType) {
+  void updateGoal(
+      String activityName, String valueText, bool isTimed, GoalType goalType) {
     final value = int.tryParse(valueText) ?? 0;
+    if (value > maxGoalMinutes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Goal cannot exceed 10000 minutes or completions.')),
+      );
+      return;
+    }
     setState(() {
       final index = editableGoals.indexWhere((g) => g.activityName == activityName);
       if (index != -1) {
         editableGoals[index] = Goal(
           activityName: activityName,
-          goalDuration: isTimed ? Duration(minutes: value) : Duration(minutes: value),
+          goalDuration: Duration(minutes: value),
           goalType: goalType,
         );
       } else {
         editableGoals.add(Goal(
           activityName: activityName,
-          goalDuration: isTimed ? Duration(minutes: value) : Duration(minutes: value),
+          goalDuration: Duration(minutes: value),
           goalType: goalType,
         ));
       }
@@ -1048,7 +1226,8 @@ class _GoalsPageState extends State<GoalsPage> {
   @override
   Widget build(BuildContext context) {
     final currentActivityNames = widget.activities.map((a) => a.name).toSet();
-    editableGoals.removeWhere((g) => !currentActivityNames.contains(g.activityName));
+    editableGoals
+        .removeWhere((g) => !currentActivityNames.contains(g.activityName));
     for (var activity in widget.activities) {
       if (!editableGoals.any((g) => g.activityName == activity.name)) {
         editableGoals.add(Goal(
@@ -1071,7 +1250,8 @@ class _GoalsPageState extends State<GoalsPage> {
             goalType: GoalType.daily,
           ),
         );
-        final controller = TextEditingController(text: goal.goalDuration.inMinutes.toString());
+        final controller =
+        TextEditingController(text: goal.goalDuration.inMinutes.toString());
         bool isDaily = goal.goalType == GoalType.daily;
 
         return ListTile(
@@ -1084,9 +1264,13 @@ class _GoalsPageState extends State<GoalsPage> {
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     suffixText: activity is TimedActivity ? 'min' : 'times',
+                    helperText: 'Max $maxGoalMinutes',
                   ),
-                  onSubmitted: (val) => updateGoal(
-                      activity.name, val, activity is TimedActivity, isDaily ? GoalType.daily : GoalType.weekly),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
+                  onSubmitted: (val) => updateGoal(activity.name, val,
+                      activity is TimedActivity, isDaily ? GoalType.daily : GoalType.weekly),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1098,8 +1282,8 @@ class _GoalsPageState extends State<GoalsPage> {
                 ],
                 onChanged: (val) {
                   if (val != null) {
-                    updateGoal(activity.name, controller.text, activity is TimedActivity,
-                        val ? GoalType.daily : GoalType.weekly);
+                    updateGoal(activity.name, controller.text,
+                        activity is TimedActivity, val ? GoalType.daily : GoalType.weekly);
                   }
                 },
               ),
@@ -1162,16 +1346,19 @@ class _StatsPageState extends State<StatsPage> {
     for (var log in widget.activityLogs) {
       if (log.date.isAfter(from)) {
         if (log.isCheckable) {
-          completionTotals[log.activityName] = (completionTotals[log.activityName] ?? 0) + 1;
+          completionTotals[log.activityName] =
+              (completionTotals[log.activityName] ?? 0) + 1;
         } else {
-          timeTotals[log.activityName] = (timeTotals[log.activityName] ?? Duration.zero) + log.duration;
+          timeTotals[log.activityName] =
+              (timeTotals[log.activityName] ?? Duration.zero) + log.duration;
         }
       }
     }
 
     final totalTimedDuration = widget.activities
         .where((a) => a is TimedActivity)
-        .fold<Duration>(Duration.zero, (sum, a) => sum + (timeTotals[a.name] ?? Duration.zero));
+        .fold<Duration>(
+        Duration.zero, (sum, a) => sum + (timeTotals[a.name] ?? Duration.zero));
     final totalCheckableInstances = widget.activities
         .where((a) => a is CheckableActivity)
         .fold<int>(0, (sum, a) => sum + (completionTotals[a.name] ?? 0));
@@ -1202,7 +1389,8 @@ class _StatsPageState extends State<StatsPage> {
     });
 
     SharedPreferences.getInstance().then((prefs) {
-      prefs.setString('activities', jsonEncode(widget.activities.map((a) => a.toJson()).toList()));
+      prefs.setString(
+          'activities', jsonEncode(widget.activities.map((a) => a.toJson()).toList()));
     });
   }
 
@@ -1213,7 +1401,8 @@ class _StatsPageState extends State<StatsPage> {
     final completionTotals = stats['completionTotals'] as Map<String, int>;
     final totalTimedDuration = stats['totalTimedDuration'] as Duration;
     final totalCheckableInstances = stats['totalCheckableInstances'] as int;
-    final totalTime = timeTotals.values.fold<Duration>(Duration.zero, (sum, t) => sum + t);
+    final totalTime =
+    timeTotals.values.fold<Duration>(Duration.zero, (sum, t) => sum + t);
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -1249,10 +1438,13 @@ class _StatsPageState extends State<StatsPage> {
                 final percent = a is TimedActivity
                     ? totalTimedDuration.inSeconds == 0
                     ? 0.0
-                    : ((timeTotals[a.name]?.inSeconds ?? 0) / totalTimedDuration.inSeconds).clamp(0.0, 1.0)
+                    : ((timeTotals[a.name]?.inSeconds ?? 0) /
+                    totalTimedDuration.inSeconds)
+                    .clamp(0.0, 1.0)
                     : totalCheckableInstances == 0
                     ? 0.0
-                    : ((completionTotals[a.name] ?? 0) / totalCheckableInstances).clamp(0.0, 1.0);
+                    : ((completionTotals[a.name] ?? 0) / totalCheckableInstances)
+                    .clamp(0.0, 1.0);
                 return ListTile(
                   key: ValueKey(a.name),
                   title: Text(a.name),
@@ -1290,8 +1482,17 @@ class ActivitiesPage extends StatefulWidget {
 
 class _ActivitiesPageState extends State<ActivitiesPage> {
   bool _isTimedActivity = true;
+  static const int maxActivities = 10;
+  static const int maxNameLength = 50;
 
   void addActivity() {
+    if (widget.activities.length >= maxActivities) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Maximum 10 activities allowed.')),
+      );
+      return;
+    }
+
     final controller = TextEditingController();
 
     showDialog(
@@ -1305,7 +1506,12 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
               TextField(
                 controller: controller,
                 autofocus: true,
-                decoration: const InputDecoration(hintText: 'Activity name'),
+                decoration:
+                const InputDecoration(hintText: 'Activity name (max 50 chars)'),
+                maxLength: maxNameLength,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(maxNameLength),
+                ],
               ),
               Row(
                 children: [
@@ -1341,7 +1547,9 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
             TextButton(
               onPressed: () {
                 final name = controller.text.trim();
-                if (name.isNotEmpty && !widget.activities.any((a) => a.name == name)) {
+                if (name.isNotEmpty &&
+                    name.length <= maxNameLength &&
+                    !widget.activities.any((a) => a.name == name)) {
                   setState(() {
                     widget.activities.add(_isTimedActivity
                         ? TimedActivity(name: name)
@@ -1349,8 +1557,21 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                   });
                   print('Added activity: $name (${_isTimedActivity ? 'Timed' : 'Checkable'})');
                   widget.onUpdate();
+                  Navigator.pop(context);
+                } else if (name.length > maxNameLength) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Activity name must be 50 characters or less.')),
+                  );
+                } else if (widget.activities.any((a) => a.name == name)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Activity name already exists.')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Enter a valid activity name.')),
+                  );
                 }
-                Navigator.pop(context);
               },
               child: const Text('Save'),
             ),
@@ -1370,7 +1591,11 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'New name'),
+          decoration: const InputDecoration(hintText: 'New name (max 50 chars)'),
+          maxLength: maxNameLength,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(maxNameLength),
+          ],
         ),
         actions: [
           TextButton(
@@ -1380,14 +1605,29 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
           TextButton(
             onPressed: () {
               final name = controller.text.trim();
-              if (name.isNotEmpty) {
+              if (name.isNotEmpty &&
+                  name.length <= maxNameLength &&
+                  !widget.activities.any((a) => a.name == name)) {
                 setState(() {
                   widget.activities[index].name = name;
                 });
                 print('Renamed activity to: $name');
                 widget.onUpdate();
+                Navigator.pop(context);
+              } else if (name.length > maxNameLength) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Activity name must be 50 characters or less.')),
+                );
+              } else if (widget.activities.any((a) => a.name == name)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Activity name already exists.')),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Enter a valid activity name.')),
+                );
               }
-              Navigator.pop(context);
             },
             child: const Text('Save'),
           ),
@@ -1521,19 +1761,25 @@ class _CalendarPageState extends State<CalendarPage> {
       final dayKey = DateTime(day.year, day.month, day.day);
 
       int completedDailyGoals = 0;
-      int totalDailyGoals = widget.goals.where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.daily).length;
+      int totalDailyGoals = widget.goals
+          .where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.daily)
+          .length;
 
       int completedWeeklyGoals = 0;
-      int totalWeeklyGoals = widget.goals.where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.weekly).length;
+      int totalWeeklyGoals = widget.goals
+          .where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.weekly)
+          .length;
 
       final weekStart = day.subtract(Duration(days: day.weekday - 1));
-      final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59, milliseconds: 999));
+      final weekEnd =
+      weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59, milliseconds: 999));
 
       for (var goal in widget.goals.where((g) => g.goalDuration > Duration.zero)) {
         final activity = widget.activityLogs
             .where((log) =>
         log.activityName == goal.activityName &&
-            log.date.isAfter(goal.goalType == GoalType.daily ? dayStart : weekStart) &&
+            log.date.isAfter(
+                goal.goalType == GoalType.daily ? dayStart : weekStart) &&
             log.date.isBefore(goal.goalType == GoalType.daily ? dayEnd : weekEnd))
             .toList();
 
@@ -1619,7 +1865,8 @@ class _CalendarPageState extends State<CalendarPage> {
             items: const [
               DropdownMenuItem(value: CalendarPeriod.week, child: Text('Last Week')),
               DropdownMenuItem(value: CalendarPeriod.month, child: Text('Last Month')),
-              DropdownMenuItem(value: CalendarPeriod.threeMonths, child: Text('Last 3 Months')),
+              DropdownMenuItem(
+                  value: CalendarPeriod.threeMonths, child: Text('Last 3 Months')),
               DropdownMenuItem(value: CalendarPeriod.allTime, child: Text('All Time')),
             ],
             onChanged: (val) {
@@ -1675,7 +1922,8 @@ class _CalendarPageState extends State<CalendarPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Completed daily goals: $completedDailyGoals/$totalDailyGoals'),
-                    Text('Completed weekly goals: $completedWeeklyGoals/$totalWeeklyGoals'),
+                    Text(
+                        'Completed weekly goals: $completedWeeklyGoals/$totalWeeklyGoals'),
                   ],
                 ),
                 trailing: Text(formatDuration(duration)),
@@ -1705,7 +1953,8 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Reset All Data'),
-        content: const Text('Are you sure you want to reset all activities, logs, and goals? This cannot be undone.'),
+        content:
+        const Text('Are you sure you want to reset all activities, logs, and goals? This cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
