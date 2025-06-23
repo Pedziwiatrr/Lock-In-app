@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -1953,8 +1954,7 @@ class SettingsPage extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Reset All Data'),
-        content:
-        const Text('Are you sure you want to reset all activities, logs, and goals? This cannot be undone.'),
+        content: const Text('Are you sure you want to reset all activities, logs, and goals? This cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1993,6 +1993,34 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  Future<void> _launchEmail(BuildContext context, String toEmail, String subject, String body) async {
+    final Uri emailUri = Uri(
+      scheme: 'mailto',
+      path: toEmail,
+      queryParameters: {
+        'subject': subject,
+        'body': body,
+      },
+    );
+    try {
+      if (await canLaunchUrl(emailUri)) {
+        await launchUrl(emailUri);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No email client found. Please install an email app or contact support manually.'),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to open email client: $e'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2003,6 +2031,26 @@ class SettingsPage extends StatelessWidget {
             title: const Text('Dark Mode'),
             value: isDarkMode,
             onChanged: onThemeChanged,
+          ),
+          ListTile(
+            title: const Text('Report a Bug'),
+            subtitle: const Text('Send us details about any issues you encounter'),
+            onTap: () => _launchEmail(
+              context,
+              'lockintrackerapp@gmail.com',
+              'Bug Report - LockIn Tracker',
+              'Please describe the bug you encountered:\n\nApp Version: 1.0.0\nDevice: [Your Device]\nOS: [Your OS]\nSteps to Reproduce:\n1. \n2. \n3. \n\nAdditional Details:',
+            ),
+          ),
+          ListTile(
+            title: const Text('Contact Us'),
+            subtitle: const Text('Reach out with questions or feedback'),
+            onTap: () => _launchEmail(
+              context,
+              'lockintrackerapp@gmail.com',
+              'Contact - LockIn Tracker',
+              'Please share your questions or feedback:\n\n',
+            ),
           ),
           ListTile(
             title: const Text('Reset All Data'),
