@@ -3,15 +3,15 @@ import '../models/activity_log.dart';
 import '../models/goal.dart';
 import '../utils/format_utils.dart';
 
-enum CalendarPeriod { week, month, threeMonths, allTime }
+enum HistoryPeriod { week, month, threeMonths, allTime }
 
-class CalendarPage extends StatefulWidget {
+class HistoryPage extends StatefulWidget {
   final List<ActivityLog> activityLogs;
   final List<Goal> goals;
   final DateTime selectedDate;
   final Function(DateTime) onSelectDate;
 
-  const CalendarPage({
+  const HistoryPage({
     super.key,
     required this.activityLogs,
     required this.goals,
@@ -20,11 +20,11 @@ class CalendarPage extends StatefulWidget {
   });
 
   @override
-  State<CalendarPage> createState() => _CalendarPageState();
+  State<HistoryPage> createState() => _HistoryPageState();
 }
 
-class _CalendarPageState extends State<CalendarPage> {
-  CalendarPeriod selectedPeriod = CalendarPeriod.allTime;
+class _HistoryPageState extends State<HistoryPage> {
+  HistoryPeriod selectedPeriod = HistoryPeriod.allTime;
 
   Map<DateTime, Duration> _aggregateByDay() {
     Map<DateTime, Duration> result = {};
@@ -42,16 +42,16 @@ class _CalendarPageState extends State<CalendarPage> {
 
     DateTime minDate;
     switch (selectedPeriod) {
-      case CalendarPeriod.week:
+      case HistoryPeriod.week:
         minDate = today.subtract(const Duration(days: 7));
         break;
-      case CalendarPeriod.month:
+      case HistoryPeriod.month:
         minDate = today.subtract(const Duration(days: 30));
         break;
-      case CalendarPeriod.threeMonths:
+      case HistoryPeriod.threeMonths:
         minDate = today.subtract(const Duration(days: 90));
         break;
-      case CalendarPeriod.allTime:
+      case HistoryPeriod.allTime:
         minDate = widget.activityLogs.isNotEmpty
             ? widget.activityLogs
             .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
@@ -295,15 +295,15 @@ class _CalendarPageState extends State<CalendarPage> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: DropdownButton<CalendarPeriod>(
+          child: DropdownButton<HistoryPeriod>(
             value: selectedPeriod,
             isExpanded: true,
             items: const [
-              DropdownMenuItem(value: CalendarPeriod.week, child: Text('Last Week')),
-              DropdownMenuItem(value: CalendarPeriod.month, child: Text('Last Month')),
+              DropdownMenuItem(value: HistoryPeriod.week, child: Text('Last Week')),
+              DropdownMenuItem(value: HistoryPeriod.month, child: Text('Last Month')),
               DropdownMenuItem(
-                  value: CalendarPeriod.threeMonths, child: Text('Last 3 Months')),
-              DropdownMenuItem(value: CalendarPeriod.allTime, child: Text('All Time')),
+                  value: HistoryPeriod.threeMonths, child: Text('Last 3 Months')),
+              DropdownMenuItem(value: HistoryPeriod.allTime, child: Text('All Time')),
             ],
             onChanged: (val) {
               if (val == null) return;

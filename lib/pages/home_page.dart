@@ -10,7 +10,7 @@ import '../pages/tracker_page.dart';
 import '../pages/goals_page.dart';
 import '../pages/activities_page.dart';
 import '../pages/stats_page.dart';
-import '../pages/calendar_page.dart';
+import '../pages/history_page.dart';
 import '../pages/settings_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -270,7 +270,9 @@ class _HomePageState extends State<HomePage> {
   void subtractManualTime(Duration duration) {
     if (selectedActivity == null ||
         selectedActivity is! TimedActivity ||
-        duration <= Duration.zero) return;
+        duration <= Duration.zero) {
+      return;
+    }
     final dateStart = DateTime.now().subtract(const Duration(days: 1));
     final dateEnd = DateTime.now();
     final relevantLogs = activityLogs
@@ -290,8 +292,9 @@ class _HomePageState extends State<HomePage> {
       activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is TimedActivity) {
         activity.totalTime -= logToRemove.duration;
-        if (activity.totalTime < Duration.zero)
+        if (activity.totalTime < Duration.zero) {
           activity.totalTime = Duration.zero;
+        }
       }
     });
     print(
@@ -341,7 +344,9 @@ class _HomePageState extends State<HomePage> {
   void subtractManualCompletion(int count) {
     if (selectedActivity == null ||
         selectedActivity is! CheckableActivity ||
-        count <= 0) return;
+        count <= 0) {
+      return;
+    }
     final dateStart = DateTime.now().subtract(const Duration(days: 1));
     final dateEnd = DateTime.now();
     final relevantLogs = activityLogs
@@ -434,7 +439,7 @@ class _HomePageState extends State<HomePage> {
               Tab(icon: Icon(Icons.flag), text: 'Goals'),
               Tab(icon: Icon(Icons.list), text: 'Activity'),
               Tab(icon: Icon(Icons.bar_chart), text: 'Stats'),
-              Tab(icon: Icon(Icons.calendar_today), text: 'Calendar'),
+              Tab(icon: Icon(Icons.calendar_today), text: 'History'),
             ],
           ),
         ),
@@ -475,7 +480,7 @@ class _HomePageState extends State<HomePage> {
               activities: activities,
               goals: goals,
             ),
-            CalendarPage(
+            HistoryPage(
               activityLogs: activityLogs,
               goals: goals,
               selectedDate: selectedDate,
