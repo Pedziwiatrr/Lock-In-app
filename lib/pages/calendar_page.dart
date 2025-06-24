@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/activity.dart';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
 import '../utils/format_utils.dart';
@@ -152,6 +151,141 @@ class _CalendarPageState extends State<CalendarPage> {
     return progress;
   }
 
+  void _showDayDetails(BuildContext context, DateTime day, Map<String, dynamic> dayData) {
+    final dayStart = DateTime(day.year, day.month, day.day);
+    final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
+
+    final Map<String, Map<String, dynamic>> activities = {};
+    for (var log in widget.activityLogs.where((log) =>
+    log.date.isAfter(dayStart) && log.date.isBefore(dayEnd))) {
+      if (!activities.containsKey(log.activityName)) {
+        activities[log.activityName] = {
+          'isCheckable': log.isCheckable,
+          'duration': Duration.zero,
+          'completions': 0,
+        };
+      }
+      if (log.isCheckable) {
+        activities[log.activityName]!['completions'] += 1;
+      } else {
+        activities[log.activityName]!['duration'] =
+            (activities[log.activityName]!['duration'] as Duration) + log.duration;
+      }
+    }
+
+    final List<Map<String, dynamic>> goalProgress = [];
+    for (var goal in widget.goals.where((g) => g.goalDuration > Duration.zero)) {
+      final activityLogs = widget.activityLogs
+          .where((log) =>
+      log.activityName == goal.activityName &&
+          log.date.isAfter(dayStart) &&
+          log.date.isBefore(dayEnd))
+          .toList();
+
+      double percent = 0.0;
+      String status = '';
+
+      if (activityLogs.isNotEmpty) {
+        if (activityLogs.any((log) => log.isCheckable)) {
+          final completions = activityLogs.where((log) => log.isCheckable).length;
+          percent = goal.goalDuration.inMinutes == 0
+              ? 0.0
+              : (completions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
+          status = '$completions/${goal.goalDuration.inMinutes} completions';
+        } else {
+          final totalTime = activityLogs.fold<Duration>(
+              Duration.zero, (sum, log) => sum + log.duration);
+          percent = goal.goalDuration.inSeconds == 0
+              ? 0.0
+              : (totalTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0);
+          status = '${formatDuration(totalTime)}/${formatDuration(goal.goalDuration)}';
+        }
+      } else {
+        status = 'No activity logged';
+      }
+
+      goalProgress.add({
+        'activityName': goal.activityName,
+        'goalType': goal.goalType,
+        'percent': percent,
+        'status': status,
+      });
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(
+          '${day.day.toString().padLeft(2, '0')}-${day.month.toString().padLeft(2, '0')}-${day.year}',
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Activities',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              if (activities.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text('No activities logged for this day.'),
+                )
+              else
+                ...activities.entries.map((entry) {
+                  final activityName = entry.key;
+                  final data = entry.value;
+                  final isCheckable = data['isCheckable'] as bool;
+                  final duration = data['duration'] as Duration;
+                  final completions = data['completions'] as int;
+                  return ListTile(
+                    title: Text(activityName),
+                    subtitle: Text(
+                      isCheckable
+                          ? '$completions completion(s)'
+                          : formatDuration(duration),
+                    ),
+                  );
+                }).toList(),
+              const SizedBox(height: 16),
+              const Text(
+                'Goal Progress',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              if (goalProgress.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text('No goals set for this day.'),
+                )
+              else
+                ...goalProgress.map((goal) {
+                  return ListTile(
+                    title: Text(goal['activityName']),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        LinearProgressIndicator(value: goal['percent']),
+                        const SizedBox(height: 4),
+                        Text(goal['status']),
+                        Text(goal['goalType'] == GoalType.daily ? 'Daily' : 'Weekly'),
+                      ],
+                    ),
+                  );
+                }).toList(),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final progress = _calculateGoalProgress();
@@ -195,6 +329,7 @@ class _CalendarPageState extends State<CalendarPage> {
               final weeklyColor = dayData['weeklyColor'] as Color;
 
               return ListTile(
+                onTap: () => _showDayDetails(context, day, dayData),
                 leading: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
