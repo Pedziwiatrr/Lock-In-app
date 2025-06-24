@@ -100,6 +100,13 @@ class _HistoryPageState extends State<HistoryPage> {
       final monthStart = DateTime(day.year, day.month, 1);
       final monthEnd = DateTime(day.year, day.month + 1, 1).subtract(const Duration(milliseconds: 1));
 
+      int checkableCompletions = widget.activityLogs
+          .where((log) =>
+      log.isCheckable &&
+          log.date.isAfter(dayStart) &&
+          log.date.isBefore(dayEnd))
+          .length;
+
       for (var goal in widget.goals.where((g) =>
       g.goalDuration > Duration.zero &&
           g.startDate.isBefore(dayEnd) &&
@@ -181,6 +188,7 @@ class _HistoryPageState extends State<HistoryPage> {
         'totalMonthlyGoals': totalMonthlyGoals,
         'monthlyColor': monthlyColor,
         'duration': dayData[dayKey] ?? Duration.zero,
+        'checkableCompletions': checkableCompletions,
       };
     }
 
@@ -259,6 +267,7 @@ class _HistoryPageState extends State<HistoryPage> {
       builder: (_) => AlertDialog(
         title: Text(
           '${day.day.toString().padLeft(2, '0')}-${day.month.toString().padLeft(2, '0')}-${day.year}',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -376,33 +385,34 @@ class _HistoryPageState extends State<HistoryPage> {
               final completedMonthlyGoals = dayData['completedMonthlyGoals'] as int;
               final totalMonthlyGoals = dayData['totalMonthlyGoals'] as int;
               final monthlyColor = dayData['monthlyColor'] as Color;
+              final checkableCompletions = dayData['checkableCompletions'] as int;
 
               return ListTile(
                 onTap: () => _showDayDetails(context, day, dayData),
-                leading: Row(
+                leading: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      width: 24,
-                      height: 24,
+                      width: 16,
+                      height: 16,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: dailyColor,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(height: 4),
                     Container(
-                      width: 24,
-                      height: 24,
+                      width: 16,
+                      height: 16,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: weeklyColor,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(height: 4),
                     Container(
-                      width: 24,
-                      height: 24,
+                      width: 16,
+                      height: 16,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: monthlyColor,
@@ -412,16 +422,34 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
                 title: Text(
                   '${day.day.toString().padLeft(2, '0')}-${day.month.toString().padLeft(2, '0')}-${day.year}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Completed daily goals: $completedDailyGoals/$totalDailyGoals'),
-                    Text('Completed weekly goals: $completedWeeklyGoals/$totalWeeklyGoals'),
-                    Text('Completed monthly goals: $completedMonthlyGoals/$totalMonthlyGoals'),
+                    Text('Daily: $completedDailyGoals/$totalDailyGoals'),
+                    Text('Weekly: $completedWeeklyGoals/$totalWeeklyGoals'),
+                    Text('Monthly: $completedMonthlyGoals/$totalMonthlyGoals'),
                   ],
                 ),
-                trailing: Text(formatDuration(duration)),
+                trailing: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'Time locked in',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    Text(
+                      formatDuration(duration),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    Text(
+                      'Checks: $checkableCompletions',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
               );
             },
           ),
