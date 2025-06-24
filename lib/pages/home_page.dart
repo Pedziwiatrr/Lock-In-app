@@ -437,7 +437,7 @@ class _HomePageState extends State<HomePage> {
             tabs: [
               Tab(icon: Icon(Icons.timer), text: 'Tracker'),
               Tab(icon: Icon(Icons.flag), text: 'Goals'),
-              Tab(icon: Icon(Icons.list), text: 'Activity'),
+              Tab(icon: Icon(Icons.list), text: 'Activities'),
               Tab(icon: Icon(Icons.bar_chart), text: 'Stats'),
               Tab(icon: Icon(Icons.calendar_today), text: 'History'),
             ],
