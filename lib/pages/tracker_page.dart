@@ -54,10 +54,8 @@ class _TrackerPageState extends State<TrackerPage> {
   static const int maxManualCompletions = 100;
 
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
-    final dateStart =
-    DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
-    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month,
-        widget.selectedDate.day, 23, 59, 59, 999);
+    final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
     final Map<String, Map<String, dynamic>> dateActivities = {};
 
     for (var activity in widget.activities) {
@@ -68,31 +66,23 @@ class _TrackerPageState extends State<TrackerPage> {
       };
     }
 
-    for (var log in widget.activityLogs) {
-      if (log.date.isAfter(dateStart) && log.date.isBefore(dateEnd)) {
-        final activityName = log.activityName;
-        if (!dateActivities.containsKey(activityName)) {
-          dateActivities[activityName] = {
-            'isTimed': widget.activities.firstWhere(
-                  (a) => a.name == activityName,
-              orElse: () => TimedActivity(name: activityName),
-            ) is TimedActivity,
-            'totalDuration': Duration.zero,
-            'completions': 0,
-          };
-        }
-
-        if (log.isCheckable) {
-          dateActivities[activityName]!['completions'] += 1;
-        } else if (dateActivities[activityName]!['isTimed']) {
-          dateActivities[activityName]!['totalDuration'] =
-              (dateActivities[activityName]!['totalDuration'] as Duration) + log.duration;
-        }
+    for (var log in widget.activityLogs.where((log) => log.date.isAfter(dateStart) && log.date.isBefore(dateEnd))) {
+      final activityName = log.activityName;
+      if (!dateActivities.containsKey(activityName)) {
+        dateActivities[activityName] = {
+          'isTimed': widget.activities.any((a) => a.name == activityName && a is TimedActivity),
+          'totalDuration': Duration.zero,
+          'completions': 0,
+        };
+      }
+      if (log.isCheckable) {
+        dateActivities[activityName]!['completions'] += 1;
+      } else if (dateActivities[activityName]!['isTimed']) {
+        dateActivities[activityName]!['totalDuration'] = (dateActivities[activityName]!['totalDuration'] as Duration) + log.duration;
       }
     }
 
-    if (widget.selectedActivity != null &&
-        widget.selectedDate.day == DateTime.now().day) {
+    if (widget.selectedActivity != null && widget.selectedDate.day == DateTime.now().day) {
       final activityName = widget.selectedActivity!.name;
       if (!dateActivities.containsKey(activityName)) {
         dateActivities[activityName] = {
@@ -101,18 +91,15 @@ class _TrackerPageState extends State<TrackerPage> {
           'completions': 0,
         };
       }
-
       if (widget.selectedActivity is TimedActivity) {
-        dateActivities[activityName]!['totalDuration'] =
-            (dateActivities[activityName]!['totalDuration'] as Duration) + widget.elapsed;
+        dateActivities[activityName]!['totalDuration'] = (dateActivities[activityName]!['totalDuration'] as Duration) + widget.elapsed;
       }
     }
 
     return dateActivities;
   }
 
-  void showInputDialog(
-      String title, String hint, bool isTimed, Function(String) onSave) {
+  void showInputDialog(String title, String hint, bool isTimed, Function(String) onSave) {
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -123,13 +110,10 @@ class _TrackerPageState extends State<TrackerPage> {
           autofocus: true,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
-              hintText: hint,
-              helperText: isTimed
-                  ? 'Max $maxManualTimeMinutes minutes'
-                  : 'Max $maxManualCompletions completions'),
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-          ],
+            hintText: hint,
+            helperText: isTimed ? 'Max $maxManualTimeMinutes minutes' : 'Max $maxManualCompletions completions',
+          ),
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         ),
         actions: [
           TextButton(
@@ -140,17 +124,13 @@ class _TrackerPageState extends State<TrackerPage> {
             onPressed: () {
               final value = controller.text.trim();
               final intVal = int.tryParse(value);
-              if (value.isNotEmpty &&
-                  intVal != null &&
-                  intVal > 0 &&
-                  intVal <= (isTimed ? maxManualTimeMinutes : maxManualCompletions)) {
+              if (value.isNotEmpty && intVal != null && intVal > 0 && intVal <= (isTimed ? maxManualTimeMinutes : maxManualCompletions)) {
                 onSave(value);
                 Navigator.pop(context);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(
-                        'Enter a number between 1 and ${isTimed ? maxManualTimeMinutes : maxManualCompletions}.'),
+                    content: Text('Enter a number between 1 and ${isTimed ? maxManualTimeMinutes : maxManualCompletions}.'),
                   ),
                 );
               }
@@ -165,12 +145,9 @@ class _TrackerPageState extends State<TrackerPage> {
   @override
   Widget build(BuildContext context) {
     final dateActivities = getActivitiesForSelectedDate();
-    final dateStart =
-    DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
-    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month,
-        widget.selectedDate.day, 23, 59, 59, 999);
-    final dateCompletions = widget.selectedActivity != null &&
-        widget.selectedActivity is CheckableActivity
+    final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
+    final dateCompletions = widget.selectedActivity != null && widget.selectedActivity is CheckableActivity
         ? widget.activityLogs
         .where((log) =>
     log.activityName == widget.selectedActivity!.name &&
@@ -180,33 +157,44 @@ class _TrackerPageState extends State<TrackerPage> {
         .length
         : 0;
 
-    final filteredDateActivities = dateActivities.entries.where((entry) {
+    final filteredDateActivities = dateActivities.entries
+        .where((entry) {
       final activityData = entry.value;
       final isTimed = activityData['isTimed'] as bool;
       final totalDuration = activityData['totalDuration'] as Duration;
       final completions = activityData['completions'] as int;
       return isTimed ? totalDuration > Duration.zero : completions > 0;
-    }).toList();
+    })
+        .toList();
 
     bool canSubtractTime = false;
     bool canSubtractCompletion = false;
     if (widget.selectedActivity != null) {
       final relevantLogs = widget.activityLogs
-          .where((log) =>
-      log.activityName == widget.selectedActivity!.name &&
-          log.date.isAfter(dateStart) &&
-          log.date.isBefore(dateEnd))
+          .where((log) => log.activityName == widget.selectedActivity!.name && log.date.isAfter(dateStart) && log.date.isBefore(dateEnd))
           .toList();
-      canSubtractTime = widget.selectedActivity is TimedActivity &&
-          relevantLogs.any((log) => !log.isCheckable && log.duration > Duration.zero);
-      canSubtractCompletion = widget.selectedActivity is CheckableActivity &&
-          relevantLogs.any((log) => log.isCheckable);
+      canSubtractTime = widget.selectedActivity is TimedActivity && relevantLogs.any((log) => !log.isCheckable && log.duration > Duration.zero);
+      canSubtractCompletion = widget.selectedActivity is CheckableActivity && relevantLogs.any((log) => log.isCheckable);
     }
 
     final now = DateTime.now();
-    final isToday = widget.selectedDate.year == now.year &&
-        widget.selectedDate.month == now.month &&
-        widget.selectedDate.day == now.day;
+    final isToday = widget.selectedDate.year == now.year && widget.selectedDate.month == now.month && widget.selectedDate.day == now.day;
+
+    final filteredActivitiesWithGoals = widget.activities.where((activity) {
+      final goal = widget.goals.firstWhere(
+            (g) =>
+        g.activityName == activity.name &&
+            g.startDate.isBefore(dateEnd) &&
+            (g.endDate == null || g.endDate!.isAfter(dateStart)) &&
+            g.goalDuration > Duration.zero,
+        orElse: () => Goal(
+          activityName: activity.name,
+          goalDuration: Duration.zero,
+          startDate: DateTime(2000),
+        ),
+      );
+      return goal.goalDuration > Duration.zero;
+    }).toList();
 
     return SingleChildScrollView(
       child: Padding(
@@ -221,9 +209,7 @@ class _TrackerPageState extends State<TrackerPage> {
                     value: widget.selectedActivity,
                     hint: const Text('Choose activity'),
                     isExpanded: true,
-                    items: widget.activities
-                        .map((a) => DropdownMenuItem(value: a, child: Text(a.name)))
-                        .toList(),
+                    items: widget.activities.map((a) => DropdownMenuItem(value: a, child: Text(a.name))).toList(),
                     onChanged: widget.onSelectActivity,
                   ),
                 ),
@@ -267,9 +253,7 @@ class _TrackerPageState extends State<TrackerPage> {
               children: [
                 if (widget.selectedActivity is TimedActivity) ...[
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null ||
-                        widget.isRunning ||
-                        widget.selectedDate.isAfter(DateTime.now()))
+                    onPressed: (widget.selectedActivity == null || widget.isRunning || widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : widget.onStartTimer,
                     child: const Text('Start'),
@@ -281,19 +265,14 @@ class _TrackerPageState extends State<TrackerPage> {
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null ||
-                        widget.elapsed == Duration.zero ||
-                        widget.selectedDate.isAfter(DateTime.now()))
+                    onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero || widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : widget.onResetTimer,
                     child: const Text('Finish'),
                   ),
                 ] else if (widget.selectedActivity is CheckableActivity)
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null ||
-                        widget.selectedDate.isAfter(DateTime.now()))
-                        ? null
-                        : widget.onCheckActivity,
+                    onPressed: (widget.selectedActivity == null || widget.selectedDate.isAfter(DateTime.now())) ? null : widget.onCheckActivity,
                     child: const Text('Check', style: TextStyle(fontSize: 20)),
                   ),
               ],
@@ -304,24 +283,17 @@ class _TrackerPageState extends State<TrackerPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null ||
-                        widget.isRunning ||
-                        widget.selectedDate.isAfter(DateTime.now()))
+                    onPressed: (widget.selectedActivity == null || widget.isRunning || widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : () {
                       showInputDialog(
-                        widget.selectedActivity is TimedActivity
-                            ? 'Add Time'
-                            : 'Add Completions',
-                        widget.selectedActivity is TimedActivity
-                            ? 'Enter minutes'
-                            : 'Enter number of completions',
+                        widget.selectedActivity is TimedActivity ? 'Add Time' : 'Add Completions',
+                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
                         widget.selectedActivity is TimedActivity,
                             (value) {
                           final intVal = int.parse(value);
                           if (widget.selectedActivity is TimedActivity) {
-                            widget
-                                .onAddManualTime(Duration(minutes: intVal));
+                            widget.onAddManualTime(Duration(minutes: intVal));
                           } else {
                             widget.onAddManualCompletion(intVal);
                           }
@@ -334,20 +306,14 @@ class _TrackerPageState extends State<TrackerPage> {
                   const SizedBox(width: 10),
                   ElevatedButton(
                     onPressed: (widget.selectedActivity == null ||
-                        (widget.selectedActivity is TimedActivity &&
-                            !canSubtractTime) ||
-                        (widget.selectedActivity is CheckableActivity &&
-                            !canSubtractCompletion) ||
+                        (widget.selectedActivity is TimedActivity && !canSubtractTime) ||
+                        (widget.selectedActivity is CheckableActivity && !canSubtractCompletion) ||
                         widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : () {
                       showInputDialog(
-                        widget.selectedActivity is TimedActivity
-                            ? 'Subtract Time'
-                            : 'Subtract Completions',
-                        widget.selectedActivity is TimedActivity
-                            ? 'Enter minutes'
-                            : 'Enter number of completions',
+                        widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions',
+                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
                         widget.selectedActivity is TimedActivity,
                             (value) {
                           final intVal = int.parse(value);
@@ -398,49 +364,29 @@ class _TrackerPageState extends State<TrackerPage> {
               'Goals',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            widget.activities.where((a) {
-              final goal = widget.goals.firstWhere(
-                    (g) => g.activityName == a.name,
-                orElse: () => Goal(activityName: a.name, goalDuration: Duration.zero),
-              );
-              return goal.goalDuration > Duration.zero;
-            }).isEmpty
+            filteredActivitiesWithGoals.isEmpty
                 ? const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('No goals set. Add goals in the Goals tab.'),
+              child: Text('No goals set for this date.'),
             )
                 : ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: widget.activities.where((a) {
-                final goal = widget.goals.firstWhere(
-                      (g) => g.activityName == a.name,
-                  orElse: () =>
-                      Goal(activityName: a.name, goalDuration: Duration.zero),
-                );
-                return goal.goalDuration > Duration.zero;
-              }).length,
+              itemCount: filteredActivitiesWithGoals.length,
               itemBuilder: (context, index) {
-                final filteredActivities = widget.activities.where((a) {
-                  final goal = widget.goals.firstWhere(
-                        (g) => g.activityName == a.name,
-                    orElse: () =>
-                        Goal(activityName: a.name, goalDuration: Duration.zero),
-                  );
-                  return goal.goalDuration > Duration.zero;
-                }).toList();
-
-                final activity = filteredActivities[index];
+                final activity = filteredActivitiesWithGoals[index];
                 final goal = widget.goals.firstWhere(
-                      (g) => g.activityName == activity.name,
-                  orElse: () =>
-                      Goal(activityName: activity.name, goalDuration: Duration.zero),
+                      (g) =>
+                  g.activityName == activity.name &&
+                      g.startDate.isBefore(dateEnd) &&
+                      (g.endDate == null || g.endDate!.isAfter(dateStart)),
+                  orElse: () => Goal(
+                    activityName: activity.name,
+                    goalDuration: Duration.zero,
+                    startDate: DateTime(2000),
+                  ),
                 );
 
-                final dateStart = DateTime(
-                    widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
-                final dateEnd = DateTime(widget.selectedDate.year,
-                    widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
                 final dateTime = widget.activityLogs
                     .where((log) =>
                 log.activityName == activity.name &&
@@ -464,12 +410,10 @@ class _TrackerPageState extends State<TrackerPage> {
                 final percent = activity is TimedActivity
                     ? goal.goalDuration.inSeconds == 0
                     ? 0.0
-                    : (dateTime.inSeconds / goal.goalDuration.inSeconds)
-                    .clamp(0.0, 1.0)
+                    : (dateTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0)
                     : goal.goalDuration.inMinutes == 0
                     ? 0.0
-                    : (dateCompletions / goal.goalDuration.inMinutes)
-                    .clamp(0.0, 1.0);
+                    : (dateCompletions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
 
                 final remainingText = activity is TimedActivity
                     ? (goal.goalDuration - dateTime).isNegative
@@ -487,8 +431,7 @@ class _TrackerPageState extends State<TrackerPage> {
                       LinearProgressIndicator(value: percent),
                       const SizedBox(height: 4),
                       Text(remainingText),
-                      Text(
-                          goal.goalType == GoalType.daily ? 'Daily' : 'Weekly'),
+                      Text(goal.goalType == GoalType.daily ? 'Daily' : 'Weekly'),
                     ],
                   ),
                   trailing: Text('${(percent * 100).toStringAsFixed(0)}%'),

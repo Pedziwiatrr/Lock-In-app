@@ -70,18 +70,29 @@ class _HistoryPageState extends State<HistoryPage> {
 
       int completedDailyGoals = 0;
       int totalDailyGoals = widget.goals
-          .where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.daily)
+          .where((g) =>
+      g.goalDuration > Duration.zero &&
+          g.goalType == GoalType.daily &&
+          g.startDate.isBefore(dayEnd) &&
+          (g.endDate == null || g.endDate!.isAfter(dayStart)))
           .length;
 
       int completedWeeklyGoals = 0;
       int totalWeeklyGoals = widget.goals
-          .where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.weekly)
+          .where((g) =>
+      g.goalDuration > Duration.zero &&
+          g.goalType == GoalType.weekly &&
+          g.startDate.isBefore(dayEnd) &&
+          (g.endDate == null || g.endDate!.isAfter(dayStart)))
           .length;
 
       final weekStart = day.subtract(Duration(days: day.weekday - 1));
       final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
 
-      for (var goal in widget.goals.where((g) => g.goalDuration > Duration.zero)) {
+      for (var goal in widget.goals.where((g) =>
+      g.goalDuration > Duration.zero &&
+          g.startDate.isBefore(dayEnd) &&
+          (g.endDate == null || g.endDate!.isAfter(dayStart)))) {
         final activity = widget.activityLogs
             .where((log) =>
         log.activityName == goal.activityName &&
@@ -155,6 +166,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final dayStart = DateTime(day.year, day.month, day.day);
     final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
 
+    // Aggregate activities for the selected day
     final Map<String, Map<String, dynamic>> activities = {};
     for (var log in widget.activityLogs.where((log) =>
     log.date.isAfter(dayStart) && log.date.isBefore(dayEnd))) {
@@ -173,8 +185,12 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     }
 
+    // Calculate goal progress for the selected day
     final List<Map<String, dynamic>> goalProgress = [];
-    for (var goal in widget.goals.where((g) => g.goalDuration > Duration.zero)) {
+    for (var goal in widget.goals.where((g) =>
+    g.goalDuration > Duration.zero &&
+        g.startDate.isBefore(dayEnd) &&
+        (g.endDate == null || g.endDate!.isAfter(dayStart)))) {
       final activityLogs = widget.activityLogs
           .where((log) =>
       log.activityName == goal.activityName &&
