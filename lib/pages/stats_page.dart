@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'dart:convert';
 import '../models/activity.dart';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
@@ -211,13 +210,13 @@ class _StatsPageState extends State<StatsPage> {
 
     final totalTimedDuration = selectedActivity == null
         ? widget.activities
-        .where((a) => a is TimedActivity)
+        .whereType<TimedActivity>()
         .fold(Duration.zero, (sum, a) => sum + (timeTotals[a.name] ?? Duration.zero))
         : timeTotals[selectedActivity] ?? Duration.zero;
 
     final totalCheckableInstances = selectedActivity == null
         ? widget.activities
-        .where((a) => a is CheckableActivity)
+        .whereType<CheckableActivity>()
         .fold(0, (sum, a) => sum + (completionTotals[a.name] ?? 0))
         : completionTotals[selectedActivity] ?? 0;
 
@@ -284,7 +283,7 @@ class _StatsPageState extends State<StatsPage> {
                 const DropdownMenuItem<String?>(value: null, child: Text('All Activities')),
                 ...widget.activities
                     .map((a) => DropdownMenuItem<String>(value: a.name, child: Text(a.name)))
-                    .toList(),
+                    ,
               ],
               onChanged: (val) {
                 setState(() => selectedActivity = val);
