@@ -107,6 +107,24 @@ class _GoalsPageState extends State<GoalsPage> {
     }
   }
 
+  void _clearEndDate(String activityName, TextEditingController controller) {
+    setState(() {
+      final index = editableGoals.indexWhere((g) => g.activityName == activityName);
+      if (index != -1) {
+        final goal = editableGoals[index];
+        editableGoals[index] = Goal(
+          activityName: goal.activityName,
+          goalDuration: goal.goalDuration,
+          goalType: goal.goalType,
+          startDate: goal.startDate,
+          endDate: null,
+        );
+        controller.clear();
+        widget.onGoalChanged(editableGoals);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentActivityNames = widget.activities.map((a) => a.name).toSet();
@@ -162,7 +180,7 @@ class _GoalsPageState extends State<GoalsPage> {
                       controller: controller,
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
-                        labelText: 'Target',
+                        labelText: 'Goal',
                         suffixText: activity is TimedActivity ? 'min' : 'times',
                       ),
                       inputFormatters: [
@@ -221,9 +239,15 @@ class _GoalsPageState extends State<GoalsPage> {
                     child: TextField(
                       controller: endDateController,
                       readOnly: true,
-                      decoration: const InputDecoration(
-                        labelText: 'End Date',
-                        hintText: '(optional)',
+                      decoration: InputDecoration(
+                        labelText: 'End Date (optional)',
+                        hintText: '',
+                        suffixIcon: goal.endDate != null
+                            ? IconButton(
+                          icon: const Icon(Icons.clear, size: 20),
+                          onPressed: () => _clearEndDate(activity.name, endDateController),
+                        )
+                            : null,
                       ),
                       onTap: () => _selectDate(context, false, activity.name, goal.endDate ?? DateTime.now(), endDateController),
                     ),
