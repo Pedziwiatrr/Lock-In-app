@@ -387,11 +387,24 @@ class _TrackerPageState extends State<TrackerPage> {
                   ),
                 );
 
+                final monthStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, 1);
+                final monthEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month + 1, 1).subtract(const Duration(milliseconds: 1));
+
                 final dateTime = widget.activityLogs
                     .where((log) =>
                 log.activityName == activity.name &&
-                    log.date.isAfter(dateStart) &&
-                    log.date.isBefore(dateEnd))
+                    log.date.isAfter(goal.goalType == GoalType.daily
+                        ? dateStart
+                        : goal.goalType == GoalType.weekly
+                        ? dateStart.subtract(Duration(days: widget.selectedDate.weekday - 1))
+                        : monthStart) &&
+                    log.date.isBefore(goal.goalType == GoalType.daily
+                        ? dateEnd
+                        : goal.goalType == GoalType.weekly
+                        ? dateStart
+                        .subtract(Duration(days: widget.selectedDate.weekday - 1))
+                        .add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59))
+                        : monthEnd))
                     .fold(Duration.zero, (sum, log) => sum + log.duration) +
                     (widget.isRunning &&
                         widget.selectedActivity?.name == activity.name &&
@@ -402,36 +415,55 @@ class _TrackerPageState extends State<TrackerPage> {
                 final dateCompletions = widget.activityLogs
                     .where((log) =>
                 log.activityName == activity.name &&
-                    log.date.isAfter(dateStart) &&
-                    log.date.isBefore(dateEnd) &&
+                    log.date.isAfter(goal.goalType == GoalType.daily
+                        ? dateStart
+                        : goal.goalType == GoalType.weekly
+                        ? dateStart.subtract(Duration(days: widget.selectedDate.weekday - 1))
+                        : monthStart) &&
+                    log.date.isBefore(goal.goalType == GoalType.daily
+                        ? dateEnd
+                        : goal.goalType == GoalType.weekly
+                        ? dateStart
+                        .subtract(Duration(days: widget.selectedDate.weekday - 1))
+                        .add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59))
+                        : monthEnd) &&
                     log.isCheckable)
                     .length;
 
-                final percent = activity is TimedActivity
-                    ? goal.goalDuration.inSeconds == 0
-                    ? 0.0
-                    : (dateTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0)
-                    : goal.goalDuration.inMinutes == 0
-                    ? 0.0
-                    : (dateCompletions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
-
-                final remainingText = activity is TimedActivity
-                    ? (goal.goalDuration - dateTime).isNegative
-                    ? 'Goal completed!'
-                    : 'Remaining: ${formatDuration(goal.goalDuration - dateTime)}'
-                    : dateCompletions >= goal.goalDuration.inMinutes
-                    ? 'Goal completed!'
-                    : 'Remaining: ${goal.goalDuration.inMinutes - dateCompletions} completion(s)';
+                double percent = 0.0;
+                String remainingText = '';
+                if (activity is TimedActivity) {
+                  percent = goal.goalDuration.inSeconds == 0
+                      ? 0.0
+                      : (dateTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0);
+                  remainingText = (goal.goalDuration - dateTime).isNegative
+                      ? 'Goal completed!'
+                      : 'Remaining: ${formatDuration(goal.goalDuration - dateTime)}';
+                } else {
+                  percent = goal.goalDuration.inMinutes == 0
+                      ? 0.0
+                      : (dateCompletions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
+                  remainingText = dateCompletions >= goal.goalDuration.inMinutes
+                      ? 'Goal completed!'
+                      : 'Remaining: ${goal.goalDuration.inMinutes - dateCompletions} completion(s)';
+                }
 
                 return ListTile(
-                  title: Text(activity.name),
+                  title: Text(
+                    activity.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       LinearProgressIndicator(value: percent),
                       const SizedBox(height: 4),
                       Text(remainingText),
-                      Text(goal.goalType == GoalType.daily ? 'Daily' : 'Weekly'),
+                      Text(goal.goalType == GoalType.daily
+                          ? 'Daily'
+                          : goal.goalType == GoalType.weekly
+                          ? 'Weekly'
+                          : 'Monthly'),
                     ],
                   ),
                   trailing: Text('${(percent * 100).toStringAsFixed(0)}%'),

@@ -86,8 +86,19 @@ class _HistoryPageState extends State<HistoryPage> {
           (g.endDate == null || g.endDate!.isAfter(dayStart)))
           .length;
 
+      int completedMonthlyGoals = 0;
+      int totalMonthlyGoals = widget.goals
+          .where((g) =>
+      g.goalDuration > Duration.zero &&
+          g.goalType == GoalType.monthly &&
+          g.startDate.isBefore(dayEnd) &&
+          (g.endDate == null || g.endDate!.isAfter(dayStart)))
+          .length;
+
       final weekStart = day.subtract(Duration(days: day.weekday - 1));
       final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+      final monthStart = DateTime(day.year, day.month, 1);
+      final monthEnd = DateTime(day.year, day.month + 1, 1).subtract(const Duration(milliseconds: 1));
 
       for (var goal in widget.goals.where((g) =>
       g.goalDuration > Duration.zero &&
@@ -96,9 +107,16 @@ class _HistoryPageState extends State<HistoryPage> {
         final activity = widget.activityLogs
             .where((log) =>
         log.activityName == goal.activityName &&
-            log.date.isAfter(
-                goal.goalType == GoalType.daily ? dayStart : weekStart) &&
-            log.date.isBefore(goal.goalType == GoalType.daily ? dayEnd : weekEnd))
+            log.date.isAfter(goal.goalType == GoalType.daily
+                ? dayStart
+                : goal.goalType == GoalType.weekly
+                ? weekStart
+                : monthStart) &&
+            log.date.isBefore(goal.goalType == GoalType.daily
+                ? dayEnd
+                : goal.goalType == GoalType.weekly
+                ? weekEnd
+                : monthEnd))
             .toList();
 
         bool isCompleted = false;
@@ -120,33 +138,37 @@ class _HistoryPageState extends State<HistoryPage> {
         if (isCompleted) {
           if (goal.goalType == GoalType.daily) {
             completedDailyGoals++;
-          } else {
+          } else if (goal.goalType == GoalType.weekly) {
             completedWeeklyGoals++;
+          } else if (goal.goalType == GoalType.monthly) {
+            completedMonthlyGoals++;
           }
         }
       }
 
-      Color dailyColor;
-      if (totalDailyGoals == 0) {
-        dailyColor = Colors.grey;
-      } else if (completedDailyGoals == totalDailyGoals) {
-        dailyColor = Colors.green;
-      } else if (completedDailyGoals > 0) {
-        dailyColor = Colors.yellow;
-      } else {
-        dailyColor = Colors.red;
-      }
+      Color dailyColor = totalDailyGoals == 0
+          ? Colors.grey
+          : completedDailyGoals == totalDailyGoals
+          ? Colors.green
+          : completedDailyGoals > 0
+          ? Colors.yellow
+          : Colors.red;
 
-      Color weeklyColor;
-      if (totalWeeklyGoals == 0) {
-        weeklyColor = Colors.grey;
-      } else if (completedWeeklyGoals == totalWeeklyGoals) {
-        weeklyColor = Colors.green;
-      } else if (completedWeeklyGoals > 0) {
-        weeklyColor = Colors.yellow;
-      } else {
-        weeklyColor = Colors.red;
-      }
+      Color weeklyColor = totalWeeklyGoals == 0
+          ? Colors.grey
+          : completedWeeklyGoals == totalWeeklyGoals
+          ? Colors.green
+          : completedWeeklyGoals > 0
+          ? Colors.yellow
+          : Colors.red;
+
+      Color monthlyColor = totalMonthlyGoals == 0
+          ? Colors.grey
+          : completedMonthlyGoals == totalMonthlyGoals
+          ? Colors.green
+          : completedMonthlyGoals > 0
+          ? Colors.yellow
+          : Colors.red;
 
       progress[day] = {
         'completedDailyGoals': completedDailyGoals,
@@ -155,6 +177,9 @@ class _HistoryPageState extends State<HistoryPage> {
         'completedWeeklyGoals': completedWeeklyGoals,
         'totalWeeklyGoals': totalWeeklyGoals,
         'weeklyColor': weeklyColor,
+        'completedMonthlyGoals': completedMonthlyGoals,
+        'totalMonthlyGoals': totalMonthlyGoals,
+        'monthlyColor': monthlyColor,
         'duration': dayData[dayKey] ?? Duration.zero,
       };
     }
@@ -165,11 +190,11 @@ class _HistoryPageState extends State<HistoryPage> {
   void _showDayDetails(BuildContext context, DateTime day, Map<String, dynamic> dayData) {
     final dayStart = DateTime(day.year, day.month, day.day);
     final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
+    final monthStart = DateTime(day.year, day.month, 1);
+    final monthEnd = DateTime(day.year, day.month + 1, 1).subtract(const Duration(milliseconds: 1));
 
-    // Aggregate activities for the selected day
     final Map<String, Map<String, dynamic>> activities = {};
-    for (var log in widget.activityLogs.where((log) =>
-    log.date.isAfter(dayStart) && log.date.isBefore(dayEnd))) {
+    for (var log in widget.activityLogs.where((log) => log.date.isAfter(dayStart) && log.date.isBefore(dayEnd))) {
       if (!activities.containsKey(log.activityName)) {
         activities[log.activityName] = {
           'isCheckable': log.isCheckable,
@@ -180,12 +205,10 @@ class _HistoryPageState extends State<HistoryPage> {
       if (log.isCheckable) {
         activities[log.activityName]!['completions'] += 1;
       } else {
-        activities[log.activityName]!['duration'] =
-            (activities[log.activityName]!['duration'] as Duration) + log.duration;
+        activities[log.activityName]!['duration'] = (activities[log.activityName]!['duration'] as Duration) + log.duration;
       }
     }
 
-    // Calculate goal progress for the selected day
     final List<Map<String, dynamic>> goalProgress = [];
     for (var goal in widget.goals.where((g) =>
     g.goalDuration > Duration.zero &&
@@ -194,8 +217,16 @@ class _HistoryPageState extends State<HistoryPage> {
       final activityLogs = widget.activityLogs
           .where((log) =>
       log.activityName == goal.activityName &&
-          log.date.isAfter(dayStart) &&
-          log.date.isBefore(dayEnd))
+          log.date.isAfter(goal.goalType == GoalType.daily
+              ? dayStart
+              : goal.goalType == GoalType.weekly
+              ? day.subtract(Duration(days: day.weekday - 1))
+              : monthStart) &&
+          log.date.isBefore(goal.goalType == GoalType.daily
+              ? dayEnd
+              : goal.goalType == GoalType.weekly
+              ? day.subtract(Duration(days: day.weekday - 1)).add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59))
+              : monthEnd))
           .toList();
 
       double percent = 0.0;
@@ -204,16 +235,11 @@ class _HistoryPageState extends State<HistoryPage> {
       if (activityLogs.isNotEmpty) {
         if (activityLogs.any((log) => log.isCheckable)) {
           final completions = activityLogs.where((log) => log.isCheckable).length;
-          percent = goal.goalDuration.inMinutes == 0
-              ? 0.0
-              : (completions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
+          percent = goal.goalDuration.inMinutes == 0 ? 0.0 : (completions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
           status = '$completions/${goal.goalDuration.inMinutes} completions';
         } else {
-          final totalTime = activityLogs.fold<Duration>(
-              Duration.zero, (sum, log) => sum + log.duration);
-          percent = goal.goalDuration.inSeconds == 0
-              ? 0.0
-              : (totalTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0);
+          final totalTime = activityLogs.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
+          percent = goal.goalDuration.inSeconds == 0 ? 0.0 : (totalTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0);
           status = '${formatDuration(totalTime)}/${formatDuration(goal.goalDuration)}';
         }
       } else {
@@ -258,9 +284,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   return ListTile(
                     title: Text(activityName),
                     subtitle: Text(
-                      isCheckable
-                          ? '$completions completion(s)'
-                          : formatDuration(duration),
+                      isCheckable ? '$completions completion(s)' : formatDuration(duration),
                     ),
                   );
                 }).toList(),
@@ -277,14 +301,21 @@ class _HistoryPageState extends State<HistoryPage> {
               else
                 ...goalProgress.map((goal) {
                   return ListTile(
-                    title: Text(goal['activityName']),
+                    title: Text(
+                      goal['activityName'],
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         LinearProgressIndicator(value: goal['percent']),
                         const SizedBox(height: 4),
                         Text(goal['status']),
-                        Text(goal['goalType'] == GoalType.daily ? 'Daily' : 'Weekly'),
+                        Text(goal['goalType'] == GoalType.daily
+                            ? 'Daily'
+                            : goal['goalType'] == GoalType.weekly
+                            ? 'Weekly'
+                            : 'Monthly'),
                       ],
                     ),
                   );
@@ -317,8 +348,7 @@ class _HistoryPageState extends State<HistoryPage> {
             items: const [
               DropdownMenuItem(value: HistoryPeriod.week, child: Text('Last Week')),
               DropdownMenuItem(value: HistoryPeriod.month, child: Text('Last Month')),
-              DropdownMenuItem(
-                  value: HistoryPeriod.threeMonths, child: Text('Last 3 Months')),
+              DropdownMenuItem(value: HistoryPeriod.threeMonths, child: Text('Last 3 Months')),
               DropdownMenuItem(value: HistoryPeriod.allTime, child: Text('All Time')),
             ],
             onChanged: (val) {
@@ -343,6 +373,9 @@ class _HistoryPageState extends State<HistoryPage> {
               final completedWeeklyGoals = dayData['completedWeeklyGoals'] as int;
               final totalWeeklyGoals = dayData['totalWeeklyGoals'] as int;
               final weeklyColor = dayData['weeklyColor'] as Color;
+              final completedMonthlyGoals = dayData['completedMonthlyGoals'] as int;
+              final totalMonthlyGoals = dayData['totalMonthlyGoals'] as int;
+              final monthlyColor = dayData['monthlyColor'] as Color;
 
               return ListTile(
                 onTap: () => _showDayDetails(context, day, dayData),
@@ -366,6 +399,15 @@ class _HistoryPageState extends State<HistoryPage> {
                         color: weeklyColor,
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: monthlyColor,
+                      ),
+                    ),
                   ],
                 ),
                 title: Text(
@@ -375,8 +417,8 @@ class _HistoryPageState extends State<HistoryPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Completed daily goals: $completedDailyGoals/$totalDailyGoals'),
-                    Text(
-                        'Completed weekly goals: $completedWeeklyGoals/$totalWeeklyGoals'),
+                    Text('Completed weekly goals: $completedWeeklyGoals/$totalWeeklyGoals'),
+                    Text('Completed monthly goals: $completedMonthlyGoals/$totalMonthlyGoals'),
                   ],
                 ),
                 trailing: Text(formatDuration(duration)),

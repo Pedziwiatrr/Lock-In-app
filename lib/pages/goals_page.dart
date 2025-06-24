@@ -162,7 +162,6 @@ class _GoalsPageState extends State<GoalsPage> {
               ? '${goal.endDate!.day.toString().padLeft(2, '0')}-${goal.endDate!.month.toString().padLeft(2, '0')}-${goal.endDate!.year}'
               : '',
         );
-        bool isDaily = goal.goalType == GoalType.daily;
 
         return ListTile(
           title: Text(
@@ -183,25 +182,24 @@ class _GoalsPageState extends State<GoalsPage> {
                         labelText: 'Goal',
                         suffixText: activity is TimedActivity ? 'min' : 'times',
                       ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       onSubmitted: (val) => updateGoal(
                         activity.name,
                         val,
                         activity is TimedActivity,
-                        isDaily ? GoalType.daily : GoalType.weekly,
+                        goal.goalType,
                         goal.startDate,
                         goal.endDate,
                       ),
                     ),
                   ),
                   const SizedBox(width: 20),
-                  DropdownButton<bool>(
-                    value: isDaily,
+                  DropdownButton<GoalType>(
+                    value: goal.goalType,
                     items: const [
-                      DropdownMenuItem(value: true, child: Text('Daily')),
-                      DropdownMenuItem(value: false, child: Text('Weekly')),
+                      DropdownMenuItem(value: GoalType.daily, child: Text('Daily')),
+                      DropdownMenuItem(value: GoalType.weekly, child: Text('Weekly')),
+                      DropdownMenuItem(value: GoalType.monthly, child: Text('Monthly')),
                     ],
                     onChanged: (val) {
                       if (val != null) {
@@ -209,7 +207,7 @@ class _GoalsPageState extends State<GoalsPage> {
                           activity.name,
                           controller.text,
                           activity is TimedActivity,
-                          val ? GoalType.daily : GoalType.weekly,
+                          val,
                           goal.startDate,
                           goal.endDate,
                         );
@@ -228,7 +226,7 @@ class _GoalsPageState extends State<GoalsPage> {
                       readOnly: true,
                       decoration: const InputDecoration(
                         labelText: 'Start Date',
-                        hintText: '',
+                        hintText: 'Select start date',
                       ),
                       onTap: () => _selectDate(context, true, activity.name, goal.startDate, startDateController),
                     ),
@@ -240,8 +238,8 @@ class _GoalsPageState extends State<GoalsPage> {
                       controller: endDateController,
                       readOnly: true,
                       decoration: InputDecoration(
-                        labelText: 'End Date (optional)',
-                        hintText: '',
+                        labelText: 'End Date',
+                        hintText: 'Select end date (optional)',
                         suffixIcon: goal.endDate != null
                             ? IconButton(
                           icon: const Icon(Icons.clear, size: 20),
