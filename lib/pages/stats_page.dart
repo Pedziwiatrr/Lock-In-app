@@ -357,7 +357,7 @@ class _StatsPageState extends State<StatsPage> {
             ),
             const SizedBox(height: 20),
             Text(
-              selectedPeriod == StatsPeriod.week ? 'Time Spent per Day' : 'Time Spent per Week',
+              selectedPeriod == StatsPeriod.week ? 'Time Spent per Day' : 'Time Spent over time',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
@@ -436,7 +436,7 @@ class _StatsPageState extends State<StatsPage> {
             ),
             const SizedBox(height: 20),
             Text(
-              selectedPeriod == StatsPeriod.week ? 'Completions per Day' : 'Completions per Week',
+              selectedPeriod == StatsPeriod.week ? 'Completions per Day' : 'Completions over time',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
