@@ -140,7 +140,7 @@ class _StatsPageState extends State<StatsPage> {
         } else if (selectedPeriod == StatsPeriod.week) {
           index = logDay.difference(startDate).inDays;
         } else if (selectedPeriod == StatsPeriod.month) {
-          index = ((logDay.difference(startDate).inDays) / 7).floor();
+          index = ((logDay.difference(startDate)).inDays / 7).floor();
         } else {
           index = (logDay.year - startDate.year) * 12 + logDay.month - startDate.month;
         }
@@ -236,6 +236,17 @@ class _StatsPageState extends State<StatsPage> {
     return maxYValue > 0 ? maxYValue * 1.2 : 10.0;
   }
 
+  List<String> _getMonthLabels() {
+    final now = DateTime.now();
+    final List<String> labels = [];
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    for (int i = 11; i >= 0; i--) {
+      final monthIndex = (now.month - i - 1) % 12;
+      labels.add(monthNames[monthIndex >= 0 ? monthIndex : monthIndex + 12]);
+    }
+    return labels;
+  }
+
   @override
   Widget build(BuildContext context) {
     final stats = filteredActivities();
@@ -250,8 +261,7 @@ class _StatsPageState extends State<StatsPage> {
 
     final timedChartData = getTimedChartData();
     final checkableChartData = getCheckableChartData();
-
-    const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final monthLabels = _getMonthLabels();
 
     return SingleChildScrollView(
       child: Padding(
@@ -282,8 +292,7 @@ class _StatsPageState extends State<StatsPage> {
               items: [
                 const DropdownMenuItem<String?>(value: null, child: Text('All Activities')),
                 ...widget.activities
-                    .map((a) => DropdownMenuItem<String>(value: a.name, child: Text(a.name)))
-                    ,
+                    .map((a) => DropdownMenuItem<String>(value: a.name, child: Text(a.name))),
               ],
               onChanged: (val) {
                 setState(() => selectedActivity = val);
@@ -388,13 +397,19 @@ class _StatsPageState extends State<StatsPage> {
                                 style: const TextStyle(fontSize: 10),
                               ),
                             );
+                          } else if (selectedPeriod == StatsPeriod.month) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                'W${value.toInt() + 1}',
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            );
                           } else {
                             return Padding(
                               padding: const EdgeInsets.only(top: 8),
                               child: Text(
-                                selectedPeriod == StatsPeriod.month
-                                    ? 'W${value.toInt() + 1}'
-                                    : monthLabels[value.toInt() % 12],
+                                monthLabels[value.toInt()],
                                 style: const TextStyle(fontSize: 10),
                               ),
                             );
@@ -461,13 +476,19 @@ class _StatsPageState extends State<StatsPage> {
                                 style: const TextStyle(fontSize: 10),
                               ),
                             );
+                          } else if (selectedPeriod == StatsPeriod.month) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                'W${value.toInt() + 1}',
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            );
                           } else {
                             return Padding(
                               padding: const EdgeInsets.only(top: 8),
                               child: Text(
-                                selectedPeriod == StatsPeriod.month
-                                    ? 'W${value.toInt() + 1}'
-                                    : monthLabels[value.toInt() % 12],
+                                monthLabels[value.toInt()],
                                 style: const TextStyle(fontSize: 10),
                               ),
                             );
