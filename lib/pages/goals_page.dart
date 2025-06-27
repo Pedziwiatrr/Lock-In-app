@@ -227,7 +227,7 @@ class _GoalsPageState extends State<GoalsPage> {
 
               return ListTile(
                 title: Text(
-                  activity.name,
+                  '${activity.name} ${activity is TimedActivity ? '⏰' : '✅'}',
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
                 ),
                 subtitle: Column(
@@ -340,7 +340,7 @@ class _GoalsPageState extends State<GoalsPage> {
           if (showGoals) ...[
             const SizedBox(height: 16),
             const Text(
-              'Goals',
+              'Goals 🔥',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),

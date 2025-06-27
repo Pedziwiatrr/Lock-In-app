@@ -369,7 +369,7 @@ class _TrackerPageState extends State<TrackerPage> {
             ),
             const SizedBox(height: 20),
             const Text(
-              'Goals',
+              '✅ Goals',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             filteredActivitiesWithGoals.isEmpty
@@ -480,7 +480,7 @@ class _TrackerPageState extends State<TrackerPage> {
             ),
             const SizedBox(height: 20),
             Text(
-              'Current Streak: $currentStreak days',
+              '🔥 Current Streak: $currentStreak days 🔥',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 100),

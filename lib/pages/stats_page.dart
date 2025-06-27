@@ -522,8 +522,8 @@ class _StatsPageState extends State<StatsPage> {
           if (!isCheckableSelected) ...[
             Text(
               selectedActivity == null
-                  ? 'Total activity time: ${formatDuration(totalTime)}'
-                  : 'Time for $selectedActivity: ${formatDuration(totalTime)}',
+                  ? '⏰ Total activity time: ${formatDuration(totalTime)}'
+                  : '⏰ Time for $selectedActivity: ${formatDuration(totalTime)}',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
           ],
@@ -531,8 +531,8 @@ class _StatsPageState extends State<StatsPage> {
             const SizedBox(height: 10),
             Text(
               selectedActivity == null
-                  ? 'Total completions: $totalCheckable'
-                  : 'Completions for $selectedActivity: $totalCheckable',
+                  ? '✅ Total completions: $totalCheckable'
+                  : '✅ Completions for $selectedActivity: $totalCheckable',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
           ],
@@ -740,19 +740,19 @@ class _StatsPageState extends State<StatsPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Goals Completed: ${goalStatusData['successful'] ?? 0}',
+            '🏆 Goals Completed: ${goalStatusData['successful'] ?? 0}',
             style: const TextStyle(fontSize: 18),
           ),
           const SizedBox(height: 10),
           Text(
-            'Current Streak: $currentStreak days',
+            '🔥 Current Streak: $currentStreak days',
             style: const TextStyle(fontSize: 18),
           ),
           const SizedBox(height: 8),
           Text(
             goalStatusData['longestStreak'] == 0
-                ? 'Longest Streak: None'
-                : 'Longest Streak: ${goalStatusData['longestStreak']} days (started ${goalStatusData['longestStreakStart']?.toString().split(' ')[0] ?? 'N/A'})',
+                ? '🔥 Longest Streak: None'
+                : '🔥 Longest Streak: ${goalStatusData['longestStreak']} days (started ${goalStatusData['longestStreakStart']?.toString().split(' ')[0] ?? 'N/A'})',
             style: const TextStyle(fontSize: 18),
           ),
           const SizedBox(height: 100),
