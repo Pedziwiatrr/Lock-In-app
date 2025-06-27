@@ -92,9 +92,18 @@ class _GoalsPageState extends State<GoalsPage> {
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (pickedDate != null) {
-      setState(() {
-        final index = editableGoals.indexWhere((g) => g.activityName == activityName);
-        if (index != -1) {
+      final index = editableGoals.indexWhere((g) => g.activityName == activityName);
+      if (index != -1) {
+        if (!isStartDate) {
+          final startDate = editableGoals[index].startDate;
+          if (pickedDate.isBefore(startDate)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('End date cannot be earlier than start date.')),
+            );
+            return;
+          }
+        }
+        setState(() {
           if (isStartDate) {
             editableGoals[index].startDate = pickedDate;
           } else {
@@ -102,8 +111,8 @@ class _GoalsPageState extends State<GoalsPage> {
           }
           controller.text = '${pickedDate.day.toString().padLeft(2, '0')}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.year}';
           widget.onGoalChanged(editableGoals);
-        }
-      });
+        });
+      }
     }
   }
 
