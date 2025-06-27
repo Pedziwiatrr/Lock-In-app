@@ -17,12 +17,14 @@ class HomePage extends StatefulWidget {
   final void Function(bool) onThemeChanged;
   final bool isDarkMode;
   final VoidCallback onResetData;
+  final int launchCount;
 
   const HomePage({
     super.key,
     required this.onThemeChanged,
     required this.isDarkMode,
     required this.onResetData,
+    required this.launchCount,
   });
 
   @override
@@ -43,6 +45,21 @@ class _HomePageState extends State<HomePage> {
   static const int maxManualCompletions = 50;
   static const int maxActivities = 10;
   static const int maxGoals = 10;
+
+  @override
+  void initState() {
+    super.initState();
+    print('HomePage initState: launchCount = ${widget.launchCount}');
+    _loadData(1);
+  }
+
+  @override
+  void dispose() {
+    print('Disposing HomePage: cancelling timer');
+    _timer?.cancel();
+    stopwatch.stop();
+    super.dispose();
+  }
 
   Future<void> _loadData(int shouldLoadDefaultData) async {
     final prefs = await SharedPreferences.getInstance();
@@ -366,7 +383,9 @@ class _HomePageState extends State<HomePage> {
         activities.firstWhere((a) => a.name == selectedActivity!.name);
         if (activity is CheckableActivity) {
           activity.completionCount -= 1;
-          if (activity.completionCount < 0) activity.completionCount = 0;
+          if (activity.completionCount < 0) {
+            activity.completionCount = 0;
+          }
         }
       }
     });
@@ -410,20 +429,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _loadData(1);
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    stopwatch.stop();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    print('Building HomePage: launchCount = ${widget.launchCount}');
     return DefaultTabController(
       length: 5,
       child: Scaffold(
@@ -463,6 +470,7 @@ class _HomePageState extends State<HomePage> {
               onSubtractManualTime: subtractManualTime,
               onAddManualCompletion: addManualCompletion,
               onSubtractManualCompletion: subtractManualCompletion,
+              launchCount: widget.launchCount,
             ),
             GoalsPage(
               goals: goals,
@@ -473,18 +481,25 @@ class _HomePageState extends State<HomePage> {
                 });
                 _saveData();
               },
+              launchCount: widget.launchCount,
             ),
-            ActivitiesPage(activities: activities, onUpdate: updateActivities),
+            ActivitiesPage(
+              activities: activities,
+              onUpdate: updateActivities,
+              launchCount: widget.launchCount,
+            ),
             StatsPage(
               activityLogs: activityLogs,
               activities: activities,
               goals: goals,
+              launchCount: widget.launchCount,
             ),
             HistoryPage(
               activityLogs: activityLogs,
               goals: goals,
               selectedDate: selectedDate,
               onSelectDate: selectDate,
+              launchCount: widget.launchCount,
             ),
           ],
         ),

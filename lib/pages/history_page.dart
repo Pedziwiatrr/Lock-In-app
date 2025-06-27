@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'dart:io';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
 import '../utils/format_utils.dart';
@@ -10,6 +12,7 @@ class HistoryPage extends StatefulWidget {
   final List<Goal> goals;
   final DateTime selectedDate;
   final Function(DateTime) onSelectDate;
+  final int launchCount;
 
   const HistoryPage({
     super.key,
@@ -17,6 +20,7 @@ class HistoryPage extends StatefulWidget {
     required this.goals,
     required this.selectedDate,
     required this.onSelectDate,
+    required this.launchCount,
   });
 
   @override
@@ -25,6 +29,59 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   HistoryPeriod selectedPeriod = HistoryPeriod.allTime;
+  BannerAd? _bannerAd;
+  bool _isAdLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    print('HistoryPage initState: launchCount = ${widget.launchCount}');
+    if (widget.launchCount > 1) {
+      print('HistoryPage: Attempting to load banner ad');
+      _loadBannerAd();
+    } else {
+      print('HistoryPage: Skipping ad load due to launchCount <= 1');
+    }
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: Platform.isAndroid
+          ? 'ca-app-pub-3940256099942544/6300978111'
+          : 'ca-app-pub-3940256099942544/2934735716',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          print('HistoryPage: BannerAd loaded successfully: ${ad.responseInfo?.responseId}');
+          if (mounted) {
+            setState(() {
+              _isAdLoaded = true;
+            });
+          }
+        },
+        onAdFailedToLoad: (ad, error) {
+          print('HistoryPage: BannerAd failed to load: $error');
+          ad.dispose();
+          if (mounted) {
+            setState(() {
+              _isAdLoaded = false;
+            });
+          }
+        },
+        onAdOpened: (ad) => print('HistoryPage: BannerAd opened'),
+        onAdClosed: (ad) => print('HistoryPage: BannerAd closed'),
+      ),
+    );
+    _bannerAd!.load();
+  }
+
+  @override
+  void dispose() {
+    print('HistoryPage: Disposing banner ad');
+    _bannerAd?.dispose();
+    super.dispose();
+  }
 
   Map<DateTime, Duration> _aggregateByDay() {
     Map<DateTime, Duration> result = {};
@@ -454,6 +511,16 @@ class _HistoryPageState extends State<HistoryPage> {
             },
           ),
         ),
+        if (_isAdLoaded && widget.launchCount > 1) ...[
+          const SizedBox(height: 20),
+          Container(
+            alignment: Alignment.center,
+            width: _bannerAd!.size.width.toDouble(),
+            height: _bannerAd!.size.height.toDouble(),
+            child: AdWidget(ad: _bannerAd!),
+          ),
+        ],
+        const SizedBox(height: 80),
       ],
     );
   }

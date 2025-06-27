@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'dart:io';
 import '../models/activity.dart';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
@@ -24,6 +26,7 @@ class TrackerPage extends StatefulWidget {
   final void Function(Duration) onSubtractManualTime;
   final void Function(int) onAddManualCompletion;
   final void Function(int) onSubtractManualCompletion;
+  final int launchCount;
 
   const TrackerPage({
     super.key,
@@ -44,6 +47,7 @@ class TrackerPage extends StatefulWidget {
     required this.onSubtractManualTime,
     required this.onAddManualCompletion,
     required this.onSubtractManualCompletion,
+    required this.launchCount,
   });
 
   @override
@@ -53,6 +57,8 @@ class TrackerPage extends StatefulWidget {
 class _TrackerPageState extends State<TrackerPage> {
   static const int maxManualTimeMinutes = 1000;
   static const int maxManualCompletions = 100;
+  BannerAd? _bannerAd;
+  bool _isAdLoaded = false;
 
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
     final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
@@ -141,6 +147,57 @@ class _TrackerPageState extends State<TrackerPage> {
         ],
       ),
     );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    print('TrackerPage initState: launchCount = ${widget.launchCount}');
+    if (widget.launchCount > 1) {
+      print('TrackerPage: Attempting to load banner ad');
+      _loadBannerAd();
+    } else {
+      print('TrackerPage: Skipping ad load due to launchCount <= 1');
+    }
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: Platform.isAndroid
+          ? 'ca-app-pub-3940256099942544/6300978111'
+          : 'ca-app-pub-3940256099942544/2934735716',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          print('TrackerPage: BannerAd loaded successfully: ${ad.responseInfo?.responseId}');
+          if (mounted) {
+            setState(() {
+              _isAdLoaded = true;
+            });
+          }
+        },
+        onAdFailedToLoad: (ad, error) {
+          print('TrackerPage: BannerAd failed to load: $error');
+          ad.dispose();
+          if (mounted) {
+            setState(() {
+              _isAdLoaded = false;
+            });
+          }
+        },
+        onAdOpened: (ad) => print('TrackerPage: BannerAd opened'),
+        onAdClosed: (ad) => print('TrackerPage: BannerAd closed'),
+      ),
+    );
+    _bannerAd!.load();
+  }
+
+  @override
+  void dispose() {
+    print('TrackerPage: Disposing banner ad');
+    _bannerAd?.dispose();
+    super.dispose();
   }
 
   @override
@@ -483,7 +540,16 @@ class _TrackerPageState extends State<TrackerPage> {
               '🔥 Current Streak: $currentStreak days 🔥',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 100),
+            if (_isAdLoaded && widget.launchCount > 1) ...[
+              const SizedBox(height: 20),
+              Container(
+                alignment: Alignment.center,
+                width: _bannerAd!.size.width.toDouble(),
+                height: _bannerAd!.size.height.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
+              ),
+            ],
+            const SizedBox(height: 80),
           ],
         ),
       ),

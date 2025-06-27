@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'dart:io';
 import '../models/activity.dart';
 import '../models/goal.dart';
 import '../utils/format_utils.dart';
@@ -8,12 +10,14 @@ class GoalsPage extends StatefulWidget {
   final List<Goal> goals;
   final List<Activity> activities;
   final void Function(List<Goal>) onGoalChanged;
+  final int launchCount;
 
   const GoalsPage({
     super.key,
     required this.goals,
     required this.activities,
     required this.onGoalChanged,
+    required this.launchCount,
   });
 
   @override
@@ -24,6 +28,8 @@ class _GoalsPageState extends State<GoalsPage> {
   late List<Goal> editableGoals;
   bool showGoals = false;
   static const int maxGoalMinutes = 10000;
+  BannerAd? _bannerAd;
+  bool _isAdLoaded = false;
 
   @override
   void initState() {
@@ -46,6 +52,53 @@ class _GoalsPageState extends State<GoalsPage> {
         endDate: existingGoal.endDate,
       );
     }).toList();
+
+    print('GoalsPage initState: launchCount = ${widget.launchCount}');
+    if (widget.launchCount > 1) {
+      print('GoalsPage: Attempting to load banner ad');
+      _loadBannerAd();
+    } else {
+      print('GoalsPage: Skipping ad load due to launchCount <= 1');
+    }
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: Platform.isAndroid
+          ? 'ca-app-pub-3940256099942544/6300978111'
+          : 'ca-app-pub-3940256099942544/2934735716',
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          print('GoalsPage: BannerAd loaded successfully: ${ad.responseInfo?.responseId}');
+          if (mounted) {
+            setState(() {
+              _isAdLoaded = true;
+            });
+          }
+        },
+        onAdFailedToLoad: (ad, error) {
+          print('GoalsPage: BannerAd failed to load: $error');
+          ad.dispose();
+          if (mounted) {
+            setState(() {
+              _isAdLoaded = false;
+            });
+          }
+        },
+        onAdOpened: (ad) => print('GoalsPage: BannerAd opened'),
+        onAdClosed: (ad) => print('GoalsPage: BannerAd closed'),
+      ),
+    );
+    _bannerAd!.load();
+  }
+
+  @override
+  void dispose() {
+    print('GoalsPage: Disposing banner ad');
+    _bannerAd?.dispose();
+    super.dispose();
   }
 
   void updateGoal(
@@ -367,7 +420,16 @@ class _GoalsPageState extends State<GoalsPage> {
               },
             ),
           ],
-          const SizedBox(height: 100),
+          if (_isAdLoaded && widget.launchCount > 1) ...[
+            const SizedBox(height: 20),
+            Container(
+              alignment: Alignment.center,
+              width: _bannerAd!.size.width.toDouble(),
+              height: _bannerAd!.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            ),
+          ],
+          const SizedBox(height: 80),
         ],
       ),
     );
