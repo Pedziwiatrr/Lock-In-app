@@ -7,6 +7,85 @@ import '../utils/format_utils.dart';
 
 enum StatsPeriod { day, week, month, total }
 
+// Placeholder class to mimic History tab's goal status logic
+class HistoryDataProvider {
+  final List<Goal> goals;
+  final List<ActivityLog> activityLogs;
+  final List<Activity> activities;
+
+  HistoryDataProvider({
+    required this.goals,
+    required this.activityLogs,
+    required this.activities,
+  });
+
+  // Returns a list of goal statuses (successful, ongoing) for a given period
+  List<Map<String, dynamic>> getGoalStatusesForPeriod(
+      DateTime start,
+      DateTime end,
+      String? selectedActivity,
+      ) {
+    final List<Map<String, dynamic>> statuses = [];
+
+    for (var goal in goals.where((g) =>
+    g.goalDuration > Duration.zero &&
+        (selectedActivity == null || g.activityName == selectedActivity) &&
+        g.startDate.isBefore(end.add(const Duration(days: 1))) &&
+        (g.endDate == null || g.endDate!.isAfter(start)))) {
+      DateTime periodStart;
+      DateTime periodEnd;
+
+      switch (goal.goalType) {
+        case GoalType.daily:
+        // For daily goals, check each day in the range
+          periodStart = DateTime(start.year, start.month, start.day);
+          periodEnd = periodStart.add(const Duration(days: 1, milliseconds: -1));
+          break;
+        case GoalType.weekly:
+          periodStart = start.subtract(Duration(days: start.weekday - 1));
+          periodEnd = periodStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+          break;
+        case GoalType.monthly:
+          periodStart = DateTime(start.year, start.month, 1);
+          periodEnd = DateTime(start.year, start.month + 1, 1).subtract(const Duration(milliseconds: 1));
+          break;
+      }
+
+      // Adjust for goal's start and end dates
+      periodStart = periodStart.isBefore(goal.startDate) ? goal.startDate : periodStart;
+      periodEnd = goal.endDate != null && goal.endDate!.isBefore(end) ? goal.endDate! : end;
+      periodEnd = periodEnd.isAfter(periodStart) ? periodEnd : periodStart.add(const Duration(days: 1, milliseconds: -1));
+
+      final activityLogs = this.activityLogs.where((log) =>
+      log.activityName == goal.activityName &&
+          log.date.isAfter(periodStart.subtract(const Duration(milliseconds: 1))) &&
+          log.date.isBefore(periodEnd.add(const Duration(milliseconds: 1)))).toList();
+
+      bool isCheckable = activities
+          .firstWhere((a) => a.name == goal.activityName, orElse: () => CheckableActivity(name: goal.activityName))
+      is CheckableActivity;
+
+      bool isSuccessful = false;
+      if (isCheckable) {
+        final completions = activityLogs.where((log) => log.isCheckable).length;
+        isSuccessful = completions >= goal.goalDuration.inMinutes;
+      } else {
+        final totalTime = activityLogs.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
+        isSuccessful = totalTime >= goal.goalDuration;
+      }
+
+      bool isPeriodEnded = periodEnd.isBefore(DateTime.now());
+
+      statuses.add({
+        'goal': goal,
+        'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
+      });
+    }
+
+    return statuses;
+  }
+}
+
 class StatsPage extends StatefulWidget {
   final List<ActivityLog> activityLogs;
   final List<Activity> activities;
@@ -167,19 +246,23 @@ class _StatsPageState extends State<StatsPage> {
     }).toList();
   }
 
-  Map<String, dynamic> filteredActivities() {
-    DateTime now = DateTime.now();
+  Map<String, int> getGoalStatusChartData() {
+    final now = DateTime.now();
     DateTime from;
+    DateTime to;
 
     switch (selectedPeriod) {
       case StatsPeriod.day:
         from = DateTime(now.year, now.month, now.day);
+        to = from;
         break;
       case StatsPeriod.week:
         from = now.subtract(Duration(days: now.weekday - 1));
+        to = from.add(const Duration(days: 6));
         break;
       case StatsPeriod.month:
         from = DateTime(now.year, now.month, 1);
+        to = DateTime(now.year, now.month + 1, 1).subtract(const Duration(days: 1));
         break;
       case StatsPeriod.total:
         from = widget.activityLogs.isNotEmpty
@@ -187,44 +270,35 @@ class _StatsPageState extends State<StatsPage> {
             .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
             .reduce((a, b) => a.isBefore(b) ? a : b)
             : DateTime(2000);
+        to = now;
         break;
     }
 
-    Map<String, Duration> timeTotals = {};
-    Map<String, int> completionTotals = {};
+    // Use HistoryDataProvider to get goal statuses
+    final historyProvider = HistoryDataProvider(
+      goals: widget.goals,
+      activityLogs: widget.activityLogs,
+      activities: widget.activities,
+    );
 
-    for (var activity in widget.activities) {
-      timeTotals[activity.name] = Duration.zero;
-      completionTotals[activity.name] = 0;
-    }
+    final statuses = historyProvider.getGoalStatusesForPeriod(from, to, selectedActivity);
 
-    for (var log in widget.activityLogs) {
-      if (log.date.isAfter(from) || log.date.isAtSameMomentAs(from)) {
-        if (log.isCheckable) {
-          completionTotals[log.activityName] = (completionTotals[log.activityName] ?? 0) + 1;
-        } else {
-          timeTotals[log.activityName] = (timeTotals[log.activityName] ?? Duration.zero) + log.duration;
-        }
+    int successful = 0;
+    int ongoing = 0;
+
+    // Aggregate statuses
+    for (var statusEntry in statuses) {
+      final status = statusEntry['status'] as String;
+      if (status == 'successful') {
+        successful++;
+      } else if (status == 'ongoing') {
+        ongoing++;
       }
     }
 
-    final totalTimedDuration = selectedActivity == null
-        ? widget.activities
-        .whereType<TimedActivity>()
-        .fold(Duration.zero, (sum, a) => sum + (timeTotals[a.name] ?? Duration.zero))
-        : timeTotals[selectedActivity] ?? Duration.zero;
-
-    final totalCheckableInstances = selectedActivity == null
-        ? widget.activities
-        .whereType<CheckableActivity>()
-        .fold(0, (sum, a) => sum + (completionTotals[a.name] ?? 0))
-        : completionTotals[selectedActivity] ?? 0;
-
     return {
-      'timeTotals': timeTotals,
-      'completionTotals': completionTotals,
-      'totalTimedDuration': totalTimedDuration,
-      'totalCheckableInstances': totalCheckableInstances,
+      'successful': successful,
+      'ongoing': ongoing,
     };
   }
 
@@ -261,6 +335,7 @@ class _StatsPageState extends State<StatsPage> {
 
     final timedChartData = getTimedChartData();
     final checkableChartData = getCheckableChartData();
+    final goalStatusData = getGoalStatusChartData();
     final monthLabels = _getMonthLabels();
 
     return SingleChildScrollView(
@@ -513,9 +588,81 @@ class _StatsPageState extends State<StatsPage> {
                 ),
               ),
             ),
+            const SizedBox(height: 20),
+            const Text(
+              'Goal Status',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Goals Completed: ${goalStatusData['successful'] ?? 0}',
+              style: const TextStyle(fontSize: 16, color: Colors.green),
+            ),
+            const SizedBox(height: 100),
           ],
         ),
       ),
     );
+  }
+
+  Map<String, dynamic> filteredActivities() {
+    DateTime now = DateTime.now();
+    DateTime from;
+
+    switch (selectedPeriod) {
+      case StatsPeriod.day:
+        from = DateTime(now.year, now.month, now.day);
+        break;
+      case StatsPeriod.week:
+        from = now.subtract(Duration(days: now.weekday - 1));
+        break;
+      case StatsPeriod.month:
+        from = DateTime(now.year, now.month, 1);
+        break;
+      case StatsPeriod.total:
+        from = widget.activityLogs.isNotEmpty
+            ? widget.activityLogs
+            .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
+            .reduce((a, b) => a.isBefore(b) ? a : b)
+            : DateTime(2000);
+        break;
+    }
+
+    Map<String, Duration> timeTotals = {};
+    Map<String, int> completionTotals = {};
+
+    for (var activity in widget.activities) {
+      timeTotals[activity.name] = Duration.zero;
+      completionTotals[activity.name] = 0;
+    }
+
+    for (var log in widget.activityLogs) {
+      if (log.date.isAfter(from) || log.date.isAtSameMomentAs(from)) {
+        if (log.isCheckable) {
+          completionTotals[log.activityName] = (completionTotals[log.activityName] ?? 0) + 1;
+        } else {
+          timeTotals[log.activityName] = (timeTotals[log.activityName] ?? Duration.zero) + log.duration;
+        }
+      }
+    }
+
+    final totalTimedDuration = selectedActivity == null
+        ? widget.activities
+        .whereType<TimedActivity>()
+        .fold(Duration.zero, (sum, a) => sum + (timeTotals[a.name] ?? Duration.zero))
+        : timeTotals[selectedActivity] ?? Duration.zero;
+
+    final totalCheckableInstances = selectedActivity == null
+        ? widget.activities
+        .whereType<CheckableActivity>()
+        .fold(0, (sum, a) => sum + (completionTotals[a.name] ?? 0))
+        : completionTotals[selectedActivity] ?? 0;
+
+    return {
+      'timeTotals': timeTotals,
+      'completionTotals': completionTotals,
+      'totalTimedDuration': totalTimedDuration,
+      'totalCheckableInstances': totalCheckableInstances,
+    };
   }
 }
