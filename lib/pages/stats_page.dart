@@ -37,7 +37,8 @@ class HistoryDataProvider {
         case GoalType.daily:
           periodStart = DateTime(start.year, start.month, start.day);
           periodEnd = periodStart.add(const Duration(days: 1, milliseconds: -1));
-          while (periodStart.isBefore(end.add(const Duration(days: 1))) && (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
+          while (periodStart.isBefore(end.add(const Duration(days: 1))) &&
+              (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
             final activityLogs = this.activityLogs.where((log) =>
             log.activityName == goal.activityName &&
                 log.date.isAfter(periodStart.subtract(const Duration(milliseconds: 1))) &&
@@ -61,6 +62,7 @@ class HistoryDataProvider {
             statuses.add({
               'goal': goal,
               'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
+              'date': periodStart,
             });
 
             periodStart = periodStart.add(const Duration(days: 1));
@@ -70,7 +72,8 @@ class HistoryDataProvider {
         case GoalType.weekly:
           periodStart = start.subtract(Duration(days: start.weekday - 1));
           periodEnd = periodStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
-          while (periodStart.isBefore(end.add(const Duration(days: 1))) && (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
+          while (periodStart.isBefore(end.add(const Duration(days: 1))) &&
+              (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
             final activityLogs = this.activityLogs.where((log) =>
             log.activityName == goal.activityName &&
                 log.date.isAfter(periodStart.subtract(const Duration(milliseconds: 1))) &&
@@ -94,6 +97,7 @@ class HistoryDataProvider {
             statuses.add({
               'goal': goal,
               'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
+              'date': periodStart,
             });
 
             periodStart = periodStart.add(const Duration(days: 7));
@@ -103,7 +107,8 @@ class HistoryDataProvider {
         case GoalType.monthly:
           periodStart = DateTime(start.year, start.month, 1);
           periodEnd = DateTime(start.year, start.month + 1, 1).subtract(const Duration(milliseconds: 1));
-          while (periodStart.isBefore(end.add(const Duration(days: 1))) && (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
+          while (periodStart.isBefore(end.add(const Duration(days: 1))) &&
+              (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
             final activityLogs = this.activityLogs.where((log) =>
             log.activityName == goal.activityName &&
                 log.date.isAfter(periodStart.subtract(const Duration(milliseconds: 1))) &&
@@ -127,6 +132,7 @@ class HistoryDataProvider {
             statuses.add({
               'goal': goal,
               'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
+              'date': periodStart,
             });
 
             periodStart = DateTime(periodStart.year, periodStart.month + 1, 1);
@@ -137,6 +143,84 @@ class HistoryDataProvider {
     }
 
     return statuses;
+  }
+
+  int getCurrentStreak(String? selectedActivity) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    int streak = 0;
+    DateTime currentDate = today;
+
+    while (true) {
+      final statuses = getGoalStatusesForPeriod(currentDate, currentDate, selectedActivity)
+          .where((s) => s['goal'].goalType == GoalType.daily)
+          .toList();
+
+      if (statuses.isEmpty) {
+        break;
+      }
+
+      final allSuccessful = statuses.every((s) => s['status'] == 'successful');
+      if (!allSuccessful) {
+        break;
+      }
+
+      streak++;
+      currentDate = currentDate.subtract(const Duration(days: 1));
+    }
+
+    return streak;
+  }
+
+  Map<String, dynamic> getLongestStreak(String? selectedActivity) {
+    final now = DateTime.now();
+    final start = activityLogs.isNotEmpty
+        ? activityLogs
+        .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
+        .reduce((a, b) => a.isBefore(b) ? a : b)
+        : DateTime(2000);
+
+    int longestStreak = 0;
+    DateTime? longestStreakStart;
+    int currentStreak = 0;
+    DateTime currentDate = now;
+    DateTime? currentStreakStart;
+
+    while (currentDate.isAfter(start) || currentDate.isAtSameMomentAs(start)) {
+      final statuses = getGoalStatusesForPeriod(currentDate, currentDate, selectedActivity)
+          .where((s) => s['goal'].goalType == GoalType.daily)
+          .toList();
+
+      if (statuses.isEmpty) {
+        currentStreak = 0;
+        currentStreakStart = null;
+      } else {
+        final allSuccessful = statuses.every((s) => s['status'] == 'successful');
+        if (allSuccessful) {
+          currentStreak++;
+          currentStreakStart ??= currentDate;
+        } else {
+          if (currentStreak > longestStreak) {
+            longestStreak = currentStreak;
+            longestStreakStart = currentStreakStart;
+          }
+          currentStreak = 0;
+          currentStreakStart = null;
+        }
+      }
+
+      currentDate = currentDate.subtract(const Duration(days: 1));
+    }
+
+    if (currentStreak > longestStreak) {
+      longestStreak = currentStreak;
+      longestStreakStart = currentStreakStart;
+    }
+
+    return {
+      'length': longestStreak,
+      'startDate': longestStreakStart,
+    };
   }
 }
 
@@ -300,7 +384,7 @@ class _StatsPageState extends State<StatsPage> {
     }).toList();
   }
 
-  Map<String, int> getGoalStatusChartData() {
+  Map<String, dynamic> getGoalStatusChartData() {
     final now = DateTime.now();
     DateTime from;
     DateTime to;
@@ -348,9 +432,13 @@ class _StatsPageState extends State<StatsPage> {
       }
     }
 
+    final longestStreak = historyProvider.getLongestStreak(selectedActivity);
+
     return {
       'successful': successful,
       'ongoing': ongoing,
+      'longestStreak': longestStreak['length'],
+      'longestStreakStart': longestStreak['startDate'],
     };
   }
 
@@ -362,7 +450,7 @@ class _StatsPageState extends State<StatsPage> {
     return maxYValue > 0 ? maxYValue * 1.2 : 10.0;
   }
 
-  List<String> _getMonthLabels() {
+  List<String> getMonthLabels() {
     final now = DateTime.now();
     final List<String> labels = [];
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -388,271 +476,287 @@ class _StatsPageState extends State<StatsPage> {
     final timedChartData = getTimedChartData();
     final checkableChartData = getCheckableChartData();
     final goalStatusData = getGoalStatusChartData();
-    final monthLabels = _getMonthLabels();
+    final monthLabels = getMonthLabels();
+    final historyProvider = HistoryDataProvider(
+      goals: widget.goals,
+      activityLogs: widget.activityLogs,
+      activities: widget.activities,
+    );
+    final currentStreak = historyProvider.getCurrentStreak(selectedActivity);
 
     return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DropdownButton<StatsPeriod>(
-              value: selectedPeriod,
-              isExpanded: true,
-              items: const [
-                DropdownMenuItem(value: StatsPeriod.day, child: Text('Day')),
-                DropdownMenuItem(value: StatsPeriod.week, child: Text('Week')),
-                DropdownMenuItem(value: StatsPeriod.month, child: Text('Month')),
-                DropdownMenuItem(value: StatsPeriod.total, child: Text('Total')),
-              ],
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() => selectedPeriod = val);
-                }
-              },
-            ),
-            const SizedBox(height: 10),
-            DropdownButton<String?>(
-              value: selectedActivity,
-              isExpanded: true,
-              hint: const Text('Choose activity for stats and charts'),
-              items: [
-                const DropdownMenuItem<String?>(value: null, child: Text('All Activities')),
-                ...widget.activities
-                    .map((a) => DropdownMenuItem<String>(value: a.name, child: Text(a.name))),
-              ],
-              onChanged: (val) {
-                setState(() => selectedActivity = val);
-              },
-            ),
-            const SizedBox(height: 20),
-            if (!isCheckableSelected) ...[
-              Text(
-                selectedActivity == null
-                    ? 'Total timed activity: ${formatDuration(totalTime)}'
-                    : 'Total time for $selectedActivity: ${formatDuration(totalTime)}',
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownButton<StatsPeriod>(
+            value: selectedPeriod,
+            isExpanded: true,
+            items: const [
+              DropdownMenuItem(value: StatsPeriod.day, child: Text('Day')),
+              DropdownMenuItem(value: StatsPeriod.week, child: Text('Week')),
+              DropdownMenuItem(value: StatsPeriod.month, child: Text('Month')),
+              DropdownMenuItem(value: StatsPeriod.total, child: Text('Total')),
             ],
-            if (selectedActivity == null || isCheckableSelected) ...[
-              const SizedBox(height: 10),
-              Text(
-                selectedActivity == null
-                    ? 'Total checkable completions: $totalCheckable'
-                    : 'Total completions for $selectedActivity: $totalCheckable',
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
+            onChanged: (val) {
+              if (val != null) {
+                setState(() => selectedPeriod = val);
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+          DropdownButton<String?>(
+            value: selectedActivity,
+            isExpanded: true,
+            hint: const Text('Select activity for stats'),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('All activities')),
+              ...widget.activities
+                  .map((a) => DropdownMenuItem<String>(value: a.name, child: Text(a.name))),
             ],
-            const SizedBox(height: 20),
-            Column(
-              children: (selectedActivity == null
-                  ? widget.activities
-                  : widget.activities.where((a) => a.name == selectedActivity))
-                  .map((a) {
-                final percent = a is TimedActivity
-                    ? (stats['totalTimedDuration'] as Duration).inSeconds == 0
-                    ? 0.0
-                    : ((timeTotals[a.name]?.inSeconds ?? 0) /
-                    (stats['totalTimedDuration'] as Duration).inSeconds)
-                    .clamp(0.0, 1.0)
-                    : (stats['totalCheckableInstances'] as int) == 0
-                    ? 0.0
-                    : ((completionTotals[a.name] ?? 0) /
-                    (stats['totalCheckableInstances'] as int))
-                    .clamp(0.0, 1.0);
-                return ListTile(
-                  key: ValueKey(a.name),
-                  title: Text(a.name),
-                  subtitle: LinearProgressIndicator(value: percent),
-                  trailing: Text(
-                    a is TimedActivity
-                        ? formatDuration(timeTotals[a.name] ?? Duration.zero)
-                        : '${completionTotals[a.name] ?? 0} times',
-                    style: const TextStyle(fontSize: 20),
-                  ),
-                  leading: const Icon(Icons.drag_handle),
-                  onTap: () {
-                    setState(() {
-                      final oldIndex = widget.activities.indexOf(a);
-                      final newIndex = oldIndex == 0 ? widget.activities.length - 1 : oldIndex - 1;
-                      final activity = widget.activities.removeAt(oldIndex);
-                      widget.activities.insert(newIndex, activity);
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 20),
+            onChanged: (val) {
+              setState(() => selectedActivity = val);
+            },
+          ),
+          const SizedBox(height: 20),
+          if (!isCheckableSelected) ...[
             Text(
-              selectedPeriod == StatsPeriod.week ? 'Time Spent per Day' : 'Minutes spent over time',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              selectedActivity == null
+                  ? 'Total activity time: ${formatDuration(totalTime)}'
+                  : 'Time for $selectedActivity: ${formatDuration(totalTime)}',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 10),
-            timedChartData.isEmpty || timedChartData.every((group) => group.barRods.first.toY == 0)
-                ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Text('No timed activity data available for this period.'),
-            )
-                : SizedBox(
-              height: 150,
-              child: BarChart(
-                BarChartData(
-                  gridData: const FlGridData(show: true, drawVerticalLine: false),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 40,
-                        getTitlesWidget: (value, meta) => Text(
-                          '${value.toInt()}',
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          if (selectedPeriod == StatsPeriod.day) {
-                            return const Text('');
-                          } else if (selectedPeriod == StatsPeriod.week) {
-                            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                days[value.toInt()],
-                                style: const TextStyle(fontSize: 10),
-                              ),
-                            );
-                          } else if (selectedPeriod == StatsPeriod.month) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                'W${value.toInt() + 1}',
-                                style: const TextStyle(fontSize: 10),
-                              ),
-                            );
-                          } else {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                monthLabels[value.toInt()],
-                                style: const TextStyle(fontSize: 10),
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.withOpacity(0.2))),
-                  barGroups: timedChartData,
-                  maxY: getMaxY(timedChartData),
-                  barTouchData: BarTouchData(
-                    touchTooltipData: BarTouchTooltipData(
-                      getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
-                        '${rod.toY.toInt()} min',
-                        const TextStyle(fontSize: 12, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              selectedPeriod == StatsPeriod.week ? 'Completions per Day' : 'Completions over time',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            checkableChartData.isEmpty || checkableChartData.every((group) => group.barRods.first.toY == 0)
-                ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Text('No checkable activity data available for this period.'),
-            )
-                : SizedBox(
-              height: 150,
-              child: BarChart(
-                BarChartData(
-                  gridData: const FlGridData(show: true, drawVerticalLine: false),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 40,
-                        getTitlesWidget: (value, meta) => Text(
-                          '${value.toInt()}',
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          if (selectedPeriod == StatsPeriod.day) {
-                            return const Text('');
-                          } else if (selectedPeriod == StatsPeriod.week) {
-                            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                days[value.toInt()],
-                                style: const TextStyle(fontSize: 10),
-                              ),
-                            );
-                          } else if (selectedPeriod == StatsPeriod.month) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                'W${value.toInt() + 1}',
-                                style: const TextStyle(fontSize: 10),
-                              ),
-                            );
-                          } else {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                monthLabels[value.toInt()],
-                                style: const TextStyle(fontSize: 10),
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.withOpacity(0.2))),
-                  barGroups: checkableChartData,
-                  maxY: getMaxY(checkableChartData),
-                  barTouchData: BarTouchData(
-                    touchTooltipData: BarTouchTooltipData(
-                      getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
-                        '${rod.toY.toInt()} completions',
-                        const TextStyle(fontSize: 12, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Goal Status',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Goals Completed: ${goalStatusData['successful'] ?? 0}',
-              style: const TextStyle(fontSize: 16, color: Colors.green),
-            ),
-            const SizedBox(height: 100),
           ],
-        ),
+          if (selectedActivity == null || isCheckableSelected) ...[
+            const SizedBox(height: 10),
+            Text(
+              selectedActivity == null
+                  ? 'Total completions: $totalCheckable'
+                  : 'Completions for $selectedActivity: $totalCheckable',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+          ],
+          const SizedBox(height: 20),
+          Column(
+            children: (selectedActivity == null
+                ? widget.activities
+                : widget.activities.where((a) => a.name == selectedActivity))
+                .map((a) {
+              final percent = a is TimedActivity
+                  ? (stats['totalTimedDuration'] as Duration).inSeconds == 0
+                  ? 0.0
+                  : ((timeTotals[a.name]?.inSeconds ?? 0) /
+                  (stats['totalTimedDuration'] as Duration).inSeconds)
+                  .clamp(0.0, 1.0)
+                  : (stats['totalCheckableInstances'] as int) == 0
+                  ? 0.0
+                  : ((completionTotals[a.name] ?? 0) /
+                  (stats['totalCheckableInstances'] as int))
+                  .clamp(0.0, 1.0);
+              return ListTile(
+                key: ValueKey(a.name),
+                title: Text(a.name),
+                subtitle: LinearProgressIndicator(value: percent),
+                trailing: Text(
+                  a is TimedActivity
+                      ? formatDuration(timeTotals[a.name] ?? Duration.zero)
+                      : '${completionTotals[a.name] ?? 0} times',
+                  style: const TextStyle(fontSize: 20),
+                ),
+                leading: const Icon(Icons.drag_handle),
+                onTap: () {
+                  setState(() {
+                    final oldIndex = widget.activities.indexOf(a);
+                    final newIndex = oldIndex == 0 ? widget.activities.length - 1 : oldIndex - 1;
+                    final activity = widget.activities.removeAt(oldIndex);
+                    widget.activities.insert(newIndex, activity);
+                  });
+                },
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            selectedPeriod == StatsPeriod.week ? 'Time spent per day' : 'Minutes spent over time',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          timedChartData.isEmpty || timedChartData.every((group) => group.barRods.first.toY == 0)
+              ? const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Text('No timed activity data for this period.'),
+          )
+              : SizedBox(
+            height: 150,
+            child: BarChart(
+              BarChartData(
+                gridData: const FlGridData(show: true, drawVerticalLine: false),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      getTitlesWidget: (value, meta) => Text(
+                        '${value.toInt()}',
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        if (selectedPeriod == StatsPeriod.day) {
+                          return const Text('');
+                        } else if (selectedPeriod == StatsPeriod.week) {
+                          const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              days[value.toInt()],
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        } else if (selectedPeriod == StatsPeriod.month) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'W${value.toInt() + 1}',
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        } else {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              monthLabels[value.toInt()],
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.withOpacity(0.2))),
+                barGroups: timedChartData,
+                maxY: getMaxY(timedChartData),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
+                      '${rod.toY.toInt()} min',
+                      const TextStyle(fontSize: 12, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            selectedPeriod == StatsPeriod.week ? 'Completions per day' : 'Completions over time',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          checkableChartData.isEmpty || checkableChartData.every((group) => group.barRods.first.toY == 0)
+              ? const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Text('No completion data for this period.'),
+          )
+              : SizedBox(
+            height: 150,
+            child: BarChart(
+              BarChartData(
+                gridData: const FlGridData(show: true, drawVerticalLine: false),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      getTitlesWidget: (value, meta) => Text(
+                        '${value.toInt()}',
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        if (selectedPeriod == StatsPeriod.day) {
+                          return const Text('');
+                        } else if (selectedPeriod == StatsPeriod.week) {
+                          const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              days[value.toInt()],
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        } else if (selectedPeriod == StatsPeriod.month) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'W${value.toInt() + 1}',
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        } else {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              monthLabels[value.toInt()],
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.withOpacity(0.2))),
+                barGroups: checkableChartData,
+                maxY: getMaxY(checkableChartData),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
+                      '${rod.toY.toInt()} completions',
+                      const TextStyle(fontSize: 12, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Goals',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Goals Completed: ${goalStatusData['successful'] ?? 0}',
+            style: const TextStyle(fontSize: 18),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Current Streak: $currentStreak days',
+            style: const TextStyle(fontSize: 18),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            goalStatusData['longestStreak'] == 0
+                ? 'Longest Streak: None'
+                : 'Longest Streak: ${goalStatusData['longestStreak']} days (started ${goalStatusData['longestStreakStart']?.toString().split(' ')[0] ?? 'N/A'})',
+            style: const TextStyle(fontSize: 18),
+          ),
+          const SizedBox(height: 100),
+        ],
       ),
     );
   }

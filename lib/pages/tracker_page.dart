@@ -4,6 +4,7 @@ import '../models/activity.dart';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
 import '../utils/format_utils.dart';
+import '../pages/stats_page.dart' show HistoryDataProvider;
 
 class TrackerPage extends StatefulWidget {
   final List<Activity> activities;
@@ -195,6 +196,13 @@ class _TrackerPageState extends State<TrackerPage> {
       );
       return goal.goalDuration > Duration.zero;
     }).toList();
+
+    final historyProvider = HistoryDataProvider(
+      goals: widget.goals,
+      activityLogs: widget.activityLogs,
+      activities: widget.activities,
+    );
+    final currentStreak = historyProvider.getCurrentStreak(null);
 
     return SingleChildScrollView(
       child: Padding(
@@ -470,6 +478,12 @@ class _TrackerPageState extends State<TrackerPage> {
                 );
               },
             ),
+            const SizedBox(height: 20),
+            Text(
+              'Current Streak: $currentStreak days',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 100),
           ],
         ),
       ),
