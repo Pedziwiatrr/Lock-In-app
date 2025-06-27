@@ -7,7 +7,6 @@ import '../utils/format_utils.dart';
 
 enum StatsPeriod { day, week, month, total }
 
-// Placeholder class to mimic History tab's goal status logic
 class HistoryDataProvider {
   final List<Goal> goals;
   final List<ActivityLog> activityLogs;
@@ -19,7 +18,6 @@ class HistoryDataProvider {
     required this.activities,
   });
 
-  // Returns a list of goal statuses (successful, ongoing) for a given period
   List<Map<String, dynamic>> getGoalStatusesForPeriod(
       DateTime start,
       DateTime end,
@@ -37,49 +35,105 @@ class HistoryDataProvider {
 
       switch (goal.goalType) {
         case GoalType.daily:
-        // For daily goals, check each day in the range
           periodStart = DateTime(start.year, start.month, start.day);
           periodEnd = periodStart.add(const Duration(days: 1, milliseconds: -1));
+          while (periodStart.isBefore(end.add(const Duration(days: 1))) && (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
+            final activityLogs = this.activityLogs.where((log) =>
+            log.activityName == goal.activityName &&
+                log.date.isAfter(periodStart.subtract(const Duration(milliseconds: 1))) &&
+                log.date.isBefore(periodStart.add(const Duration(days: 1)))).toList();
+
+            bool isCheckable = activities
+                .firstWhere((a) => a.name == goal.activityName, orElse: () => CheckableActivity(name: goal.activityName))
+            is CheckableActivity;
+
+            bool isSuccessful = false;
+            if (isCheckable) {
+              final completions = activityLogs.where((log) => log.isCheckable).length;
+              isSuccessful = completions >= goal.goalDuration.inMinutes;
+            } else {
+              final totalTime = activityLogs.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
+              isSuccessful = totalTime >= goal.goalDuration;
+            }
+
+            bool isPeriodEnded = periodStart.isBefore(DateTime.now());
+
+            statuses.add({
+              'goal': goal,
+              'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
+            });
+
+            periodStart = periodStart.add(const Duration(days: 1));
+            periodEnd = periodStart.add(const Duration(days: 1, milliseconds: -1));
+          }
           break;
         case GoalType.weekly:
           periodStart = start.subtract(Duration(days: start.weekday - 1));
           periodEnd = periodStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+          while (periodStart.isBefore(end.add(const Duration(days: 1))) && (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
+            final activityLogs = this.activityLogs.where((log) =>
+            log.activityName == goal.activityName &&
+                log.date.isAfter(periodStart.subtract(const Duration(milliseconds: 1))) &&
+                log.date.isBefore(periodEnd.add(const Duration(milliseconds: 1)))).toList();
+
+            bool isCheckable = activities
+                .firstWhere((a) => a.name == goal.activityName, orElse: () => CheckableActivity(name: goal.activityName))
+            is CheckableActivity;
+
+            bool isSuccessful = false;
+            if (isCheckable) {
+              final completions = activityLogs.where((log) => log.isCheckable).length;
+              isSuccessful = completions >= goal.goalDuration.inMinutes;
+            } else {
+              final totalTime = activityLogs.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
+              isSuccessful = totalTime >= goal.goalDuration;
+            }
+
+            bool isPeriodEnded = periodEnd.isBefore(DateTime.now());
+
+            statuses.add({
+              'goal': goal,
+              'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
+            });
+
+            periodStart = periodStart.add(const Duration(days: 7));
+            periodEnd = periodStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+          }
           break;
         case GoalType.monthly:
           periodStart = DateTime(start.year, start.month, 1);
           periodEnd = DateTime(start.year, start.month + 1, 1).subtract(const Duration(milliseconds: 1));
+          while (periodStart.isBefore(end.add(const Duration(days: 1))) && (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
+            final activityLogs = this.activityLogs.where((log) =>
+            log.activityName == goal.activityName &&
+                log.date.isAfter(periodStart.subtract(const Duration(milliseconds: 1))) &&
+                log.date.isBefore(periodEnd.add(const Duration(milliseconds: 1)))).toList();
+
+            bool isCheckable = activities
+                .firstWhere((a) => a.name == goal.activityName, orElse: () => CheckableActivity(name: goal.activityName))
+            is CheckableActivity;
+
+            bool isSuccessful = false;
+            if (isCheckable) {
+              final completions = activityLogs.where((log) => log.isCheckable).length;
+              isSuccessful = completions >= goal.goalDuration.inMinutes;
+            } else {
+              final totalTime = activityLogs.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
+              isSuccessful = totalTime >= goal.goalDuration;
+            }
+
+            bool isPeriodEnded = periodEnd.isBefore(DateTime.now());
+
+            statuses.add({
+              'goal': goal,
+              'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
+            });
+
+            periodStart = DateTime(periodStart.year, periodStart.month + 1, 1);
+            periodEnd = DateTime(periodStart.year, periodStart.month + 1, 1).subtract(const Duration(milliseconds: 1));
+          }
           break;
       }
-
-      // Adjust for goal's start and end dates
-      periodStart = periodStart.isBefore(goal.startDate) ? goal.startDate : periodStart;
-      periodEnd = goal.endDate != null && goal.endDate!.isBefore(end) ? goal.endDate! : end;
-      periodEnd = periodEnd.isAfter(periodStart) ? periodEnd : periodStart.add(const Duration(days: 1, milliseconds: -1));
-
-      final activityLogs = this.activityLogs.where((log) =>
-      log.activityName == goal.activityName &&
-          log.date.isAfter(periodStart.subtract(const Duration(milliseconds: 1))) &&
-          log.date.isBefore(periodEnd.add(const Duration(milliseconds: 1)))).toList();
-
-      bool isCheckable = activities
-          .firstWhere((a) => a.name == goal.activityName, orElse: () => CheckableActivity(name: goal.activityName))
-      is CheckableActivity;
-
-      bool isSuccessful = false;
-      if (isCheckable) {
-        final completions = activityLogs.where((log) => log.isCheckable).length;
-        isSuccessful = completions >= goal.goalDuration.inMinutes;
-      } else {
-        final totalTime = activityLogs.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
-        isSuccessful = totalTime >= goal.goalDuration;
-      }
-
-      bool isPeriodEnded = periodEnd.isBefore(DateTime.now());
-
-      statuses.add({
-        'goal': goal,
-        'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
-      });
     }
 
     return statuses;
@@ -274,7 +328,6 @@ class _StatsPageState extends State<StatsPage> {
         break;
     }
 
-    // Use HistoryDataProvider to get goal statuses
     final historyProvider = HistoryDataProvider(
       goals: widget.goals,
       activityLogs: widget.activityLogs,
@@ -286,7 +339,6 @@ class _StatsPageState extends State<StatsPage> {
     int successful = 0;
     int ongoing = 0;
 
-    // Aggregate statuses
     for (var statusEntry in statuses) {
       final status = statusEntry['status'] as String;
       if (status == 'successful') {
@@ -591,7 +643,7 @@ class _StatsPageState extends State<StatsPage> {
             const SizedBox(height: 20),
             const Text(
               'Goal Status',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Text(
