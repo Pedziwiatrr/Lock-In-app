@@ -7,6 +7,7 @@ import '../models/activity_log.dart';
 import '../models/goal.dart';
 import '../utils/format_utils.dart';
 import '../pages/stats_page.dart' show HistoryDataProvider;
+import '../utils/ad_manager.dart';
 
 class TrackerPage extends StatefulWidget {
   final List<Activity> activities;
@@ -59,6 +60,7 @@ class _TrackerPageState extends State<TrackerPage> {
   static const int maxManualCompletions = 100;
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
+  final AdManager _adManager = AdManager();
 
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
     final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
@@ -152,13 +154,14 @@ class _TrackerPageState extends State<TrackerPage> {
   @override
   void initState() {
     super.initState();
-    print('TrackerPage initState: launchCount = ${widget.launchCount}');
+    print("TrackerPage initState: launchCount = ${widget.launchCount}");
     if (widget.launchCount > 1) {
-      print('TrackerPage: Attempting to load banner ad');
+      print("Loading banner ad");
       _loadBannerAd();
-    } else {
-      print('TrackerPage: Skipping ad load due to launchCount <= 1');
     }
+    AdManager.init().then((_) {
+      _adManager.loadRewardedAd();
+    });
   }
 
   void _loadBannerAd() {
@@ -170,7 +173,7 @@ class _TrackerPageState extends State<TrackerPage> {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
-          print('TrackerPage: BannerAd loaded successfully: ${ad.responseInfo?.responseId}');
+          print("Banner ad loaded");
           if (mounted) {
             setState(() {
               _isAdLoaded = true;
@@ -178,7 +181,7 @@ class _TrackerPageState extends State<TrackerPage> {
           }
         },
         onAdFailedToLoad: (ad, error) {
-          print('TrackerPage: BannerAd failed to load: $error');
+          print("Banner ad failed to load: $error");
           ad.dispose();
           if (mounted) {
             setState(() {
@@ -186,17 +189,70 @@ class _TrackerPageState extends State<TrackerPage> {
             });
           }
         },
-        onAdOpened: (ad) => print('TrackerPage: BannerAd opened'),
-        onAdClosed: (ad) => print('TrackerPage: BannerAd closed'),
+        onAdOpened: (ad) => print("Banner ad opened"),
+        onAdClosed: (ad) => print("Banner ad closed"),
       ),
     );
     _bannerAd!.load();
   }
 
+  void _handleStopTimer() {
+    print("Stop button pressed");
+    widget.onStopTimer();
+    _handleAdAndSave();
+  }
+
+  void _handleAdAndSave() {
+    if (widget.selectedActivity is TimedActivity && _adManager.shouldShowAd(widget.elapsed)) {
+      print("Ad shown");
+      _adManager.showRewardedAd(
+        onUserEarnedReward: () {
+          widget.onResetTimer();
+        },
+        onAdDismissed: () {
+          widget.onResetTimer();
+        },
+        onAdFailedToShow: () {
+          widget.onResetTimer();
+        },
+      );
+    } else {
+      print("Ad not shown");
+      widget.onResetTimer();
+    }
+  }
+
+  void _handleCheckAndAd() {
+    print("Check button pressed");
+    if (widget.isRunning) {
+      print("Stopping timer");
+      widget.onStopTimer();
+    }
+    _adManager.incrementCheckUsage();
+    if (widget.selectedActivity is CheckableActivity && _adManager.shouldShowCheckAd()) {
+      print("Ad shown");
+      _adManager.showRewardedAd(
+        onUserEarnedReward: () {
+          widget.onCheckActivity();
+        },
+        onAdDismissed: () {
+          widget.onCheckActivity();
+        },
+        onAdFailedToShow: () {
+          widget.onCheckActivity();
+        },
+      );
+    } else {
+      print("Ad not shown");
+      widget.onCheckActivity();
+    }
+  }
+
   @override
   void dispose() {
-    print('TrackerPage: Disposing banner ad');
+    print("TrackerPage dispose called");
     _bannerAd?.dispose();
+    _adManager.dispose();
     super.dispose();
   }
 
@@ -320,24 +376,46 @@ class _TrackerPageState extends State<TrackerPage> {
                   ElevatedButton(
                     onPressed: (widget.selectedActivity == null || widget.isRunning || widget.selectedDate.isAfter(DateTime.now()))
                         ? null
-                        : widget.onStartTimer,
+                        : () {
+                      print("Start button pressed");
+                      _adManager.incrementStoperUsage();
+                      widget.onStartTimer();
+                    },
                     child: const Text('Start'),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: widget.isRunning ? widget.onStopTimer : null,
+                    onPressed: widget.isRunning
+                        ? () {
+                      print("Stop button pressed");
+                      _handleStopTimer();
+                    }
+                        : null,
                     child: const Text('Stop'),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
                     onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero || widget.selectedDate.isAfter(DateTime.now()))
                         ? null
-                        : widget.onResetTimer,
+                        : () {
+                      print("Finish button pressed");
+                      if (widget.isRunning) {
+                        print("Calling handleStopTimer from Finish");
+                        _handleStopTimer();
+                      } else {
+                        _handleAdAndSave();
+                      }
+                    },
                     child: const Text('Finish'),
                   ),
                 ] else if (widget.selectedActivity is CheckableActivity)
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.selectedDate.isAfter(DateTime.now())) ? null : widget.onCheckActivity,
+                    onPressed: (widget.selectedActivity == null || widget.selectedDate.isAfter(DateTime.now()))
+                        ? null
+                        : () {
+                      print("Check button pressed");
+                      _handleCheckAndAd();
+                    },
                     child: const Text('Check', style: TextStyle(fontSize: 20)),
                   ),
               ],
@@ -351,6 +429,7 @@ class _TrackerPageState extends State<TrackerPage> {
                     onPressed: (widget.selectedActivity == null || widget.isRunning || widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : () {
+                      print("Add button pressed");
                       showInputDialog(
                         widget.selectedActivity is TimedActivity ? 'Add Time' : 'Add Completions',
                         widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
@@ -376,6 +455,7 @@ class _TrackerPageState extends State<TrackerPage> {
                         widget.selectedDate.isAfter(DateTime.now()))
                         ? null
                         : () {
+                      print("Subtract button pressed");
                       showInputDialog(
                         widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions',
                         widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
