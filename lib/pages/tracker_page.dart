@@ -108,7 +108,7 @@ class _TrackerPageState extends State<TrackerPage> {
     return dateActivities;
   }
 
-  void showInputDialog(String title, String hint, bool isTimed, Function(String) onSave) {
+  void showInputDialog(String title, String hint, bool isTimed, Function(int) onSave) {
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -134,8 +134,8 @@ class _TrackerPageState extends State<TrackerPage> {
               final value = controller.text.trim();
               final intVal = int.tryParse(value);
               if (value.isNotEmpty && intVal != null && intVal > 0 && intVal <= (isTimed ? maxManualTimeMinutes : maxManualCompletions)) {
-                onSave(value);
                 Navigator.pop(context);
+                onSave(intVal);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -245,6 +245,100 @@ class _TrackerPageState extends State<TrackerPage> {
     } else {
       print("Ad not shown");
       widget.onCheckActivity();
+    }
+  }
+
+  void _handleAddManual(int intVal) {
+    print("Add button pressed");
+    if (widget.isRunning) {
+      print("Stopping timer");
+      widget.onStopTimer();
+    }
+    if (widget.selectedActivity is TimedActivity) {
+      _adManager.incrementStoperUsage();
+      if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
+        print("Ad shown");
+        _adManager.showRewardedAd(
+          onUserEarnedReward: () {
+            widget.onAddManualTime(Duration(minutes: intVal));
+          },
+          onAdDismissed: () {
+            widget.onAddManualTime(Duration(minutes: intVal));
+          },
+          onAdFailedToShow: () {
+            widget.onAddManualTime(Duration(minutes: intVal));
+          },
+        );
+      } else {
+        print("Ad not shown");
+        widget.onAddManualTime(Duration(minutes: intVal));
+      }
+    } else if (widget.selectedActivity is CheckableActivity) {
+      _adManager.incrementCheckUsage();
+      if (_adManager.shouldShowCheckAd()) {
+        print("Ad shown");
+        _adManager.showRewardedAd(
+          onUserEarnedReward: () {
+            widget.onAddManualCompletion(intVal);
+          },
+          onAdDismissed: () {
+            widget.onAddManualCompletion(intVal);
+          },
+          onAdFailedToShow: () {
+            widget.onAddManualCompletion(intVal);
+          },
+        );
+      } else {
+        print("Ad not shown");
+        widget.onAddManualCompletion(intVal);
+      }
+    }
+  }
+
+  void _handleSubtractManual(int intVal) {
+    print("Subtract button pressed");
+    if (widget.isRunning) {
+      print("Stopping timer");
+      widget.onStopTimer();
+    }
+    if (widget.selectedActivity is TimedActivity) {
+      _adManager.incrementStoperUsage();
+      if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
+        print("Ad shown");
+        _adManager.showRewardedAd(
+          onUserEarnedReward: () {
+            widget.onSubtractManualTime(Duration(minutes: intVal));
+          },
+          onAdDismissed: () {
+            widget.onSubtractManualTime(Duration(minutes: intVal));
+          },
+          onAdFailedToShow: () {
+            widget.onSubtractManualTime(Duration(minutes: intVal));
+          },
+        );
+      } else {
+        print("Ad not shown");
+        widget.onSubtractManualTime(Duration(minutes: intVal));
+      }
+    } else if (widget.selectedActivity is CheckableActivity) {
+      _adManager.incrementCheckUsage();
+      if (_adManager.shouldShowCheckAd()) {
+        print("Ad shown");
+        _adManager.showRewardedAd(
+          onUserEarnedReward: () {
+            widget.onSubtractManualCompletion(intVal);
+          },
+          onAdDismissed: () {
+            widget.onSubtractManualCompletion(intVal);
+          },
+          onAdFailedToShow: () {
+            widget.onSubtractManualCompletion(intVal);
+          },
+        );
+      } else {
+        print("Ad not shown");
+        widget.onSubtractManualCompletion(intVal);
+      }
     }
   }
 
@@ -434,14 +528,7 @@ class _TrackerPageState extends State<TrackerPage> {
                         widget.selectedActivity is TimedActivity ? 'Add Time' : 'Add Completions',
                         widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
                         widget.selectedActivity is TimedActivity,
-                            (value) {
-                          final intVal = int.parse(value);
-                          if (widget.selectedActivity is TimedActivity) {
-                            widget.onAddManualTime(Duration(minutes: intVal));
-                          } else {
-                            widget.onAddManualCompletion(intVal);
-                          }
-                        },
+                            (intVal) => _handleAddManual(intVal),
                       );
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
@@ -460,14 +547,7 @@ class _TrackerPageState extends State<TrackerPage> {
                         widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions',
                         widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
                         widget.selectedActivity is TimedActivity,
-                            (value) {
-                          final intVal = int.parse(value);
-                          if (widget.selectedActivity is TimedActivity) {
-                            widget.onSubtractManualTime(Duration(minutes: intVal));
-                          } else {
-                            widget.onSubtractManualCompletion(intVal);
-                          }
-                        },
+                            (intVal) => _handleSubtractManual(intVal),
                       );
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
