@@ -13,14 +13,12 @@ class AdManager {
 
   static Future<void> init() async {
     if (!_isInitialized) {
-      print("Initializing AdManager");
       await MobileAds.instance.initialize();
       _isInitialized = true;
     }
   }
 
   void loadRewardedAd() {
-    print("Loading rewarded ad");
     RewardedAd.load(
       adUnitId: Platform.isAndroid
           ? 'ca-app-pub-3940256099942544/5224354917'
@@ -28,11 +26,9 @@ class AdManager {
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
-          print("Rewarded ad loaded successfully");
           _rewardedAd = ad;
         },
         onAdFailedToLoad: (error) {
-          print("Failed to load rewarded ad: $error");
           _rewardedAd = null;
         },
       ),
@@ -41,49 +37,53 @@ class AdManager {
 
   void incrementStoperUsage() {
     _stoperUsageCount++;
-    print("Incremented stoper usage count: $_stoperUsageCount");
   }
 
   void incrementCheckUsage() {
     _checkUsageCount++;
-    print("Incremented check usage count: $_checkUsageCount");
   }
 
   bool shouldShowAd(Duration duration) {
-    print("shouldShowAd called with duration: ${duration.inSeconds} seconds");
     if (duration.inSeconds <= 5) {
-      print("Duration <= 5 seconds, not showing ad");
+      print("Ad not shown: duration too short");
       return false;
     }
     if (_stoperUsageCount < 3) {
-      print("Stoper usage count: $_stoperUsageCount");
+      print("Ad not shown: grace time");
       return false;
     }
     if (_lastAdShown) {
-      print("Ad was shown last time, not showing now");
+      print("Ad not shown: ad shown last time");
       _lastAdShown = false;
       return false;
     }
     final random = Random().nextDouble() < 0.5;
-    print("Random result: $random");
     _lastAdShown = random;
+    if (random) {
+      print("Ad shown");
+    } else {
+      print("Ad not shown: random");
+    }
     return random;
   }
 
   bool shouldShowCheckAd() {
-    print("shouldShowCheckAd called");
     if (_checkUsageCount < 5) {
-      print("Check usage count: $_checkUsageCount");
+      print("Ad not shown: check usage");
       return false;
     }
     if (_lastCheckAdShown) {
-      print("Ad was shown last time for check, not showing now");
+      print("Ad not shown: ad shown last time");
       _lastCheckAdShown = false;
       return false;
     }
     final random = Random().nextDouble() < 0.25;
-    print("Random result for check: $random");
     _lastCheckAdShown = random;
+    if (random) {
+      print("Ad shown");
+    } else {
+      print("Ad not shown: random");
+    }
     return random;
   }
 
@@ -93,21 +93,19 @@ class AdManager {
     required VoidCallback onAdFailedToShow,
   }) {
     if (_rewardedAd == null) {
-      print("No rewarded ad loaded");
+      print("Ad load fail");
       onAdFailedToShow();
       return;
     }
     _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdShowedFullScreenContent: (ad) => print("Rewarded ad shown"),
+      onAdShowedFullScreenContent: (ad) => print("Ad shown"),
       onAdDismissedFullScreenContent: (ad) {
-        print("Rewarded ad dismissed");
         ad.dispose();
         _rewardedAd = null;
         loadRewardedAd();
         onAdDismissed();
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
-        print("Failed to show rewarded ad: $error");
         ad.dispose();
         _rewardedAd = null;
         loadRewardedAd();
@@ -116,7 +114,6 @@ class AdManager {
     );
     _rewardedAd!.show(
       onUserEarnedReward: (ad, reward) {
-        print("User earned reward: ${reward.amount} ${reward.type}");
         onUserEarnedReward();
       },
     );
