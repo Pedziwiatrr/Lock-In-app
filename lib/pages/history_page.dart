@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
 import '../utils/format_utils.dart';
@@ -28,8 +29,12 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   HistoryPeriod selectedPeriod = HistoryPeriod.allTime;
-  final AdManager _adManager = AdManager();
+  final AdManager _adManager = AdManager.instance;
   bool _isAdLoaded = false;
+  final _pageSize = 30;
+  final ScrollController _scrollController = ScrollController();
+  List<DateTime> _visibleDays = [];
+  Map<DateTime, Map<String, dynamic>> _progressCache = {};
 
   @override
   void initState() {
@@ -47,32 +52,62 @@ class _HistoryPageState extends State<HistoryPage> {
     } else {
       print('HistoryPage: Skipping ad load due to launchCount <= 1');
     }
-    AdManager.init().then((_) {
-      _adManager.loadRewardedAd();
-    });
+    _scrollController.addListener(_loadMoreDays);
+    _calculateProgressAsync();
   }
 
   @override
   void dispose() {
     print('HistoryPage: Disposing');
-    _adManager.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Map<DateTime, Duration> _aggregateByDay() {
-    Map<DateTime, Duration> result = {};
-    for (var log in widget.activityLogs) {
-      final day = DateTime(log.date.year, log.date.month, log.date.day);
-      result[day] = (result[day] ?? Duration.zero) + log.duration;
+  void _loadMoreDays() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent * 0.8 &&
+        _visibleDays.length < _progressCache.length) {
+      setState(() {
+        _visibleDays = _progressCache.keys
+            .toList()
+            .sublist(0, (_visibleDays.length + _pageSize).clamp(0, _progressCache.length))
+          ..sort((a, b) => b.compareTo(a));
+      });
     }
-    return result;
   }
 
-  Map<DateTime, Map<String, dynamic>> _calculateGoalProgress() {
-    final progress = <DateTime, Map<String, dynamic>>{};
-    final dayData = _aggregateByDay();
-    final today = widget.selectedDate;
+  Future<void> _calculateProgressAsync() async {
+    final progress = await compute(_calculateGoalProgressIsolate, {
+      'logs': widget.activityLogs,
+      'goals': widget.goals,
+      'selectedDate': widget.selectedDate,
+      'selectedPeriod': selectedPeriod,
+    });
+    if (mounted) {
+      setState(() {
+        _progressCache = progress;
+        _visibleDays = progress.keys.toList().sublist(0, _pageSize.clamp(0, progress.length))
+          ..sort((a, b) => b.compareTo(a));
+      });
+    }
+  }
 
+  static Map<DateTime, Map<String, dynamic>> _calculateGoalProgressIsolate(Map<String, dynamic> params) {
+    final logs = params['logs'] as List<ActivityLog>;
+    final goals = params['goals'] as List<Goal>;
+    final today = params['selectedDate'] as DateTime;
+    final selectedPeriod = params['selectedPeriod'] as HistoryPeriod;
+
+    final dayData = <DateTime, Duration>{};
+    final checkableCompletions = <DateTime, int>{};
+    for (var log in logs) {
+      final day = DateTime(log.date.year, log.date.month, log.date.day);
+      dayData[day] = (dayData[day] ?? Duration.zero) + log.duration;
+      if (log.isCheckable) {
+        checkableCompletions[day] = (checkableCompletions[day] ?? 0) + 1;
+      }
+    }
+
+    final progress = <DateTime, Map<String, dynamic>>{};
     DateTime minDate;
     switch (selectedPeriod) {
       case HistoryPeriod.week:
@@ -85,8 +120,8 @@ class _HistoryPageState extends State<HistoryPage> {
         minDate = today.subtract(const Duration(days: 90));
         break;
       case HistoryPeriod.allTime:
-        minDate = widget.activityLogs.isNotEmpty
-            ? widget.activityLogs
+        minDate = logs.isNotEmpty
+            ? logs
             .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
             .reduce((a, b) => a.isBefore(b) ? a : b)
             : DateTime(2000);
@@ -94,15 +129,31 @@ class _HistoryPageState extends State<HistoryPage> {
     }
 
     final daysDiff = today.difference(minDate).inDays;
+    final goalCache = <String, List<ActivityLog>>{};
 
     for (int i = 0; i <= daysDiff; i++) {
       final day = today.subtract(Duration(days: i));
       final dayStart = DateTime(day.year, day.month, day.day);
       final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
       final dayKey = DateTime(day.year, day.month, day.day);
+      final weekStart = day.subtract(Duration(days: day.weekday - 1));
+      final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+      final monthStart = DateTime(day.year, day.month, 1);
+      final monthEnd = DateTime(day.year, day.month + 1, 1).subtract(const Duration(milliseconds: 1));
+
+      for (var goal in goals.where((g) =>
+      g.goalDuration > Duration.zero &&
+          g.startDate.isBefore(dayEnd) &&
+          (g.endDate == null || g.endDate!.isAfter(dayStart)))) {
+        if (!goalCache.containsKey(goal.activityName)) {
+          goalCache[goal.activityName] = logs
+              .where((log) => log.activityName == goal.activityName)
+              .toList();
+        }
+      }
 
       int completedDailyGoals = 0;
-      int totalDailyGoals = widget.goals
+      int totalDailyGoals = goals
           .where((g) =>
       g.goalDuration > Duration.zero &&
           g.goalType == GoalType.daily &&
@@ -111,7 +162,7 @@ class _HistoryPageState extends State<HistoryPage> {
           .length;
 
       int completedWeeklyGoals = 0;
-      int totalWeeklyGoals = widget.goals
+      int totalWeeklyGoals = goals
           .where((g) =>
       g.goalDuration > Duration.zero &&
           g.goalType == GoalType.weekly &&
@@ -120,7 +171,7 @@ class _HistoryPageState extends State<HistoryPage> {
           .length;
 
       int completedMonthlyGoals = 0;
-      int totalMonthlyGoals = widget.goals
+      int totalMonthlyGoals = goals
           .where((g) =>
       g.goalDuration > Duration.zero &&
           g.goalType == GoalType.monthly &&
@@ -128,30 +179,17 @@ class _HistoryPageState extends State<HistoryPage> {
           (g.endDate == null || g.endDate!.isAfter(dayStart)))
           .length;
 
-      final weekStart = day.subtract(Duration(days: day.weekday - 1));
-      final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
-      final monthStart = DateTime(day.year, day.month, 1);
-      final monthEnd = DateTime(day.year, day.month + 1, 1).subtract(const Duration(milliseconds: 1));
-
-      int checkableCompletions = widget.activityLogs
-          .where((log) =>
-      log.isCheckable &&
-          log.date.isAfter(dayStart) &&
-          log.date.isBefore(dayEnd))
-          .length;
-
-      for (var goal in widget.goals.where((g) =>
+      for (var goal in goals.where((g) =>
       g.goalDuration > Duration.zero &&
           g.startDate.isBefore(dayEnd) &&
           (g.endDate == null || g.endDate!.isAfter(dayStart)))) {
-        final activity = widget.activityLogs
+        final activity = goalCache[goal.activityName]!
             .where((log) =>
-        log.activityName == goal.activityName &&
-            log.date.isAfter(goal.goalType == GoalType.daily
-                ? dayStart
-                : goal.goalType == GoalType.weekly
-                ? weekStart
-                : monthStart) &&
+        log.date.isAfter(goal.goalType == GoalType.daily
+            ? dayStart
+            : goal.goalType == GoalType.weekly
+            ? weekStart
+            : monthStart) &&
             log.date.isBefore(goal.goalType == GoalType.daily
                 ? dayEnd
                 : goal.goalType == GoalType.weekly
@@ -210,7 +248,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ? Colors.yellow
           : Colors.red;
 
-      progress[day] = {
+      progress[dayKey] = {
         'completedDailyGoals': completedDailyGoals,
         'totalDailyGoals': totalDailyGoals,
         'dailyColor': dailyColor,
@@ -221,7 +259,7 @@ class _HistoryPageState extends State<HistoryPage> {
         'totalMonthlyGoals': totalMonthlyGoals,
         'monthlyColor': monthlyColor,
         'duration': dayData[dayKey] ?? Duration.zero,
-        'checkableCompletions': checkableCompletions,
+        'checkableCompletions': checkableCompletions[dayKey] ?? 0,
       };
     }
 
@@ -234,7 +272,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final monthStart = DateTime(day.year, day.month, 1);
     final monthEnd = DateTime(day.year, day.month + 1, 1).subtract(const Duration(milliseconds: 1));
 
-    final Map<String, Map<String, dynamic>> activities = {};
+    final activities = <String, Map<String, dynamic>>{};
     for (var log in widget.activityLogs.where((log) => log.date.isAfter(dayStart) && log.date.isBefore(dayEnd))) {
       if (!activities.containsKey(log.activityName)) {
         activities[log.activityName] = {
@@ -250,7 +288,7 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     }
 
-    final List<Map<String, dynamic>> goalProgress = [];
+    final goalProgress = <Map<String, dynamic>>[];
     for (var goal in widget.goals.where((g) =>
     g.goalDuration > Duration.zero &&
         g.startDate.isBefore(dayEnd) &&
@@ -377,9 +415,6 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final progress = _calculateGoalProgress();
-    final sortedDays = progress.keys.toList()..sort((a, b) => b.compareTo(a));
-
     return Column(
       children: [
         Padding(
@@ -397,17 +432,19 @@ class _HistoryPageState extends State<HistoryPage> {
               if (val == null) return;
               setState(() {
                 selectedPeriod = val;
+                _calculateProgressAsync();
               });
             },
           ),
         ),
         Expanded(
           child: ListView.builder(
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
-            itemCount: sortedDays.length,
+            itemCount: _visibleDays.length,
             itemBuilder: (context, index) {
-              final day = sortedDays[index];
-              final dayData = progress[day]!;
+              final day = _visibleDays[index];
+              final dayData = _progressCache[day]!;
               final duration = dayData['duration'] as Duration;
               final completedDailyGoals = dayData['completedDailyGoals'] as int;
               final totalDailyGoals = dayData['totalDailyGoals'] as int;
