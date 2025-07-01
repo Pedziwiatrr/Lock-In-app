@@ -41,7 +41,7 @@ class _HomePageState extends State<HomePage> {
   Duration elapsed = Duration.zero;
   Timer? _timer;
   DateTime selectedDate = DateTime.now();
-  static const int maxLogs = 1000;
+  static const int maxLogs = 3000;
   static const int maxManualTimeMinutes = 1000;
   static const int maxManualCompletions = 50;
   static const int maxActivities = 10;
