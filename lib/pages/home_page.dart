@@ -3,7 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import '../models/activity.dart';
 import '../models/goal.dart';
 import '../models/activity_log.dart';
@@ -50,7 +49,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadData(1);
+    _loadData();
   }
 
   @override
@@ -60,8 +59,8 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  Future<void> _loadData(int shouldLoadDefaultData) async {
-    final result = await compute(_loadDataFromPrefs, shouldLoadDefaultData);
+  Future<void> _loadData() async {
+    final result = await _loadDataFromPrefs(widget.launchCount == 1 ? 1 : 0);
     setState(() {
       activities = result['activities'] as List<Activity>;
       activityLogs = result['logs'] as List<ActivityLog>;
@@ -75,31 +74,24 @@ class _HomePageState extends State<HomePage> {
     List<ActivityLog> logs = [];
     List<Goal> goals = [];
 
-    final activitiesJson = prefs.getString('activities');
-    if (activitiesJson != null && activitiesJson.isNotEmpty) {
-      try {
-        final List<dynamic> activitiesList = jsonDecode(activitiesJson);
-        activities = activitiesList
-            .map((json) => json['type'] == 'TimedActivity'
-            ? TimedActivity.fromJson(json)
-            : CheckableActivity.fromJson(json))
-            .take(maxActivities)
-            .toList();
-      } catch (e) {
-        activities = [];
-      }
-    }
-
     if (shouldLoadDefaultData == 1) {
-      final defaultActivities = [
+      activities = [
         TimedActivity(name: 'Focus'),
         CheckableActivity(name: 'Drink water'),
       ];
-      for (var defaultActivity in defaultActivities) {
-        if (!activities.any((a) => a.name == defaultActivity.name)) {
-          if (activities.length < maxActivities) {
-            activities.add(defaultActivity);
-          }
+    } else {
+      final activitiesJson = prefs.getString('activities');
+      if (activitiesJson != null && activitiesJson.isNotEmpty) {
+        try {
+          final List<dynamic> activitiesList = jsonDecode(activitiesJson);
+          activities = activitiesList
+              .map((json) => json['type'] == 'TimedActivity'
+              ? TimedActivity.fromJson(json)
+              : CheckableActivity.fromJson(json))
+              .take(maxActivities)
+              .toList();
+        } catch (e) {
+          activities = [];
         }
       }
     }
@@ -151,9 +143,9 @@ class _HomePageState extends State<HomePage> {
         activities.add(newActivity);
       }
       final activity = activities.firstWhere((a) => a.name == log.activityName);
-      if (activity is TimedActivity && !log.isCheckable && log.activityName == 'Focus') {
+      if (activity is TimedActivity && !log.isCheckable) {
         activity.totalTime += log.duration;
-      } else if (activity is CheckableActivity && log.isCheckable && log.activityName == 'Drink water') {
+      } else if (activity is CheckableActivity && log.isCheckable) {
         activity.completionCount += 1;
       }
     }
@@ -171,7 +163,7 @@ class _HomePageState extends State<HomePage> {
     if (goals.length > maxGoals) {
       goals = goals.sublist(0, maxGoals);
     }
-    await compute(_saveDataToPrefs, {
+    await _saveDataToPrefs({
       'activities': activities,
       'logs': activityLogs,
       'goals': goals,
