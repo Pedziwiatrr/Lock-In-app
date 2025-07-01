@@ -5,6 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 
 class AdManager {
+  static final AdManager _instance = AdManager._internal();
+  static AdManager get instance => _instance;
+
   static bool _isInitialized = false;
   RewardedAd? _rewardedAd;
   BannerAd? _bannerAd;
@@ -17,6 +20,8 @@ class AdManager {
   int _activityChangeCount = 0;
   SharedPreferences? _prefs;
 
+  AdManager._internal();
+
   static Future<void> init() async {
     if (!_isInitialized) {
       await MobileAds.instance.initialize();
@@ -24,12 +29,10 @@ class AdManager {
     }
   }
 
-  static Future<AdManager> initialize() async {
+  static Future<void> initialize() async {
     await init();
-    final adManager = AdManager();
-    await adManager._initPrefs();
-    adManager.loadRewardedAd();
-    return adManager;
+    await _instance._initPrefs();
+    _instance.loadRewardedAd();
   }
 
   Future<void> _initPrefs() async {
