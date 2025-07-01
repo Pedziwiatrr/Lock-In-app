@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'dart:io';
 import '../models/activity.dart';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
@@ -164,9 +162,6 @@ class _TrackerPageState extends State<TrackerPage> {
         }
       });
     }
-    AdManager.init().then((_) {
-      _adManager.loadRewardedAd();
-    });
   }
 
   void _handleStopTimer() {
@@ -186,6 +181,7 @@ class _TrackerPageState extends State<TrackerPage> {
           widget.onResetTimer();
         },
         onAdFailedToShow: () {
+          print("Ad failed to show");
           widget.onResetTimer();
         },
       );
@@ -212,6 +208,7 @@ class _TrackerPageState extends State<TrackerPage> {
             widget.onCheckActivity();
           },
           onAdFailedToShow: () {
+            print("Ad failed to show");
             widget.onCheckActivity();
           },
         );
@@ -240,6 +237,7 @@ class _TrackerPageState extends State<TrackerPage> {
               widget.onAddManualTime(Duration(minutes: intVal));
             },
             onAdFailedToShow: () {
+              print("Ad failed to show");
               widget.onAddManualTime(Duration(minutes: intVal));
             },
           );
@@ -260,6 +258,7 @@ class _TrackerPageState extends State<TrackerPage> {
               widget.onAddManualCompletion(intVal);
             },
             onAdFailedToShow: () {
+              print("Ad failed to show");
               widget.onAddManualCompletion(intVal);
             },
           );
@@ -289,6 +288,7 @@ class _TrackerPageState extends State<TrackerPage> {
               widget.onSubtractManualTime(Duration(minutes: intVal));
             },
             onAdFailedToShow: () {
+              print("Ad failed to show");
               widget.onSubtractManualTime(Duration(minutes: intVal));
             },
           );
@@ -309,6 +309,7 @@ class _TrackerPageState extends State<TrackerPage> {
               widget.onSubtractManualCompletion(intVal);
             },
             onAdFailedToShow: () {
+              print("Ad failed to show");
               widget.onSubtractManualCompletion(intVal);
             },
           );
@@ -323,7 +324,6 @@ class _TrackerPageState extends State<TrackerPage> {
   @override
   void dispose() {
     print("TrackerPage dispose called");
-    _adManager.dispose();
     super.dispose();
   }
 
