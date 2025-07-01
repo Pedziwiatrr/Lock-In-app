@@ -68,7 +68,6 @@ class _SettingsPageState extends State<SettingsPage> {
       if (await canLaunchUrl(emailUri)) {
         await launchUrl(emailUri, mode: LaunchMode.externalApplication);
       } else {
-        // Fallback: Copy email address to clipboard
         await Clipboard.setData(const ClipboardData(text: 'lockintrackerapp@gmail.com'));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
