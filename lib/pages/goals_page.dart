@@ -29,7 +29,7 @@ class _GoalsPageState extends State<GoalsPage> {
   late List<Goal> editableGoals;
   bool showGoals = false;
   static const int maxGoalMinutes = 10000;
-  final AdManager _adManager = AdManager();
+  final AdManager _adManager = AdManager.instance;
   bool _isAdLoaded = false;
 
   @override

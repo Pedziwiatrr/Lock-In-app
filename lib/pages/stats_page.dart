@@ -247,7 +247,7 @@ class StatsPage extends StatefulWidget {
 class _StatsPageState extends State<StatsPage> {
   StatsPeriod selectedPeriod = StatsPeriod.total;
   String? selectedActivity;
-  final AdManager _adManager = AdManager();
+  final AdManager _adManager = AdManager.instance;
   bool _isAdLoaded = false;
 
   @override

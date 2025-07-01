@@ -24,7 +24,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   bool _isTimedActivity = true;
   static const int maxActivities = 10;
   static const int maxNameLength = 50;
-  final AdManager _adManager = AdManager();
+  final AdManager _adManager = AdManager.instance;
   bool _isAdLoaded = false;
 
   @override

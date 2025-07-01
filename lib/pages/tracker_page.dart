@@ -58,7 +58,7 @@ class TrackerPage extends StatefulWidget {
 class _TrackerPageState extends State<TrackerPage> {
   static const int maxManualTimeMinutes = 1000;
   static const int maxManualCompletions = 100;
-  final AdManager _adManager = AdManager();
+  final AdManager _adManager = AdManager.instance;
   bool _isAdLoaded = false;
 
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
