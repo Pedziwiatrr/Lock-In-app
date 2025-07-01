@@ -9,7 +9,7 @@ void main() async {
   try {
     await AdManager.initialize();
   } catch (e) {
-    print('Błąd inicjalizacji AdMob: $e');
+    print('AdMob init error: $e');
   }
   final prefs = await SharedPreferences.getInstance();
   int launchCount = (prefs.getInt('launchCount') ?? 0) + 1;
