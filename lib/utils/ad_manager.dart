@@ -24,6 +24,14 @@ class AdManager {
     }
   }
 
+  static Future<AdManager> initialize() async {
+    await init();
+    final adManager = AdManager();
+    await adManager._initPrefs();
+    adManager.loadRewardedAd();
+    return adManager;
+  }
+
   Future<void> _initPrefs() async {
     _prefs = await SharedPreferences.getInstance();
     _stoperUsageCount = _prefs!.getInt('stoperUsageCount') ?? 0;
@@ -40,10 +48,13 @@ class AdManager {
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
+          print("Rewarded ad loaded");
           _rewardedAd = ad;
         },
         onAdFailedToLoad: (error) {
+          print("Rewarded ad failed to load: $error");
           _rewardedAd = null;
+          Future.delayed(const Duration(seconds: 5), loadRewardedAd);
         },
       ),
     );
@@ -67,6 +78,7 @@ class AdManager {
           ad.dispose();
           _isAdLoaded = false;
           onAdLoaded(false);
+          Future.delayed(const Duration(seconds: 5), () => loadBannerAd(onAdLoaded: onAdLoaded));
         },
         onAdOpened: (ad) => print("Banner ad opened"),
         onAdClosed: (ad) => print("Banner ad closed"),
@@ -187,6 +199,7 @@ class AdManager {
     if (_rewardedAd == null) {
       print("Ad load fail");
       onAdFailedToShow();
+      loadRewardedAd();
       return;
     }
     _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(

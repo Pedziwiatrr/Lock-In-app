@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'pages/home_page.dart';
+import 'utils/ad_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await MobileAds.instance.initialize();
+    await AdManager.initialize();
   } catch (e) {
-    print('AdMob init error: $e');
+    print('Błąd inicjalizacji AdMob: $e');
   }
   final prefs = await SharedPreferences.getInstance();
   int launchCount = (prefs.getInt('launchCount') ?? 0) + 1;
