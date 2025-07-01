@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:io';
 import '../models/activity.dart';
 import '../utils/ad_manager.dart';
 
@@ -43,9 +42,6 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     } else {
       print('ActivitiesPage: Skipping ad load due to launchCount <= 1');
     }
-    AdManager.init().then((_) {
-      _adManager.loadRewardedAd();
-    });
   }
 
   void addActivity() {
@@ -266,7 +262,6 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   @override
   void dispose() {
     print('ActivitiesPage: Disposing');
-    _adManager.dispose();
     super.dispose();
   }
 
