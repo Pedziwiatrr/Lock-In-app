@@ -76,60 +76,84 @@ class _HomePageState extends State<HomePage> {
     List<Goal> goals = [];
 
     final activitiesJson = prefs.getString('activities');
-    final logsJson = prefs.getString('activityLogs');
-    final goalsJson = prefs.getString('goals');
+    if (activitiesJson != null && activitiesJson.isNotEmpty) {
+      try {
+        final List<dynamic> activitiesList = jsonDecode(activitiesJson);
+        activities = activitiesList
+            .map((json) => json['type'] == 'TimedActivity'
+            ? TimedActivity.fromJson(json)
+            : CheckableActivity.fromJson(json))
+            .take(maxActivities)
+            .toList();
+      } catch (e) {
+        activities = [];
+      }
+    }
 
-    if (activitiesJson != null) {
-      final List<dynamic> activitiesList = jsonDecode(activitiesJson);
-      activities = activitiesList
-          .map((json) => json['type'] == 'TimedActivity'
-          ? TimedActivity.fromJson(json)
-          : CheckableActivity.fromJson(json))
-          .take(maxActivities)
-          .toList();
-    } else if (shouldLoadDefaultData == 1) {
-      activities = [
+    if (shouldLoadDefaultData == 1) {
+      final defaultActivities = [
         TimedActivity(name: 'Focus'),
         CheckableActivity(name: 'Drink water'),
       ];
-    }
-
-    if (logsJson != null) {
-      final List<dynamic> logsList = jsonDecode(logsJson);
-      logs = logsList.map((json) => ActivityLog.fromJson(json)).take(maxLogs).toList();
-      logs = logs.map((log) {
-        if (log.activityName == 'Drink water') {
-          return ActivityLog(
-            activityName: log.activityName,
-            date: log.date,
-            duration: Duration.zero,
-            isCheckable: true,
-          );
+      for (var defaultActivity in defaultActivities) {
+        if (!activities.any((a) => a.name == defaultActivity.name)) {
+          if (activities.length < maxActivities) {
+            activities.add(defaultActivity);
+          }
         }
-        return log;
-      }).toList();
+      }
     }
 
-    if (goalsJson != null) {
-      final List<dynamic> goalsList = jsonDecode(goalsJson);
-      goals = goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
+    final logsJson = prefs.getString('activityLogs');
+    if (logsJson != null && logsJson.isNotEmpty) {
+      try {
+        final List<dynamic> logsList = jsonDecode(logsJson);
+        logs = logsList.map((json) => ActivityLog.fromJson(json)).take(maxLogs).toList();
+        logs = logs.map((log) {
+          if (log.activityName == 'Drink water') {
+            return ActivityLog(
+              activityName: log.activityName,
+              date: log.date,
+              duration: Duration.zero,
+              isCheckable: true,
+            );
+          } else if (log.activityName == 'Focus') {
+            return ActivityLog(
+              activityName: log.activityName,
+              date: log.date,
+              duration: log.duration,
+              isCheckable: false,
+            );
+          }
+          return log;
+        }).toList();
+      } catch (e) {
+        logs = [];
+      }
+    }
+
+    final goalsJson = prefs.getString('goals');
+    if (goalsJson != null && goalsJson.isNotEmpty) {
+      try {
+        final List<dynamic> goalsList = jsonDecode(goalsJson);
+        goals = goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
+      } catch (e) {
+        goals = [];
+      }
     }
 
     for (var log in logs) {
-      final activity = activities.firstWhere(
-            (a) => a.name == log.activityName,
-        orElse: () {
-          if (activities.length >= maxActivities) return activities.first;
-          final newActivity = log.isCheckable
-              ? CheckableActivity(name: log.activityName)
-              : TimedActivity(name: log.activityName);
-          activities.add(newActivity);
-          return newActivity;
-        },
-      );
-      if (activity is TimedActivity && !log.isCheckable) {
+      if (!activities.any((a) => a.name == log.activityName)) {
+        if (activities.length >= maxActivities) continue;
+        final newActivity = log.isCheckable
+            ? CheckableActivity(name: log.activityName)
+            : TimedActivity(name: log.activityName);
+        activities.add(newActivity);
+      }
+      final activity = activities.firstWhere((a) => a.name == log.activityName);
+      if (activity is TimedActivity && !log.isCheckable && log.activityName == 'Focus') {
         activity.totalTime += log.duration;
-      } else if (activity is CheckableActivity && log.isCheckable) {
+      } else if (activity is CheckableActivity && log.isCheckable && log.activityName == 'Drink water') {
         activity.completionCount += 1;
       }
     }
@@ -167,7 +191,10 @@ class _HomePageState extends State<HomePage> {
   Future<void> _resetData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      activities = [];
+      activities = [
+        TimedActivity(name: 'Focus'),
+        CheckableActivity(name: 'Drink water'),
+      ];
       activityLogs = [];
       goals = [];
       selectedActivity = null;
@@ -178,7 +205,7 @@ class _HomePageState extends State<HomePage> {
     await prefs.remove('activities');
     await prefs.remove('activityLogs');
     await prefs.remove('goals');
-    await _loadData(1);
+    await _saveData();
   }
 
   void startTimer() {
