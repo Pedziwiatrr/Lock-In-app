@@ -67,9 +67,6 @@ class _GoalsPageState extends State<GoalsPage> {
     } else {
       print('GoalsPage: Skipping ad load due to launchCount <= 1');
     }
-    AdManager.init().then((_) {
-      _adManager.loadRewardedAd();
-    });
   }
 
   void updateGoal(
@@ -432,7 +429,6 @@ class _GoalsPageState extends State<GoalsPage> {
   @override
   void dispose() {
     print("GoalsPage dispose called");
-    _adManager.dispose();
     super.dispose();
   }
 }
