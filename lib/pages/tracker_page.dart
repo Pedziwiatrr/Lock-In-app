@@ -58,9 +58,8 @@ class TrackerPage extends StatefulWidget {
 class _TrackerPageState extends State<TrackerPage> {
   static const int maxManualTimeMinutes = 1000;
   static const int maxManualCompletions = 100;
-  BannerAd? _bannerAd;
-  bool _isAdLoaded = false;
   final AdManager _adManager = AdManager();
+  bool _isAdLoaded = false;
 
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
     final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
@@ -157,43 +156,17 @@ class _TrackerPageState extends State<TrackerPage> {
     print("TrackerPage initState: launchCount = ${widget.launchCount}");
     if (widget.launchCount > 1) {
       print("Loading banner ad");
-      _loadBannerAd();
+      _adManager.loadBannerAd(onAdLoaded: (isLoaded) {
+        if (mounted) {
+          setState(() {
+            _isAdLoaded = isLoaded;
+          });
+        }
+      });
     }
     AdManager.init().then((_) {
       _adManager.loadRewardedAd();
     });
-  }
-
-  void _loadBannerAd() {
-    _bannerAd = BannerAd(
-      adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/6300978111'
-          : 'ca-app-pub-3940256099942544/2934735716',
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          print("Banner ad loaded");
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = true;
-            });
-          }
-        },
-        onAdFailedToLoad: (ad, error) {
-          print("Banner ad failed to load: $error");
-          ad.dispose();
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = false;
-            });
-          }
-        },
-        onAdOpened: (ad) => print("Banner ad opened"),
-        onAdClosed: (ad) => print("Banner ad closed"),
-      ),
-    );
-    _bannerAd!.load();
   }
 
   void _handleStopTimer() {
@@ -228,24 +201,25 @@ class _TrackerPageState extends State<TrackerPage> {
       print("Stopping timer");
       widget.onStopTimer();
     }
-    _adManager.incrementCheckUsage();
-    if (widget.selectedActivity is CheckableActivity && _adManager.shouldShowCheckAd()) {
-      print("Ad shown");
-      _adManager.showRewardedAd(
-        onUserEarnedReward: () {
-          widget.onCheckActivity();
-        },
-        onAdDismissed: () {
-          widget.onCheckActivity();
-        },
-        onAdFailedToShow: () {
-          widget.onCheckActivity();
-        },
-      );
-    } else {
-      print("Ad not shown");
-      widget.onCheckActivity();
-    }
+    _adManager.incrementCheckUsage().then((_) {
+      if (widget.selectedActivity is CheckableActivity && _adManager.shouldShowCheckAd()) {
+        print("Ad shown");
+        _adManager.showRewardedAd(
+          onUserEarnedReward: () {
+            widget.onCheckActivity();
+          },
+          onAdDismissed: () {
+            widget.onCheckActivity();
+          },
+          onAdFailedToShow: () {
+            widget.onCheckActivity();
+          },
+        );
+      } else {
+        print("Ad not shown");
+        widget.onCheckActivity();
+      }
+    });
   }
 
   void _handleAddManual(int intVal) {
@@ -255,43 +229,45 @@ class _TrackerPageState extends State<TrackerPage> {
       widget.onStopTimer();
     }
     if (widget.selectedActivity is TimedActivity) {
-      _adManager.incrementStoperUsage();
-      if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
-        print("Ad shown");
-        _adManager.showRewardedAd(
-          onUserEarnedReward: () {
-            widget.onAddManualTime(Duration(minutes: intVal));
-          },
-          onAdDismissed: () {
-            widget.onAddManualTime(Duration(minutes: intVal));
-          },
-          onAdFailedToShow: () {
-            widget.onAddManualTime(Duration(minutes: intVal));
-          },
-        );
-      } else {
-        print("Ad not shown");
-        widget.onAddManualTime(Duration(minutes: intVal));
-      }
+      _adManager.incrementStoperUsage().then((_) {
+        if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
+          print("Ad shown");
+          _adManager.showRewardedAd(
+            onUserEarnedReward: () {
+              widget.onAddManualTime(Duration(minutes: intVal));
+            },
+            onAdDismissed: () {
+              widget.onAddManualTime(Duration(minutes: intVal));
+            },
+            onAdFailedToShow: () {
+              widget.onAddManualTime(Duration(minutes: intVal));
+            },
+          );
+        } else {
+          print("Ad not shown");
+          widget.onAddManualTime(Duration(minutes: intVal));
+        }
+      });
     } else if (widget.selectedActivity is CheckableActivity) {
-      _adManager.incrementCheckUsage();
-      if (_adManager.shouldShowCheckAd()) {
-        print("Ad shown");
-        _adManager.showRewardedAd(
-          onUserEarnedReward: () {
-            widget.onAddManualCompletion(intVal);
-          },
-          onAdDismissed: () {
-            widget.onAddManualCompletion(intVal);
-          },
-          onAdFailedToShow: () {
-            widget.onAddManualCompletion(intVal);
-          },
-        );
-      } else {
-        print("Ad not shown");
-        widget.onAddManualCompletion(intVal);
-      }
+      _adManager.incrementCheckUsage().then((_) {
+        if (_adManager.shouldShowCheckAd()) {
+          print("Ad shown");
+          _adManager.showRewardedAd(
+            onUserEarnedReward: () {
+              widget.onAddManualCompletion(intVal);
+            },
+            onAdDismissed: () {
+              widget.onAddManualCompletion(intVal);
+            },
+            onAdFailedToShow: () {
+              widget.onAddManualCompletion(intVal);
+            },
+          );
+        } else {
+          print("Ad not shown");
+          widget.onAddManualCompletion(intVal);
+        }
+      });
     }
   }
 
@@ -302,50 +278,51 @@ class _TrackerPageState extends State<TrackerPage> {
       widget.onStopTimer();
     }
     if (widget.selectedActivity is TimedActivity) {
-      _adManager.incrementStoperUsage();
-      if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
-        print("Ad shown");
-        _adManager.showRewardedAd(
-          onUserEarnedReward: () {
-            widget.onSubtractManualTime(Duration(minutes: intVal));
-          },
-          onAdDismissed: () {
-            widget.onSubtractManualTime(Duration(minutes: intVal));
-          },
-          onAdFailedToShow: () {
-            widget.onSubtractManualTime(Duration(minutes: intVal));
-          },
-        );
-      } else {
-        print("Ad not shown");
-        widget.onSubtractManualTime(Duration(minutes: intVal));
-      }
+      _adManager.incrementStoperUsage().then((_) {
+        if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
+          print("Ad shown");
+          _adManager.showRewardedAd(
+            onUserEarnedReward: () {
+              widget.onSubtractManualTime(Duration(minutes: intVal));
+            },
+            onAdDismissed: () {
+              widget.onSubtractManualTime(Duration(minutes: intVal));
+            },
+            onAdFailedToShow: () {
+              widget.onSubtractManualTime(Duration(minutes: intVal));
+            },
+          );
+        } else {
+          print("Ad not shown");
+          widget.onSubtractManualTime(Duration(minutes: intVal));
+        }
+      });
     } else if (widget.selectedActivity is CheckableActivity) {
-      _adManager.incrementCheckUsage();
-      if (_adManager.shouldShowCheckAd()) {
-        print("Ad shown");
-        _adManager.showRewardedAd(
-          onUserEarnedReward: () {
-            widget.onSubtractManualCompletion(intVal);
-          },
-          onAdDismissed: () {
-            widget.onSubtractManualCompletion(intVal);
-          },
-          onAdFailedToShow: () {
-            widget.onSubtractManualCompletion(intVal);
-          },
-        );
-      } else {
-        print("Ad not shown");
-        widget.onSubtractManualCompletion(intVal);
-      }
+      _adManager.incrementCheckUsage().then((_) {
+        if (_adManager.shouldShowCheckAd()) {
+          print("Ad shown");
+          _adManager.showRewardedAd(
+            onUserEarnedReward: () {
+              widget.onSubtractManualCompletion(intVal);
+            },
+            onAdDismissed: () {
+              widget.onSubtractManualCompletion(intVal);
+            },
+            onAdFailedToShow: () {
+              widget.onSubtractManualCompletion(intVal);
+            },
+          );
+        } else {
+          print("Ad not shown");
+          widget.onSubtractManualCompletion(intVal);
+        }
+      });
     }
   }
 
   @override
   void dispose() {
     print("TrackerPage dispose called");
-    _bannerAd?.dispose();
     _adManager.dispose();
     super.dispose();
   }
@@ -472,8 +449,7 @@ class _TrackerPageState extends State<TrackerPage> {
                         ? null
                         : () {
                       print("Start button pressed");
-                      _adManager.incrementStoperUsage();
-                      widget.onStartTimer();
+                      _adManager.incrementStoperUsage().then((_) => widget.onStartTimer());
                     },
                     child: const Text('Start'),
                   ),
@@ -702,12 +678,7 @@ class _TrackerPageState extends State<TrackerPage> {
             ),
             if (_isAdLoaded && widget.launchCount > 1) ...[
               const SizedBox(height: 20),
-              Container(
-                alignment: Alignment.center,
-                width: _bannerAd!.size.width.toDouble(),
-                height: _bannerAd!.size.height.toDouble(),
-                child: AdWidget(ad: _bannerAd!),
-              ),
+              _adManager.getBannerAdWidget() ?? const SizedBox.shrink(),
             ],
             const SizedBox(height: 80),
           ],

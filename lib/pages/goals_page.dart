@@ -5,6 +5,7 @@ import 'dart:io';
 import '../models/activity.dart';
 import '../models/goal.dart';
 import '../utils/format_utils.dart';
+import '../utils/ad_manager.dart';
 
 class GoalsPage extends StatefulWidget {
   final List<Goal> goals;
@@ -28,7 +29,7 @@ class _GoalsPageState extends State<GoalsPage> {
   late List<Goal> editableGoals;
   bool showGoals = false;
   static const int maxGoalMinutes = 10000;
-  BannerAd? _bannerAd;
+  final AdManager _adManager = AdManager();
   bool _isAdLoaded = false;
 
   @override
@@ -56,49 +57,19 @@ class _GoalsPageState extends State<GoalsPage> {
     print('GoalsPage initState: launchCount = ${widget.launchCount}');
     if (widget.launchCount > 1) {
       print('GoalsPage: Attempting to load banner ad');
-      _loadBannerAd();
+      _adManager.loadBannerAd(onAdLoaded: (isLoaded) {
+        if (mounted) {
+          setState(() {
+            _isAdLoaded = isLoaded;
+          });
+        }
+      });
     } else {
       print('GoalsPage: Skipping ad load due to launchCount <= 1');
     }
-  }
-
-  void _loadBannerAd() {
-    _bannerAd = BannerAd(
-      adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/6300978111'
-          : 'ca-app-pub-3940256099942544/2934735716',
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          print('GoalsPage: BannerAd loaded successfully: ${ad.responseInfo?.responseId}');
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = true;
-            });
-          }
-        },
-        onAdFailedToLoad: (ad, error) {
-          print('GoalsPage: BannerAd failed to load: $error');
-          ad.dispose();
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = false;
-            });
-          }
-        },
-        onAdOpened: (ad) => print('GoalsPage: BannerAd opened'),
-        onAdClosed: (ad) => print('GoalsPage: BannerAd closed'),
-      ),
-    );
-    _bannerAd!.load();
-  }
-
-  @override
-  void dispose() {
-    print('GoalsPage: Disposing banner ad');
-    _bannerAd?.dispose();
-    super.dispose();
+    AdManager.init().then((_) {
+      _adManager.loadRewardedAd();
+    });
   }
 
   void updateGoal(
@@ -116,6 +87,34 @@ class _GoalsPageState extends State<GoalsPage> {
       );
       return;
     }
+
+    _adManager.incrementGoalAddCount().then((_) {
+      if (_adManager.shouldShowGoalAd()) {
+        print("Attempting to show rewarded ad for goal add");
+        _adManager.showRewardedAd(
+          onUserEarnedReward: () {
+            _updateGoalState(activityName, value, goalType, startDate, endDate);
+          },
+          onAdDismissed: () {
+            print("Ad dismissed, goal not added");
+          },
+          onAdFailedToShow: () {
+            print("Ad failed to show, goal not added");
+          },
+        );
+      } else {
+        _updateGoalState(activityName, value, goalType, startDate, endDate);
+      }
+    });
+  }
+
+  void _updateGoalState(
+      String activityName,
+      int value,
+      GoalType goalType,
+      DateTime startDate,
+      DateTime? endDate,
+      ) {
     setState(() {
       final updatedGoals = List<Goal>.from(widget.goals);
       updatedGoals.removeWhere((g) => g.activityName == activityName && g.goalDuration == Duration.zero);
@@ -422,16 +421,18 @@ class _GoalsPageState extends State<GoalsPage> {
           ],
           if (_isAdLoaded && widget.launchCount > 1) ...[
             const SizedBox(height: 20),
-            Container(
-              alignment: Alignment.center,
-              width: _bannerAd!.size.width.toDouble(),
-              height: _bannerAd!.size.height.toDouble(),
-              child: AdWidget(ad: _bannerAd!),
-            ),
+            _adManager.getBannerAdWidget() ?? const SizedBox.shrink(),
           ],
           const SizedBox(height: 80),
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    print("GoalsPage dispose called");
+    _adManager.dispose();
+    super.dispose();
   }
 }

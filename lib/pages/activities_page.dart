@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:io';
 import '../models/activity.dart';
+import '../utils/ad_manager.dart';
 
 class ActivitiesPage extends StatefulWidget {
   final List<Activity> activities;
@@ -24,7 +24,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   bool _isTimedActivity = true;
   static const int maxActivities = 10;
   static const int maxNameLength = 50;
-  BannerAd? _bannerAd;
+  final AdManager _adManager = AdManager();
   bool _isAdLoaded = false;
 
   @override
@@ -33,49 +33,19 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     print('ActivitiesPage initState: launchCount = ${widget.launchCount}');
     if (widget.launchCount > 1) {
       print('ActivitiesPage: Attempting to load banner ad');
-      _loadBannerAd();
+      _adManager.loadBannerAd(onAdLoaded: (isLoaded) {
+        if (mounted) {
+          setState(() {
+            _isAdLoaded = isLoaded;
+          });
+        }
+      });
     } else {
       print('ActivitiesPage: Skipping ad load due to launchCount <= 1');
     }
-  }
-
-  void _loadBannerAd() {
-    _bannerAd = BannerAd(
-      adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/6300978111'
-          : 'ca-app-pub-3940256099942544/2934735716',
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          print('ActivitiesPage: BannerAd loaded successfully: ${ad.responseInfo?.responseId}');
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = true;
-            });
-          }
-        },
-        onAdFailedToLoad: (ad, error) {
-          print('ActivitiesPage: BannerAd failed to load: $error');
-          ad.dispose();
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = false;
-            });
-          }
-        },
-        onAdOpened: (ad) => print('ActivitiesPage: BannerAd opened'),
-        onAdClosed: (ad) => print('ActivitiesPage: BannerAd closed'),
-      ),
-    );
-    _bannerAd!.load();
-  }
-
-  @override
-  void dispose() {
-    print('ActivitiesPage: Disposing banner ad');
-    _bannerAd?.dispose();
-    super.dispose();
+    AdManager.init().then((_) {
+      _adManager.loadRewardedAd();
+    });
   }
 
   void addActivity() {
@@ -201,12 +171,34 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
               if (name.isNotEmpty &&
                   name.length <= maxNameLength &&
                   !widget.activities.any((a) => a.name == name)) {
-                setState(() {
-                  widget.activities[index].name = name;
+                _adManager.incrementActivityChangeCount().then((_) {
+                  if (_adManager.shouldShowActivityChangeAd()) {
+                    print("Attempting to show rewarded ad for activity rename");
+                    _adManager.showRewardedAd(
+                      onUserEarnedReward: () {
+                        setState(() {
+                          widget.activities[index].name = name;
+                        });
+                        print('Renamed activity to: $name');
+                        widget.onUpdate();
+                        Navigator.pop(context);
+                      },
+                      onAdDismissed: () {
+                        print("Ad dismissed, activity not renamed");
+                      },
+                      onAdFailedToShow: () {
+                        print("Ad failed to show, activity not renamed");
+                      },
+                    );
+                  } else {
+                    setState(() {
+                      widget.activities[index].name = name;
+                    });
+                    print('Renamed activity to: $name');
+                    widget.onUpdate();
+                    Navigator.pop(context);
+                  }
                 });
-                print('Renamed activity to: $name');
-                widget.onUpdate();
-                Navigator.pop(context);
               } else if (name.length > maxNameLength) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -231,11 +223,32 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
 
   void deleteActivity(int index) {
     final name = widget.activities[index].name;
-    setState(() {
-      widget.activities.removeAt(index);
+    _adManager.incrementActivityChangeCount().then((_) {
+      if (_adManager.shouldShowActivityChangeAd()) {
+        print("Attempting to show rewarded ad for activity deletion");
+        _adManager.showRewardedAd(
+          onUserEarnedReward: () {
+            setState(() {
+              widget.activities.removeAt(index);
+            });
+            print('Deleted activity: $name');
+            widget.onUpdate();
+          },
+          onAdDismissed: () {
+            print("Ad dismissed, activity not deleted");
+          },
+          onAdFailedToShow: () {
+            print("Ad failed to show, activity not deleted");
+          },
+        );
+      } else {
+        setState(() {
+          widget.activities.removeAt(index);
+        });
+        print('Deleted activity: $name');
+        widget.onUpdate();
+      }
     });
-    print('Deleted activity: $name');
-    widget.onUpdate();
   }
 
   void _onReorder(int oldIndex, int newIndex) {
@@ -248,6 +261,13 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     });
     print('Reordered activities');
     widget.onUpdate();
+  }
+
+  @override
+  void dispose() {
+    print('ActivitiesPage: Disposing');
+    _adManager.dispose();
+    super.dispose();
   }
 
   @override
@@ -289,12 +309,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
         ),
         if (_isAdLoaded && widget.launchCount > 1) ...[
           const SizedBox(height: 20),
-          Container(
-            alignment: Alignment.center,
-            width: _bannerAd!.size.width.toDouble(),
-            height: _bannerAd!.size.height.toDouble(),
-            child: AdWidget(ad: _bannerAd!),
-          ),
+          _adManager.getBannerAdWidget() ?? const SizedBox.shrink(),
         ],
         const SizedBox(height: 80),
       ],

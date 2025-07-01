@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:io';
 import '../models/activity.dart';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
 import '../utils/format_utils.dart';
+import '../utils/ad_manager.dart';
 
 enum StatsPeriod { day, week, month, total }
 
@@ -185,8 +185,8 @@ class HistoryDataProvider {
     int longestStreak = 0;
     DateTime? longestStreakStart;
     int currentStreak = 0;
-    DateTime currentDate = now;
     DateTime? currentStreakStart;
+    DateTime currentDate = now; // Poprawka: Deklaracja currentDate jako zmiennej lokalnej
 
     while (currentDate.isAfter(start) || currentDate.isAtSameMomentAs(start)) {
       final statuses = getGoalStatusesForPeriod(currentDate, currentDate, selectedActivity)
@@ -247,7 +247,7 @@ class StatsPage extends StatefulWidget {
 class _StatsPageState extends State<StatsPage> {
   StatsPeriod selectedPeriod = StatsPeriod.total;
   String? selectedActivity;
-  BannerAd? _bannerAd;
+  final AdManager _adManager = AdManager();
   bool _isAdLoaded = false;
 
   @override
@@ -256,48 +256,25 @@ class _StatsPageState extends State<StatsPage> {
     print('StatsPage initState: launchCount = ${widget.launchCount}');
     if (widget.launchCount > 1) {
       print('StatsPage: Attempting to load banner ad');
-      _loadBannerAd();
+      _adManager.loadBannerAd(onAdLoaded: (isLoaded) {
+        if (mounted) {
+          setState(() {
+            _isAdLoaded = isLoaded;
+          });
+        }
+      });
     } else {
       print('StatsPage: Skipping ad load due to launchCount <= 1');
     }
-  }
-
-  void _loadBannerAd() {
-    _bannerAd = BannerAd(
-      adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/6300978111'
-          : 'ca-app-pub-3940256099942544/2934735716',
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          print('StatsPage: BannerAd loaded successfully: ${ad.responseInfo?.responseId}');
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = true;
-            });
-          }
-        },
-        onAdFailedToLoad: (ad, error) {
-          print('StatsPage: BannerAd failed to load: $error');
-          ad.dispose();
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = false;
-            });
-          }
-        },
-        onAdOpened: (ad) => print('StatsPage: BannerAd opened'),
-        onAdClosed: (ad) => print('StatsPage: BannerAd closed'),
-      ),
-    );
-    _bannerAd!.load();
+    AdManager.init().then((_) {
+      _adManager.loadRewardedAd();
+    });
   }
 
   @override
   void dispose() {
-    print('StatsPage: Disposing banner ad');
-    _bannerAd?.dispose();
+    print('StatsPage: Disposing');
+    _adManager.dispose();
     super.dispose();
   }
 
@@ -516,6 +493,67 @@ class _StatsPageState extends State<StatsPage> {
       labels.add(monthNames[monthIndex >= 0 ? monthIndex : monthIndex + 12]);
     }
     return labels;
+  }
+
+  Map<String, dynamic> filteredActivities() {
+    DateTime now = DateTime.now();
+    DateTime from;
+
+    switch (selectedPeriod) {
+      case StatsPeriod.day:
+        from = DateTime(now.year, now.month, now.day);
+        break;
+      case StatsPeriod.week:
+        from = now.subtract(Duration(days: now.weekday - 1));
+        break;
+      case StatsPeriod.month:
+        from = DateTime(now.year, now.month, 1);
+        break;
+      case StatsPeriod.total:
+        from = widget.activityLogs.isNotEmpty
+            ? widget.activityLogs
+            .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
+            .reduce((a, b) => a.isBefore(b) ? a : b)
+            : DateTime(2000);
+        break;
+    }
+
+    Map<String, Duration> timeTotals = {};
+    Map<String, int> completionTotals = {};
+
+    for (var activity in widget.activities) {
+      timeTotals[activity.name] = Duration.zero;
+      completionTotals[activity.name] = 0;
+    }
+
+    for (var log in widget.activityLogs) {
+      if (log.date.isAfter(from) || log.date.isAtSameMomentAs(from)) {
+        if (log.isCheckable) {
+          completionTotals[log.activityName] = (completionTotals[log.activityName] ?? 0) + 1;
+        } else {
+          timeTotals[log.activityName] = (timeTotals[log.activityName] ?? Duration.zero) + log.duration;
+        }
+      }
+    }
+
+    final totalTimedDuration = selectedActivity == null
+        ? widget.activities
+        .whereType<TimedActivity>()
+        .fold(Duration.zero, (sum, a) => sum + (timeTotals[a.name] ?? Duration.zero))
+        : timeTotals[selectedActivity] ?? Duration.zero;
+
+    final totalCheckableInstances = selectedActivity == null
+        ? widget.activities
+        .whereType<CheckableActivity>()
+        .fold(0, (sum, a) => sum + (completionTotals[a.name] ?? 0))
+        : completionTotals[selectedActivity] ?? 0;
+
+    return {
+      'timeTotals': timeTotals,
+      'completionTotals': completionTotals,
+      'totalTimedDuration': totalTimedDuration,
+      'totalCheckableInstances': totalCheckableInstances,
+    };
   }
 
   @override
@@ -814,77 +852,11 @@ class _StatsPageState extends State<StatsPage> {
           ),
           if (_isAdLoaded && widget.launchCount > 1) ...[
             const SizedBox(height: 20),
-            Container(
-              alignment: Alignment.center,
-              width: _bannerAd!.size.width.toDouble(),
-              height: _bannerAd!.size.height.toDouble(),
-              child: AdWidget(ad: _bannerAd!),
-            ),
+            _adManager.getBannerAdWidget() ?? const SizedBox.shrink(),
           ],
           const SizedBox(height: 80),
         ],
       ),
     );
-  }
-
-  Map<String, dynamic> filteredActivities() {
-    DateTime now = DateTime.now();
-    DateTime from;
-
-    switch (selectedPeriod) {
-      case StatsPeriod.day:
-        from = DateTime(now.year, now.month, now.day);
-        break;
-      case StatsPeriod.week:
-        from = now.subtract(Duration(days: now.weekday - 1));
-        break;
-      case StatsPeriod.month:
-        from = DateTime(now.year, now.month, 1);
-        break;
-      case StatsPeriod.total:
-        from = widget.activityLogs.isNotEmpty
-            ? widget.activityLogs
-            .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
-            .reduce((a, b) => a.isBefore(b) ? a : b)
-            : DateTime(2000);
-        break;
-    }
-
-    Map<String, Duration> timeTotals = {};
-    Map<String, int> completionTotals = {};
-
-    for (var activity in widget.activities) {
-      timeTotals[activity.name] = Duration.zero;
-      completionTotals[activity.name] = 0;
-    }
-
-    for (var log in widget.activityLogs) {
-      if (log.date.isAfter(from) || log.date.isAtSameMomentAs(from)) {
-        if (log.isCheckable) {
-          completionTotals[log.activityName] = (completionTotals[log.activityName] ?? 0) + 1;
-        } else {
-          timeTotals[log.activityName] = (timeTotals[log.activityName] ?? Duration.zero) + log.duration;
-        }
-      }
-    }
-
-    final totalTimedDuration = selectedActivity == null
-        ? widget.activities
-        .whereType<TimedActivity>()
-        .fold(Duration.zero, (sum, a) => sum + (timeTotals[a.name] ?? Duration.zero))
-        : timeTotals[selectedActivity] ?? Duration.zero;
-
-    final totalCheckableInstances = selectedActivity == null
-        ? widget.activities
-        .whereType<CheckableActivity>()
-        .fold(0, (sum, a) => sum + (completionTotals[a.name] ?? 0))
-        : completionTotals[selectedActivity] ?? 0;
-
-    return {
-      'timeTotals': timeTotals,
-      'completionTotals': completionTotals,
-      'totalTimedDuration': totalTimedDuration,
-      'totalCheckableInstances': totalCheckableInstances,
-    };
   }
 }
