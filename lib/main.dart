@@ -7,14 +7,15 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MobileAds.instance.initialize();
   final prefs = await SharedPreferences.getInstance();
-  int launchCount = prefs.getInt('launchCount') ?? 0;
-  print('Main: launchCount = $launchCount');
-  await prefs.setInt('launchCount', launchCount + 1);
-  runApp(const LockInTrackerApp());
+  int launchCount = (prefs.getInt('launchCount') ?? 0) + 1;
+  await prefs.setInt('launchCount', launchCount);
+  runApp(LockInTrackerApp(launchCount: launchCount));
 }
 
 class LockInTrackerApp extends StatefulWidget {
-  const LockInTrackerApp({super.key});
+  final int launchCount;
+
+  const LockInTrackerApp({super.key, required this.launchCount});
 
   @override
   State<LockInTrackerApp> createState() => _LockInTrackerAppState();
@@ -22,20 +23,12 @@ class LockInTrackerApp extends StatefulWidget {
 
 class _LockInTrackerAppState extends State<LockInTrackerApp> {
   ThemeMode _themeMode = ThemeMode.dark;
-  int _launchCount = 0;
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     final isDark = prefs.getBool('isDarkMode') ?? true;
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
-    });
-  }
-
-  Future<void> _loadLaunchCount() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _launchCount = prefs.getInt('launchCount') ?? 0;
     });
   }
 
@@ -51,11 +44,17 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
     _saveTheme(isDark);
   }
 
+  Future<void> _resetData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('activities');
+    await prefs.remove('activityLogs');
+    await prefs.remove('goals');
+  }
+
   @override
   void initState() {
     super.initState();
     _loadTheme();
-    _loadLaunchCount();
   }
 
   @override
@@ -68,8 +67,8 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
       home: HomePage(
         onThemeChanged: toggleTheme,
         isDarkMode: _themeMode == ThemeMode.dark,
-        onResetData: () {},
-        launchCount: _launchCount,
+        onResetData: _resetData,
+        launchCount: widget.launchCount,
       ),
     );
   }
