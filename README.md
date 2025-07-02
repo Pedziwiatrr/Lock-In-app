@@ -1,4 +1,4 @@
-#LockIn Tracker
+# LockIn Tracker
 
 ## Opis projektu
 LockIn Tracker to mobilna aplikacja Flutter do śledzenia aktywności i celów osobistych. Umożliwia użytkownikom monitorowanie czasu poświęconego na zadania (np. nauka, praca) oraz liczby ukończeń dla aktywności typu check-list (np. pójście na siłownie). Aplikacja wspiera definiowanie celów dziennych, tygodniowych i miesięcznych, wyświetlanie statystyk oraz przeglądanie historii aktywności.
