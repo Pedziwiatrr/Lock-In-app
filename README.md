@@ -28,6 +28,7 @@ LockIn Tracker to mobilna aplikacja Flutter do śledzenia aktywności i celów o
     - `settings_page.dart`: Ustawienia motywu i reset danych.
 - **Utils** (`utils/`):
     - `format_utils.dart`: Funkcja formatowania czasu (`HH:mm:ss`).
+    - `ad_manager.dart` : Zarządzanie reklamami z użyciem AdMob.
 
 ## Wymagania
 - Flutter SDK (zalecana wersja: najnowsza stabilna)
