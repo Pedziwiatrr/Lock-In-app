@@ -6,14 +6,59 @@ import 'utils/ad_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await AdManager.initialize();
-  } catch (e) {
-    print('AdMob init error: $e');
-  }
+
   final prefs = await SharedPreferences.getInstance();
   int launchCount = (prefs.getInt('launchCount') ?? 0) + 1;
   await prefs.setInt('launchCount', launchCount);
+
+  bool consentAsked = prefs.getBool('consentAsked') ?? false;
+
+  try {
+    await MobileAds.instance.initialize();
+
+    if (!consentAsked) {
+      ConsentRequestParameters params = ConsentRequestParameters(
+        consentDebugSettings: ConsentDebugSettings(
+          debugGeography: DebugGeography.debugGeographyEea,
+          testIdentifiers: ['TEST-DEVICE-HASHED-ID'],
+        ),
+      );
+      ConsentInformation.instance.requestConsentInfoUpdate(
+        params,
+            () async {
+          if (await ConsentInformation.instance.isConsentFormAvailable()) {
+            ConsentForm.loadConsentForm(
+              (ConsentForm consentForm) {
+                consentForm.show(
+                  (FormError? error) {
+                    if (error != null) {
+                      print('Consent form error: ${error.message}');
+                    }
+                  },
+                );
+              },
+              (FormError error) {
+                print('Load consent form error: ${error.message}');
+              },
+            );
+          }
+          await prefs.setBool('consentAsked', true);
+          await AdManager.initialize();
+        },
+        (FormError error) async {
+          print('Consent info update error: ${error.message}');
+          await prefs.setBool('consentAsked', true);
+          await AdManager.initialize();
+        },
+      );
+    } else {
+      await AdManager.initialize();
+    }
+  } catch (e) {
+    print('AdMob init error: $e');
+    await AdManager.initialize();
+  }
+
   runApp(LockInTrackerApp(launchCount: launchCount));
 }
 

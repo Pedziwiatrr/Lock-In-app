@@ -58,6 +58,7 @@ class _TrackerPageState extends State<TrackerPage> {
   static const int maxManualCompletions = 100;
   final AdManager _adManager = AdManager.instance;
   bool _isAdLoaded = false;
+  int? _currentStreak; // Dodaj pole na streak
 
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
     final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
@@ -123,7 +124,9 @@ class _TrackerPageState extends State<TrackerPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(context);
+            },
             child: const Text('Cancel'),
           ),
           TextButton(
@@ -162,6 +165,19 @@ class _TrackerPageState extends State<TrackerPage> {
         }
       });
     }
+    // Pobierz streak asynchronicznie
+    final historyProvider = HistoryDataProvider(
+      goals: widget.goals,
+      activityLogs: widget.activityLogs,
+      activities: widget.activities,
+    );
+    historyProvider.getCurrentStreak(null).then((value) {
+      if (mounted) {
+        setState(() {
+          _currentStreak = value;
+        });
+      }
+    });
   }
 
   void _handleStopTimer() {
@@ -381,13 +397,6 @@ class _TrackerPageState extends State<TrackerPage> {
       return goal.goalDuration > Duration.zero;
     }).toList();
 
-    final historyProvider = HistoryDataProvider(
-      goals: widget.goals,
-      activityLogs: widget.activityLogs,
-      activities: widget.activities,
-    );
-    final currentStreak = historyProvider.getCurrentStreak(null);
-
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -402,7 +411,9 @@ class _TrackerPageState extends State<TrackerPage> {
                     hint: const Text('Choose activity'),
                     isExpanded: true,
                     items: widget.activities.map((a) => DropdownMenuItem(value: a, child: Text(a.name))).toList(),
-                    onChanged: widget.onSelectActivity,
+                    onChanged: (activity) {
+                      widget.onSelectActivity(activity);
+                    },
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -419,7 +430,7 @@ class _TrackerPageState extends State<TrackerPage> {
                     }
                   },
                   child: Text(
-                    '${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year}',
+                    '${widget.selectedDate  .day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year}',
                   ),
                 ),
               ],
@@ -568,6 +579,8 @@ class _TrackerPageState extends State<TrackerPage> {
             filteredActivitiesWithGoals.isEmpty
                 ? const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
+
+
               child: Text('No goals set for this date.'),
             )
                 : ListView.builder(
@@ -673,7 +686,9 @@ class _TrackerPageState extends State<TrackerPage> {
             ),
             const SizedBox(height: 20),
             Text(
-              '🔥 Current Streak: $currentStreak days 🔥',
+              _currentStreak == null
+                  ? '🔥 Current Streak: ... 🔥'
+                  : '🔥 Current Streak: $_currentStreak days 🔥',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             if (_isAdLoaded && widget.launchCount > 1) ...[

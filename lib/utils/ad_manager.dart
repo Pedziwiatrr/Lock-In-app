@@ -25,6 +25,13 @@ class AdManager {
   static Future<void> init() async {
     if (!_isInitialized) {
       await MobileAds.instance.initialize();
+      await MobileAds.instance.updateRequestConfiguration(
+        RequestConfiguration(
+          tagForChildDirectedTreatment: null,
+          tagForUnderAgeOfConsent: null,
+          maxAdContentRating: MaxAdContentRating.g,
+        ),
+      );
       _isInitialized = true;
     }
   }
@@ -43,51 +50,63 @@ class AdManager {
     _activityChangeCount = _prefs!.getInt('activityChangeCount') ?? 0;
   }
 
+  Future<bool> _canRequestPersonalizedAds() async {
+    return await ConsentInformation.instance.getConsentStatus() == ConsentStatus.obtained;
+  }
+
   void loadRewardedAd() {
-    RewardedAd.load(
-      adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/5224354917'
-          : 'ca-app-pub-3940256099942544/1712485313',
-      request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) {
-          print("Rewarded ad loaded");
-          _rewardedAd = ad;
-        },
-        onAdFailedToLoad: (error) {
-          print("Rewarded ad failed to load: $error");
-          _rewardedAd = null;
-          Future.delayed(const Duration(seconds: 5), loadRewardedAd);
-        },
-      ),
-    );
+    _canRequestPersonalizedAds().then((canRequestPersonalizedAds) {
+      RewardedAd.load(
+        adUnitId: Platform.isAndroid
+            ? 'ca-app-pub-3940256099942544/5224354917'
+            : 'ca-app-pub-3940256099942544/1712485313',
+        request: AdRequest(
+          nonPersonalizedAds: !canRequestPersonalizedAds,
+        ),
+        rewardedAdLoadCallback: RewardedAdLoadCallback(
+          onAdLoaded: (ad) {
+            print("Rewarded ad loaded");
+            _rewardedAd = ad;
+          },
+          onAdFailedToLoad: (error) {
+            print("Rewarded ad failed to load: $error");
+            _rewardedAd = null;
+            Future.delayed(const Duration(seconds: 5), loadRewardedAd);
+          },
+        ),
+      );
+    });
   }
 
   void loadBannerAd({required Function(bool) onAdLoaded}) {
-    _bannerAd = BannerAd(
-      adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/6300978111'
-          : 'ca-app-pub-3940256099942544/2934735716',
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          print("Banner ad loaded");
-          _isAdLoaded = true;
-          onAdLoaded(true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          print("Banner ad failed to load: $error");
-          ad.dispose();
-          _isAdLoaded = false;
-          onAdLoaded(false);
-          Future.delayed(const Duration(seconds: 5), () => loadBannerAd(onAdLoaded: onAdLoaded));
-        },
-        onAdOpened: (ad) => print("Banner ad opened"),
-        onAdClosed: (ad) => print("Banner ad closed"),
-      ),
-    );
-    _bannerAd!.load();
+    _canRequestPersonalizedAds().then((canRequestPersonalizedAds) {
+      _bannerAd = BannerAd(
+        adUnitId: Platform.isAndroid
+            ? 'ca-app-pub-3940256099942544/6300978111'
+            : 'ca-app-pub-3940256099942544/2934735716',
+        size: AdSize.banner,
+        request: AdRequest(
+          nonPersonalizedAds: !canRequestPersonalizedAds,
+        ),
+        listener: BannerAdListener(
+          onAdLoaded: (ad) {
+            print("Banner ad loaded");
+            _isAdLoaded = true;
+            onAdLoaded(true);
+          },
+          onAdFailedToLoad: (ad, error) {
+            print("Banner ad failed to load: $error");
+            ad.dispose();
+            _isAdLoaded = false;
+            onAdLoaded(false);
+            Future.delayed(const Duration(seconds: 5), () => loadBannerAd(onAdLoaded: onAdLoaded));
+          },
+          onAdOpened: (ad) => print("Banner ad opened"),
+          onAdClosed: (ad) => print("Banner ad closed"),
+        ),
+      );
+      _bannerAd!.load();
+    });
   }
 
   Widget? getBannerAdWidget() {
