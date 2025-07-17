@@ -23,6 +23,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late bool _isDarkMode;
   bool? _personalizedAdsConsent;
+  bool _consentLoaded = false;
 
   @override
   void initState() {
@@ -35,6 +36,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _personalizedAdsConsent = prefs.getBool('personalizedAdsConsent');
+      _consentLoaded = true;
     });
   }
 
@@ -44,7 +46,6 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _personalizedAdsConsent = consent;
     });
-
   }
 
   void _confirmResetData() {
@@ -162,24 +163,28 @@ class _SettingsPageState extends State<SettingsPage> {
             ListTile(
               title: const Text('Personalized Ads'),
               subtitle: Text(
-                _personalizedAdsConsent == null
-                  ? 'Not set'
-                  : (_personalizedAdsConsent! ? 'Enabled' : 'Disabled'),
+                !_consentLoaded
+                  ? 'Loading...'
+                  : (_personalizedAdsConsent == null
+                      ? 'Not set'
+                      : (_personalizedAdsConsent! ? 'Enabled' : 'Disabled')),
               ),
               trailing: Switch(
                 value: _personalizedAdsConsent ?? false,
-                onChanged: (value) {
-                  _setConsent(value);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        value
-                          ? 'Personalized ads enabled'
-                          : 'Personalized ads disabled',
-                      ),
-                    ),
-                  );
-                },
+                onChanged: !_consentLoaded
+                  ? null
+                  : (value) {
+                      _setConsent(value);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            value
+                              ? 'Personalized ads enabled'
+                              : 'Personalized ads disabled',
+                          ),
+                        ),
+                      );
+                    },
               ),
             ),
           ],
