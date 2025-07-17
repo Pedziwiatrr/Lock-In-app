@@ -58,7 +58,7 @@ class _TrackerPageState extends State<TrackerPage> {
   static const int maxManualCompletions = 100;
   final AdManager _adManager = AdManager.instance;
   bool _isAdLoaded = false;
-  int? _currentStreak; // Dodaj pole na streak
+  int? _currentStreak;
 
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
     final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
@@ -165,7 +165,7 @@ class _TrackerPageState extends State<TrackerPage> {
         }
       });
     }
-    // Pobierz streak asynchronicznie
+
     final historyProvider = HistoryDataProvider(
       goals: widget.goals,
       activityLogs: widget.activityLogs,
