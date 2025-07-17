@@ -11,8 +11,14 @@ void main() async {
   int launchCount = (prefs.getInt('launchCount') ?? 0) + 1;
   await prefs.setInt('launchCount', launchCount);
 
-  if (!(prefs.containsKey('activities'))) {
-    await prefs.setStringList('activities', ['Focus', 'Read', 'Workout']);
+  if (!(prefs.containsKey('activities') && prefs.getString('activities') != null && prefs.getString('activities')!.isNotEmpty)) {
+    print('[DEBUG] Setting default activities');
+    final defaultActivities = [
+      {'type': 'TimedActivity', 'name': 'Focus', 'totalTime': 0},
+      {'type': 'CheckableActivity', 'name': 'Drink water', 'completionCount': 0},
+    ];
+    await prefs.setString('activities', defaultActivities.isNotEmpty ? defaultActivities.map((a) => a).toList().toString() : '');
+    print('[DEBUG] Default activities saved');
   }
 
   bool consentAsked = prefs.getBool('consentAsked') ?? false;
@@ -34,10 +40,12 @@ void main() async {
             ConsentForm.loadConsentForm(
               (ConsentForm consentForm) {
                 consentForm.show(
-                  (FormError? error) {
+                  (FormError? error) async {
                     if (error != null) {
                       print('Consent form error: ${error.message}');
                     }
+                    final status = await ConsentInformation.instance.getConsentStatus();
+                    await prefs.setBool('personalizedAdsConsent', status == ConsentStatus.obtained);
                   },
                 );
               },
@@ -56,6 +64,8 @@ void main() async {
         },
       );
     } else {
+      final status = await ConsentInformation.instance.getConsentStatus();
+      await prefs.setBool('personalizedAdsConsent', status == ConsentStatus.obtained);
       await AdManager.initialize();
     }
   } catch (e) {
@@ -64,6 +74,7 @@ void main() async {
   }
 
   runApp(LockInTrackerApp(launchCount: launchCount));
+  print('[DEBUG] App started with launchCount=$launchCount');
 }
 
 class LockInTrackerApp extends StatefulWidget {
