@@ -51,7 +51,13 @@ class AdManager {
   }
 
   Future<bool> _canRequestPersonalizedAds() async {
-    return await ConsentInformation.instance.getConsentStatus() == ConsentStatus.obtained;
+    try {
+      final status = await ConsentInformation.instance.getConsentStatus();
+      return status == ConsentStatus.obtained;
+    } catch (e) {
+      print("Consent status error: $e");
+      return false;
+    }
   }
 
   void loadRewardedAd() {
