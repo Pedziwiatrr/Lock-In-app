@@ -11,6 +11,10 @@ void main() async {
   int launchCount = (prefs.getInt('launchCount') ?? 0) + 1;
   await prefs.setInt('launchCount', launchCount);
 
+  if (!(prefs.containsKey('activities'))) {
+    await prefs.setStringList('activities', ['Focus', 'Read', 'Workout']);
+  }
+
   bool consentAsked = prefs.getBool('consentAsked') ?? false;
 
   try {
