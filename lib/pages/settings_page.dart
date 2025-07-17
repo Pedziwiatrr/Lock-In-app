@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
   final bool isDarkMode;
@@ -20,11 +22,29 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late bool _isDarkMode;
+  bool? _personalizedAdsConsent;
 
   @override
   void initState() {
     super.initState();
     _isDarkMode = widget.isDarkMode;
+    _loadConsent();
+  }
+
+  Future<void> _loadConsent() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _personalizedAdsConsent = prefs.getBool('personalizedAdsConsent');
+    });
+  }
+
+  Future<void> _setConsent(bool consent) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('personalizedAdsConsent', consent);
+    setState(() {
+      _personalizedAdsConsent = consent;
+    });
+
   }
 
   void _confirmResetData() {
@@ -136,6 +156,30 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => _launchEmail(
                 'Bug Report for LockIn Tracker',
                 body: 'Please describe the bug you encountered:\n\nApp Version: [Your App Version]\nDevice: [Your Device]\nOS: [Your OS Version]\nSteps to Reproduce:\n1. \n2. \n3. \nDescription of the Issue:\n',
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              title: const Text('Personalized Ads'),
+              subtitle: Text(
+                _personalizedAdsConsent == null
+                  ? 'Not set'
+                  : (_personalizedAdsConsent! ? 'Enabled' : 'Disabled'),
+              ),
+              trailing: Switch(
+                value: _personalizedAdsConsent ?? false,
+                onChanged: (value) {
+                  _setConsent(value);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        value
+                          ? 'Personalized ads enabled'
+                          : 'Personalized ads disabled',
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
