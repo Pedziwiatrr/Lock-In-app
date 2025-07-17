@@ -60,76 +60,93 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadData() async {
+    print('[DEBUG] _loadData start');
     final result = await _loadDataFromPrefs(widget.launchCount == 1 ? 1 : 0);
+    print('[DEBUG] _loadData result: activities=${result['activities']}, logs=${result['logs']}, goals=${result['goals']}');
     setState(() {
       activities = result['activities'] as List<Activity>;
       activityLogs = result['logs'] as List<ActivityLog>;
       goals = result['goals'] as List<Goal>;
     });
+    print('[DEBUG] _loadData setState: activities=$activities');
   }
 
   static Future<Map<String, dynamic>> _loadDataFromPrefs(int shouldLoadDefaultData) async {
+    print('[DEBUG] _loadDataFromPrefs start');
     final prefs = await SharedPreferences.getInstance();
     List<Activity> activities = [];
     List<ActivityLog> logs = [];
     List<Goal> goals = [];
 
-    if (shouldLoadDefaultData == 1) {
+    final activitiesJson = prefs.getString('activities');
+    print('[DEBUG] activitiesJson: $activitiesJson');
+    if (activitiesJson == null || activitiesJson.isEmpty || activitiesJson == '[]' || shouldLoadDefaultData == 1) {
       activities = [
         TimedActivity(name: 'Focus'),
         CheckableActivity(name: 'Drink water'),
       ];
+      print('[DEBUG] Default activities created: $activities');
+      await prefs.setString('activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
     } else {
-      final activitiesJson = prefs.getString('activities');
-      if (activitiesJson != null && activitiesJson.isNotEmpty) {
-        try {
-          final List<dynamic> activitiesList = jsonDecode(activitiesJson);
-          activities = activitiesList
-              .map((json) => json['type'] == 'TimedActivity'
-              ? TimedActivity.fromJson(json)
-              : CheckableActivity.fromJson(json))
-              .take(maxActivities)
-              .toList();
-        } catch (e) {
+      try {
+        final decoded = jsonDecode(activitiesJson);
+        if (decoded is! List) {
+          print('[DEBUG] Invalid activities JSON format: not a list');
           activities = [];
+        } else {
+          final List<dynamic> activitiesList = decoded;
+          print('[DEBUG] Decoded activitiesList: $activitiesList');
+          activities = activitiesList.where((json) {
+            if (json is! Map<String, dynamic>) {
+              print('[DEBUG] Invalid activity JSON: $json');
+              return false;
+            }
+            if (!json.containsKey('type') || !json.containsKey('name')) {
+              print('[DEBUG] Missing required fields in activity JSON: $json');
+              return false;
+            }
+            return true;
+          }).map((json) {
+            try {
+              return json['type'] == 'TimedActivity'
+                  ? TimedActivity.fromJson(json)
+                  : CheckableActivity.fromJson(json);
+            } catch (e) {
+              print('[DEBUG] Error parsing activity: $e, JSON: $json');
+              return null;
+            }
+          }).whereType<Activity>().take(maxActivities).toList();
+          print('[DEBUG] Parsed activities: $activities');
         }
+      } catch (e) {
+        print('[DEBUG] Error parsing activities: $e');
+        activities = [];
+        await prefs.setString('activities', jsonEncode([]));
       }
     }
 
     final logsJson = prefs.getString('activityLogs');
+    print('[DEBUG] logsJson: $logsJson');
     if (logsJson != null && logsJson.isNotEmpty) {
       try {
         final List<dynamic> logsList = jsonDecode(logsJson);
         logs = logsList.map((json) => ActivityLog.fromJson(json)).take(maxLogs).toList();
-        logs = logs.map((log) {
-          if (log.activityName == 'Drink water') {
-            return ActivityLog(
-              activityName: log.activityName,
-              date: log.date,
-              duration: Duration.zero,
-              isCheckable: true,
-            );
-          } else if (log.activityName == 'Focus') {
-            return ActivityLog(
-              activityName: log.activityName,
-              date: log.date,
-              duration: log.duration,
-              isCheckable: false,
-            );
-          }
-          return log;
-        }).toList();
+        print('[DEBUG] Parsed logs: $logs');
       } catch (e) {
+        print('[DEBUG] Error parsing logs: $e');
         logs = [];
       }
     }
 
     final goalsJson = prefs.getString('goals');
+    print('[DEBUG] goalsJson: $goalsJson');
     if (goalsJson != null && goalsJson.isNotEmpty) {
       try {
         final List<dynamic> goalsList = jsonDecode(goalsJson);
         goals = goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
+        print('[DEBUG] Parsed goals: $goals');
       } catch (e) {
+        print('[DEBUG] Error parsing goals: $e');
         goals = [];
       }
     }
@@ -137,7 +154,7 @@ class _HomePageState extends State<HomePage> {
     for (var log in logs) {
       if (!activities.any((a) => a.name == log.activityName)) {
         if (activities.length >= maxActivities) continue;
-        final newActivity = log.isCheckable
+        final newActivity = log.activityName == 'Drink water'
             ? CheckableActivity(name: log.activityName)
             : TimedActivity(name: log.activityName);
         activities.add(newActivity);
@@ -183,10 +200,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _resetData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      activities = [
-        TimedActivity(name: 'Focus'),
-        CheckableActivity(name: 'Drink water'),
-      ];
+      activities = [];
       activityLogs = [];
       goals = [];
       selectedActivity = null;
