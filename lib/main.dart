@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'pages/home_page.dart';
 import 'utils/ad_manager.dart';
+import 'dart:convert';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,14 +12,18 @@ void main() async {
   int launchCount = (prefs.getInt('launchCount') ?? 0) + 1;
   await prefs.setInt('launchCount', launchCount);
 
-  if (!(prefs.containsKey('activities') && prefs.getString('activities') != null && prefs.getString('activities')!.isNotEmpty)) {
-    print('[DEBUG] Setting default activities');
+  if (!(prefs.containsKey('activities') &&
+      prefs.getString('activities') != null &&
+      prefs.getString('activities')!.isNotEmpty)) {
     final defaultActivities = [
       {'type': 'TimedActivity', 'name': 'Focus', 'totalTime': 0},
-      {'type': 'CheckableActivity', 'name': 'Drink water', 'completionCount': 0},
+      {
+        'type': 'CheckableActivity',
+        'name': 'Drink water',
+        'completionCount': 0
+      },
     ];
-    await prefs.setString('activities', defaultActivities.isNotEmpty ? defaultActivities.map((a) => a).toList().toString() : '');
-    print('[DEBUG] Default activities saved');
+    await prefs.setString('activities', jsonEncode(defaultActivities));
   }
 
   bool consentAsked = prefs.getBool('consentAsked') ?? false;
@@ -38,26 +43,53 @@ void main() async {
             () async {
           if (await ConsentInformation.instance.isConsentFormAvailable()) {
             ConsentForm.loadConsentForm(
-              (ConsentForm consentForm) {
+                  (ConsentForm consentForm) {
                 consentForm.show(
-                  (FormError? error) async {
+                      (FormError? error) async {
                     if (error != null) {
                       print('Consent form error: ${error.message}');
                     }
-                    final status = await ConsentInformation.instance.getConsentStatus();
-                    await prefs.setBool('personalizedAdsConsent', status == ConsentStatus.obtained);
+                    final status = await ConsentInformation.instance
+                        .getConsentStatus();
+                    await prefs.setBool('personalizedAdsConsent',
+                        status == ConsentStatus.obtained);
                   },
                 );
               },
-              (FormError error) {
+                  (FormError error) {
                 print('Load consent form error: ${error.message}');
+
+                Future.delayed(const Duration(seconds: 2), () async {
+                  if (await ConsentInformation.instance
+                      .isConsentFormAvailable()) {
+                    ConsentForm.loadConsentForm(
+                          (ConsentForm consentForm) {
+                        consentForm.show(
+                              (FormError? error) async {
+                            if (error != null) {
+                              print('Consent form error: ${error.message}');
+                            }
+                            final status = await ConsentInformation.instance
+                                .getConsentStatus();
+                            await prefs.setBool('personalizedAdsConsent',
+                                status == ConsentStatus.obtained);
+                          },
+                        );
+                      },
+                          (FormError error) {
+                        print(
+                            'Retry load consent form error: ${error.message}');
+                      },
+                    );
+                  }
+                });
               },
             );
           }
           await prefs.setBool('consentAsked', true);
           await AdManager.initialize();
         },
-        (FormError error) async {
+            (FormError error) async {
           print('Consent info update error: ${error.message}');
           await prefs.setBool('consentAsked', true);
           await AdManager.initialize();
@@ -65,7 +97,8 @@ void main() async {
       );
     } else {
       final status = await ConsentInformation.instance.getConsentStatus();
-      await prefs.setBool('personalizedAdsConsent', status == ConsentStatus.obtained);
+      await prefs.setBool(
+          'personalizedAdsConsent', status == ConsentStatus.obtained);
       await AdManager.initialize();
     }
   } catch (e) {
