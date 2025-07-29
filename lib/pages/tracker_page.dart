@@ -57,7 +57,6 @@ class _TrackerPageState extends State<TrackerPage> {
   static const int maxManualTimeMinutes = 1000;
   static const int maxManualCompletions = 100;
   final AdManager _adManager = AdManager.instance;
-  bool _isAdLoaded = false;
   int? _currentStreak;
 
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
@@ -155,17 +154,6 @@ class _TrackerPageState extends State<TrackerPage> {
   void initState() {
     super.initState();
     print("TrackerPage initState: launchCount = ${widget.launchCount}");
-    if (widget.launchCount > 1) {
-      print("Loading banner ad");
-      _adManager.loadBannerAd(onAdLoaded: (isLoaded) {
-        if (mounted) {
-          setState(() {
-            _isAdLoaded = isLoaded;
-          });
-        }
-      });
-    }
-
     final historyProvider = HistoryDataProvider(
       goals: widget.goals,
       activityLogs: widget.activityLogs,
@@ -430,7 +418,7 @@ class _TrackerPageState extends State<TrackerPage> {
                     }
                   },
                   child: Text(
-                    '${widget.selectedDate  .day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year}',
+                    '${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year}',
                   ),
                 ),
               ],
@@ -579,8 +567,6 @@ class _TrackerPageState extends State<TrackerPage> {
             filteredActivitiesWithGoals.isEmpty
                 ? const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
-
-
               child: Text('No goals set for this date.'),
             )
                 : ListView.builder(
@@ -691,10 +677,6 @@ class _TrackerPageState extends State<TrackerPage> {
                   : '🔥 Current Streak: $_currentStreak days 🔥',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            if (_isAdLoaded && widget.launchCount > 1) ...[
-              const SizedBox(height: 20),
-              _adManager.getBannerAdWidget() ?? const SizedBox.shrink(),
-            ],
             const SizedBox(height: 80),
           ],
         ),
