@@ -30,7 +30,6 @@ class _GoalsPageState extends State<GoalsPage> {
   bool showGoals = false;
   static const int maxGoalMinutes = 10000;
   final AdManager _adManager = AdManager.instance;
-  bool _isAdLoaded = false;
 
   @override
   void initState() {
@@ -55,19 +54,6 @@ class _GoalsPageState extends State<GoalsPage> {
     }).toList();
 
     print('GoalsPage initState: launchCount = ${widget.launchCount}');
-    if (widget.launchCount > 1) {
-      print('GoalsPage: Attempting to load banner ad');
-      _adManager.loadBannerAd(onAdLoaded: (isLoaded) {
-        // _analyticsManager.logAdImpression('banner', isLoaded);
-        if (mounted) {
-          setState(() {
-            _isAdLoaded = isLoaded;
-          });
-        }
-      });
-    } else {
-      print('GoalsPage: Skipping ad load due to launchCount <= 1');
-    }
   }
 
   void updateGoal(
@@ -86,27 +72,17 @@ class _GoalsPageState extends State<GoalsPage> {
       return;
     }
 
-    // _analyticsManager.logButtonClick('add_set_goal', parameters: {
-    //   'activity_name': activityName,
-    //   'goal_type': goalType.toString().split('.').last,
-    //   'value': value.toString(),
-    // });
-
     _adManager.incrementGoalAddCount().then((_) {
       if (_adManager.shouldShowGoalAd()) {
         print("Attempting to show rewarded ad for goal add");
-        // _analyticsManager.logAdImpression('rewarded', true);
         _adManager.showRewardedAd(
           onUserEarnedReward: () {
-            // _analyticsManager.logAdReward('rewarded');
             _updateGoalState(activityName, value, goalType, startDate, endDate);
           },
           onAdDismissed: () {
-            // _analyticsManager.logButtonClick('ad_dismissed', parameters: {'ad_type': 'rewarded'});
             print("Ad dismissed, goal not added");
           },
           onAdFailedToShow: () {
-            // _analyticsManager.logAdFailed('rewarded', 'failed_to_show');
             print("Ad failed to show, goal not added");
           },
         );
@@ -155,10 +131,6 @@ class _GoalsPageState extends State<GoalsPage> {
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (pickedDate != null) {
-      // _analyticsManager.logButtonClick(isStartDate ? 'select_start_date' : 'select_end_date', parameters: {
-      //   'activity_name': activityName,
-      //   'date': pickedDate.toIso8601String(),
-      // });
       final index = editableGoals.indexWhere((g) => g.activityName == activityName);
       if (index != -1) {
         if (!isStartDate) {
@@ -193,7 +165,6 @@ class _GoalsPageState extends State<GoalsPage> {
   }
 
   void clearEndDate(String activityName, TextEditingController controller) {
-    // _analyticsManager.logButtonClick('clear_end_date', parameters: {'activity_name': activityName});
     setState(() {
       final index = editableGoals.indexWhere((g) => g.activityName == activityName);
       if (index != -1) {
@@ -221,7 +192,6 @@ class _GoalsPageState extends State<GoalsPage> {
   }
 
   void deleteGoal(String id) {
-    // _analyticsManager.logButtonClick('delete_goal', parameters: {'goal_id': id});
     final updatedGoals = List<Goal>.from(widget.goals)..removeWhere((goal) => goal.id == id);
     widget.onGoalChanged(updatedGoals);
     setState(() {
@@ -331,10 +301,6 @@ class _GoalsPageState extends State<GoalsPage> {
                           ],
                           onChanged: (val) {
                             if (val != null) {
-                              // _analyticsManager.logButtonClick('select_goal_type', parameters: {
-                              //   'goal_type': val.toString().split('.').last,
-                              //   'activity_name': activity.name,
-                              // });
                               updateGoal(
                                 activity.name,
                                 controller.text,
@@ -438,10 +404,6 @@ class _GoalsPageState extends State<GoalsPage> {
                 );
               },
             ),
-          ],
-          if (_isAdLoaded && widget.launchCount > 1) ...[
-            const SizedBox(height: 20),
-            _adManager.getBannerAdWidget() ?? const SizedBox.shrink(),
           ],
           const SizedBox(height: 80),
         ],
