@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/privacy_policy_screen.dart';
 
 class SettingsPage extends StatefulWidget {
   final bool isDarkMode;
@@ -112,6 +113,15 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  void _launchPrivacyPolicy() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PrivacyPolicyScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -137,10 +147,38 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const Divider(),
             ListTile(
-              title: const Text('Reset All Data'),
-              subtitle: const Text('Delete all activities, logs, and goals.'),
-              trailing: const Icon(Icons.delete_forever, color: Colors.red),
-              onTap: _confirmResetData,
+              title: const Text('Personalized Ads'),
+              subtitle: Text(
+                !_consentLoaded
+                    ? 'Loading...'
+                    : (_personalizedAdsConsent == null
+                    ? 'Not set'
+                    : (_personalizedAdsConsent! ? 'Enabled' : 'Disabled')),
+              ),
+              trailing: Switch(
+                value: _personalizedAdsConsent ?? false,
+                onChanged: !_consentLoaded
+                    ? null
+                    : (value) {
+                  _setConsent(value);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        value
+                            ? 'Personalized ads enabled'
+                            : 'Personalized ads disabled',
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              title: const Text('Privacy Policy'),
+              subtitle: const Text('View our privacy policy.'),
+              trailing: const Icon(Icons.privacy_tip, color: Colors.blue),
+              onTap: _launchPrivacyPolicy,
             ),
             const Divider(),
             ListTile(
@@ -161,31 +199,10 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const Divider(),
             ListTile(
-              title: const Text('Personalized Ads'),
-              subtitle: Text(
-                !_consentLoaded
-                  ? 'Loading...'
-                  : (_personalizedAdsConsent == null
-                      ? 'Not set'
-                      : (_personalizedAdsConsent! ? 'Enabled' : 'Disabled')),
-              ),
-              trailing: Switch(
-                value: _personalizedAdsConsent ?? false,
-                onChanged: !_consentLoaded
-                  ? null
-                  : (value) {
-                      _setConsent(value);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            value
-                              ? 'Personalized ads enabled'
-                              : 'Personalized ads disabled',
-                          ),
-                        ),
-                      );
-                    },
-              ),
+              title: const Text('Reset All Data'),
+              subtitle: const Text('Delete all activities, logs, and goals.'),
+              trailing: const Icon(Icons.delete_forever, color: Colors.red),
+              onTap: _confirmResetData,
             ),
           ],
         ),
