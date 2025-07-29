@@ -30,84 +30,25 @@ void main() async {
 
   try {
     await MobileAds.instance.initialize();
+    print('[DEBUG] Mobile Ads initialized');
 
     if (!consentAsked) {
-      ConsentRequestParameters params = ConsentRequestParameters(
-        consentDebugSettings: ConsentDebugSettings(
-          debugGeography: DebugGeography.debugGeographyEea,
-          testIdentifiers: ['TEST-DEVICE-HASHED-ID'],
-        ),
-      );
-      ConsentInformation.instance.requestConsentInfoUpdate(
-        params,
-            () async {
-          if (await ConsentInformation.instance.isConsentFormAvailable()) {
-            ConsentForm.loadConsentForm(
-                  (ConsentForm consentForm) {
-                consentForm.show(
-                      (FormError? error) async {
-                    if (error != null) {
-                      print('Consent form error: ${error.message}');
-                    }
-                    final status = await ConsentInformation.instance
-                        .getConsentStatus();
-                    await prefs.setBool('personalizedAdsConsent',
-                        status == ConsentStatus.obtained);
-                  },
-                );
-              },
-                  (FormError error) {
-                print('Load consent form error: ${error.message}');
-
-                Future.delayed(const Duration(seconds: 2), () async {
-                  if (await ConsentInformation.instance
-                      .isConsentFormAvailable()) {
-                    ConsentForm.loadConsentForm(
-                          (ConsentForm consentForm) {
-                        consentForm.show(
-                              (FormError? error) async {
-                            if (error != null) {
-                              print('Consent form error: ${error.message}');
-                            }
-                            final status = await ConsentInformation.instance
-                                .getConsentStatus();
-                            await prefs.setBool('personalizedAdsConsent',
-                                status == ConsentStatus.obtained);
-                          },
-                        );
-                      },
-                          (FormError error) {
-                        print(
-                            'Retry load consent form error: ${error.message}');
-                      },
-                    );
-                  }
-                });
-              },
-            );
-          }
-          await prefs.setBool('consentAsked', true);
-          await AdManager.initialize();
-        },
-            (FormError error) async {
-          print('Consent info update error: ${error.message}');
-          await prefs.setBool('consentAsked', true);
-          await AdManager.initialize();
-        },
-      );
+      await prefs.setBool('personalizedAdsConsent', false);
+      await prefs.setBool('consentAsked', true);
+      print('[DEBUG] Consent initialized: personalizedAdsConsent=false');
+      await AdManager.initialize();
     } else {
-      final status = await ConsentInformation.instance.getConsentStatus();
-      await prefs.setBool(
-          'personalizedAdsConsent', status == ConsentStatus.obtained);
+      bool personalizedAds = prefs.getBool('personalizedAdsConsent') ?? false;
+      print('[DEBUG] Loaded consent: personalizedAdsConsent=$personalizedAds');
       await AdManager.initialize();
     }
   } catch (e) {
-    print('AdMob init error: $e');
+    print('[DEBUG] AdMob init error: $e');
     await AdManager.initialize();
   }
 
-  runApp(LockInTrackerApp(launchCount: launchCount));
   print('[DEBUG] App started with launchCount=$launchCount');
+  runApp(LockInTrackerApp(launchCount: launchCount));
 }
 
 class LockInTrackerApp extends StatefulWidget {
