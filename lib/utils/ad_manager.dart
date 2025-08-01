@@ -64,7 +64,7 @@ class AdManager {
 
   void loadRewardedAd() {
     _canRequestPersonalizedAds().then((canRequestPersonalizedAds) {
-      print('[DEBUG] Requesting rewarded ad: personalized=${canRequestPersonalizedAds}');
+      print('[DEBUG] Requesting rewarded ad: personalized=$canRequestPersonalizedAds');
       RewardedAd.load(
         adUnitId: Platform.isAndroid
             ? 'ca-app-pub-3940256099942544/5224354917'
@@ -228,32 +228,40 @@ class AdManager {
     required VoidCallback onAdDismissed,
     required VoidCallback onAdFailedToShow,
   }) {
-    if (_rewardedAd == null) {
-      print('[DEBUG] Ad load fail');
-      onAdFailedToShow();
-      loadRewardedAd();
-      return;
-    }
-    _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdShowedFullScreenContent: (ad) => print('[DEBUG] Ad shown'),
-      onAdDismissedFullScreenContent: (ad) {
-        ad.dispose();
-        _rewardedAd = null;
-        loadRewardedAd();
-        onAdDismissed();
-      },
-      onAdFailedToShowFullScreenContent: (ad, error) {
-        ad.dispose();
-        _rewardedAd = null;
-        loadRewardedAd();
+    _canRequestPersonalizedAds().then((canRequestPersonalizedAds) {
+      print('[DEBUG] showRewardedAd: Attempting to show rewarded ad, personalized=$canRequestPersonalizedAds');
+      if (_rewardedAd == null) {
+        print('[DEBUG] showRewardedAd: Ad load fail, personalized=$canRequestPersonalizedAds');
         onAdFailedToShow();
-      },
-    );
-    _rewardedAd!.show(
-      onUserEarnedReward: (ad, reward) {
-        onUserEarnedReward();
-      },
-    );
+        loadRewardedAd();
+        return;
+      }
+      _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdShowedFullScreenContent: (ad) {
+          print('[DEBUG] showRewardedAd: Rewarded ad shown, personalized=$canRequestPersonalizedAds');
+        },
+        onAdDismissedFullScreenContent: (ad) {
+          print('[DEBUG] showRewardedAd: Rewarded ad dismissed, personalized=$canRequestPersonalizedAds');
+          ad.dispose();
+          _rewardedAd = null;
+          loadRewardedAd();
+          onAdDismissed();
+        },
+        onAdFailedToShowFullScreenContent: (ad, error) {
+          print('[DEBUG] showRewardedAd: Rewarded ad failed to show, error=$error, personalized=$canRequestPersonalizedAds');
+          ad.dispose();
+          _rewardedAd = null;
+          loadRewardedAd();
+          onAdFailedToShow();
+        },
+      );
+      _rewardedAd!.show(
+        onUserEarnedReward: (ad, reward) {
+          print('[DEBUG] showRewardedAd: User earned reward, amount=${reward.amount}, type=${reward.type}, personalized=$canRequestPersonalizedAds');
+          onUserEarnedReward();
+        },
+      );
+    });
   }
 
   Future<void> dispose() async {
