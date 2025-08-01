@@ -53,7 +53,7 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Reset All Data'),
+        title: const Text('Reset Data'),
         content: const Text(
           'Are you sure you want to reset all activities, logs, and goals? This action cannot be undone.',
         ),
@@ -67,7 +67,7 @@ class _SettingsPageState extends State<SettingsPage> {
               widget.onResetData();
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('All data has been reset.')),
+                const SnackBar(content: Text('Data has been reset.')),
               );
             },
             child: const Text('Reset', style: TextStyle(color: Colors.red)),
@@ -199,7 +199,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const Divider(),
             ListTile(
-              title: const Text('Reset All Data'),
+              title: const Text('Reset Data'),
               subtitle: const Text('Delete all activities, logs, and goals.'),
               trailing: const Icon(Icons.delete_forever, color: Colors.red),
               onTap: _confirmResetData,
