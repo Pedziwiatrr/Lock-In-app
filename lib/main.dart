@@ -26,24 +26,57 @@ void main() async {
     await prefs.setString('activities', jsonEncode(defaultActivities));
   }
 
-  bool consentAsked = prefs.getBool('consentAsked') ?? false;
-
   try {
     await MobileAds.instance.initialize();
     print('[DEBUG] Mobile Ads initialized');
 
-    if (!consentAsked) {
-      await prefs.setBool('personalizedAdsConsent', false);
-      await prefs.setBool('consentAsked', true);
-      print('[DEBUG] Consent initialized: personalizedAdsConsent=false');
-      await AdManager.initialize();
-    } else {
-      bool personalizedAds = prefs.getBool('personalizedAdsConsent') ?? false;
-      print('[DEBUG] Loaded consent: personalizedAdsConsent=$personalizedAds');
-      await AdManager.initialize();
-    }
+    // Initialize UMP using google_mobile_ads
+    ConsentInformation.instance.requestConsentInfoUpdate(
+      ConsentRequestParameters(),
+          () async {
+        if (await ConsentInformation.instance.isConsentFormAvailable()) {
+          ConsentForm.loadConsentForm(
+                (ConsentForm consentForm) async {
+              consentForm.show(
+                    (FormError? error) async {
+                  if (error != null) {
+                    print('[DEBUG] Consent form error: ${error.message}');
+                    await prefs.setBool('personalizedAdsConsent', false);
+                  } else {
+                    bool personalizedAds = (await ConsentInformation.instance.getConsentStatus()) == ConsentStatus.obtained;
+                    await prefs.setBool('personalizedAdsConsent', personalizedAds);
+                    print('[DEBUG] Consent initialized: personalizedAdsConsent=$personalizedAds');
+                  }
+                  await prefs.setBool('consentAsked', true);
+                  await AdManager.initialize();
+                },
+              );
+            },
+                (FormError error) async {
+              print('[DEBUG] Load consent form error: ${error.message}');
+              await prefs.setBool('personalizedAdsConsent', false);
+              await prefs.setBool('consentAsked', true);
+              await AdManager.initialize();
+            },
+          );
+        } else {
+          print('[DEBUG] Consent form not available');
+          await prefs.setBool('personalizedAdsConsent', false);
+          await prefs.setBool('consentAsked', true);
+          await AdManager.initialize();
+        }
+      },
+          (FormError error) async {
+        print('[DEBUG] Consent info update error: ${error.message}');
+        await prefs.setBool('personalizedAdsConsent', false);
+        await prefs.setBool('consentAsked', true);
+        await AdManager.initialize();
+      },
+    );
   } catch (e) {
-    print('[DEBUG] AdMob init error: $e');
+    print('[DEBUG] AdMob or UMP init error: $e');
+    await prefs.setBool('personalizedAdsConsent', false);
+    await prefs.setBool('consentAsked', true);
     await AdManager.initialize();
   }
 
