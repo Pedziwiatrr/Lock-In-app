@@ -34,6 +34,9 @@ void main() async {
     ConsentInformation.instance.requestConsentInfoUpdate(
       ConsentRequestParameters(),
           () async {
+        final consentStatus = await ConsentInformation.instance.getConsentStatus();
+        print('[DEBUG] Consent status after update: $consentStatus');
+
         if (await ConsentInformation.instance.isConsentFormAvailable()) {
           ConsentForm.loadConsentForm(
                 (ConsentForm consentForm) async {
@@ -42,10 +45,12 @@ void main() async {
                   if (error != null) {
                     print('[DEBUG] Consent form error: ${error.message}');
                     await prefs.setBool('personalizedAdsConsent', false);
+                    print('[DEBUG] Personalized ads disabled due to form error');
                   } else {
                     bool personalizedAds = (await ConsentInformation.instance.getConsentStatus()) == ConsentStatus.obtained;
                     await prefs.setBool('personalizedAdsConsent', personalizedAds);
                     print('[DEBUG] Consent initialized: personalizedAdsConsent=$personalizedAds');
+                    print('[DEBUG] Consent status after form: ${await ConsentInformation.instance.getConsentStatus()}');
                   }
                   await prefs.setBool('consentAsked', true);
                   await AdManager.initialize();
@@ -56,6 +61,8 @@ void main() async {
               print('[DEBUG] Load consent form error: ${error.message}');
               await prefs.setBool('personalizedAdsConsent', false);
               await prefs.setBool('consentAsked', true);
+              print('[DEBUG] Personalized ads disabled due to load error');
+              print('[DEBUG] Consent status after load error: ${await ConsentInformation.instance.getConsentStatus()}');
               await AdManager.initialize();
             },
           );
@@ -63,6 +70,8 @@ void main() async {
           print('[DEBUG] Consent form not available');
           await prefs.setBool('personalizedAdsConsent', false);
           await prefs.setBool('consentAsked', true);
+          print('[DEBUG] Personalized ads disabled due to unavailable form');
+          print('[DEBUG] Consent status: ${await ConsentInformation.instance.getConsentStatus()}');
           await AdManager.initialize();
         }
       },
@@ -70,6 +79,8 @@ void main() async {
         print('[DEBUG] Consent info update error: ${error.message}');
         await prefs.setBool('personalizedAdsConsent', false);
         await prefs.setBool('consentAsked', true);
+        print('[DEBUG] Personalized ads disabled due to update error');
+        print('[DEBUG] Consent status after update error: ${await ConsentInformation.instance.getConsentStatus()}');
         await AdManager.initialize();
       },
     );
@@ -77,6 +88,8 @@ void main() async {
     print('[DEBUG] AdMob or UMP init error: $e');
     await prefs.setBool('personalizedAdsConsent', false);
     await prefs.setBool('consentAsked', true);
+    print('[DEBUG] Personalized ads disabled due to init error');
+    print('[DEBUG] Consent status after init error: ${await ConsentInformation.instance.getConsentStatus()}');
     await AdManager.initialize();
   }
 

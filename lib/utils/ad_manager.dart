@@ -64,7 +64,7 @@ class AdManager {
 
   void loadRewardedAd() {
     _canRequestPersonalizedAds().then((canRequestPersonalizedAds) {
-      print("[DEBUG] Requesting rewarded ad with nonPersonalizedAds: ${!canRequestPersonalizedAds}");
+      print('[DEBUG] Requesting rewarded ad: personalized=${canRequestPersonalizedAds}');
       RewardedAd.load(
         adUnitId: Platform.isAndroid
             ? 'ca-app-pub-3940256099942544/5224354917'
@@ -74,11 +74,11 @@ class AdManager {
         ),
         rewardedAdLoadCallback: RewardedAdLoadCallback(
           onAdLoaded: (ad) {
-            print("[DEBUG] Rewarded ad loaded. Personalized: $canRequestPersonalizedAds");
+            print('[DEBUG] Rewarded ad loaded: personalized=$canRequestPersonalizedAds');
             _rewardedAd = ad;
           },
           onAdFailedToLoad: (error) {
-            print("[DEBUG] Rewarded ad loading error: $error");
+            print('[DEBUG] Rewarded ad loading error: $error');
             _rewardedAd = null;
             Future.delayed(const Duration(seconds: 5), loadRewardedAd);
           },
@@ -89,7 +89,7 @@ class AdManager {
 
   void loadBannerAd({required Function(bool) onAdLoaded}) {
     _canRequestPersonalizedAds().then((canRequestPersonalizedAds) {
-      print("[DEBUG] Requesting banner ad with nonPersonalizedAds: ${!canRequestPersonalizedAds}");
+      print('[DEBUG] Requesting banner ad: personalized=$canRequestPersonalizedAds');
       _bannerAd = BannerAd(
         adUnitId: Platform.isAndroid
             ? 'ca-app-pub-3940256099942544/6300978111'
@@ -100,19 +100,19 @@ class AdManager {
         ),
         listener: BannerAdListener(
           onAdLoaded: (ad) {
-            print("[DEBUG] Banner ad loaded. Personalized: $canRequestPersonalizedAds");
+            print('[DEBUG] Banner ad loaded: personalized=$canRequestPersonalizedAds');
             _isAdLoaded = true;
             onAdLoaded(true);
           },
           onAdFailedToLoad: (ad, error) {
-            print("[DEBUG] Banner ad loading error: $error");
+            print('[DEBUG] Banner ad loading error: $error');
             ad.dispose();
             _isAdLoaded = false;
             onAdLoaded(false);
             Future.delayed(const Duration(seconds: 5), () => loadBannerAd(onAdLoaded: onAdLoaded));
           },
-          onAdOpened: (ad) => print("[DEBUG] Banner ad opened"),
-          onAdClosed: (ad) => print("[DEBUG] Banner ad closed"),
+          onAdOpened: (ad) => print('[DEBUG] Banner ad opened'),
+          onAdClosed: (ad) => print('[DEBUG] Banner ad closed'),
         ),
       );
       _bannerAd!.load();
@@ -153,72 +153,72 @@ class AdManager {
 
   bool shouldShowAd(Duration duration) {
     if (duration.inSeconds <= 5) {
-      print("[DEBUG] Ad not shown: duration too short");
+      print('[DEBUG] Ad not shown: duration too short');
       return false;
     }
     if (_stoperUsageCount < 3) {
-      print("[DEBUG] Ad not shown: grace time");
+      print('[DEBUG] Ad not shown: grace time');
       return false;
     }
     if (_lastAdShown) {
-      print("[DEBUG] Ad not shown: ad shown last time");
+      print('[DEBUG] Ad not shown: ad shown last time');
       _lastAdShown = false;
       return false;
     }
     final random = Random().nextDouble() < 0.5;
     _lastAdShown = random;
     if (random) {
-      print("[DEBUG] Ad shown");
+      print('[DEBUG] Ad shown');
     } else {
-      print("[DEBUG] Ad not shown: random");
+      print('[DEBUG] Ad not shown: random');
     }
     return random;
   }
 
   bool shouldShowCheckAd() {
     if (_checkUsageCount < 5) {
-      print("[DEBUG] Ad not shown: check usage");
+      print('[DEBUG] Ad not shown: check usage');
       return false;
     }
     if (_lastCheckAdShown) {
-      print("[DEBUG] Ad not shown: ad shown last time");
+      print('[DEBUG] Ad not shown: ad shown last time');
       _lastCheckAdShown = false;
       return false;
     }
     final random = Random().nextDouble() < 0.25;
     _lastCheckAdShown = random;
     if (random) {
-      print("[DEBUG] Ad shown");
+      print('[DEBUG] Ad shown');
     } else {
-      print("[DEBUG] Ad not shown: random");
+      print('[DEBUG] Ad not shown: random');
     }
     return random;
   }
 
   bool shouldShowGoalAd() {
     if (_goalAddCount <= 1) {
-      print("[DEBUG] Ad not shown: first goal");
+      print('[DEBUG] Ad not shown: first goal');
       return false;
     }
     final random = Random().nextDouble() < 0.5;
     if (random) {
-      print("[DEBUG] Ad shown for goal add");
+      print('[DEBUG] Ad shown for goal add');
     } else {
-      print("[DEBUG] Ad not shown for goal add: random");
+      print('[DEBUG] Ad not shown for goal add: random');
     }
     return random;
   }
 
   bool shouldShowActivityChangeAd() {
     if (_activityChangeCount <= 2) {
-      print("[DEBUG] Ad not shown: first two activity changes");
+      print('[DEBUG] Ad not shown: first two activity changes');
       return false;
     }
     final random = Random().nextDouble() < 0.5;
     if (random) {
-      print("[DEBUG] Ad shown for activity change");
+      print('[DEBUG] Ad shown for activity change');
     } else {
-      print("[DEBUG] Ad not shown for activity change: random");
+      print('[DEBUG] Ad not shown for activity change: random');
     }
     return random;
   }
@@ -229,13 +229,13 @@ class AdManager {
     required VoidCallback onAdFailedToShow,
   }) {
     if (_rewardedAd == null) {
-      print("[DEBUG] Ad load fail");
+      print('[DEBUG] Ad load fail');
       onAdFailedToShow();
       loadRewardedAd();
       return;
     }
     _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdShowedFullScreenContent: (ad) => print("[DEBUG] Ad shown"),
+      onAdShowedFullScreenContent: (ad) => print('[DEBUG] Ad shown'),
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _rewardedAd = null;
@@ -257,7 +257,7 @@ class AdManager {
   }
 
   Future<void> dispose() async {
-    print("[DEBUG] Disposing AdManager");
+    print('[DEBUG] Disposing AdManager');
     _rewardedAd?.dispose();
     _rewardedAd = null;
     _bannerAd?.dispose();
