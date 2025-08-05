@@ -20,9 +20,8 @@ dependencies:
   table_calendar: ^3.1.2
   simple_gesture_detector: ^0.2.1
   uuid: ^4.4.2
-  google_mobile_ads: ^5.1.0
+  google_mobile_ads: ^6.0.0
   flutter_html: ^3.0.0-beta.2
-
 
 flutter_icons:
   android: true
