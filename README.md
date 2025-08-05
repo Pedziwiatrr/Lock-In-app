@@ -1,17 +1,16 @@
-#LockIn Tracker
+# Lock-In Tracker
 
 ## Opis projektu
 LockIn Tracker to mobilna aplikacja Flutter do śledzenia aktywności i celów osobistych. Umożliwia użytkownikom monitorowanie czasu poświęconego na zadania (np. nauka, praca) oraz liczby ukończeń dla aktywności typu check-list (np. pójście na siłownie). Aplikacja wspiera definiowanie celów dziennych, tygodniowych i miesięcznych, wyświetlanie statystyk oraz przeglądanie historii aktywności.
 
-Projekt został stworzony jako indywidualna inicjatywa, z naciskiem na prostotę, intuicyjność i funkcjonalność.
 
 ## Funkcjonalności
 - **Śledzenie aktywności**: Rejestracja czasu (timer) dla aktywności czasowych lub liczby ukończeń dla aktywności checkable.
 - **Cele**: Ustawianie celów dla każdej aktywności z określonym typem (dzienny, tygodniowy, miesięczny) oraz datami rozpoczęcia i zakończenia.
-- **Statystyki**: Wykresy słupkowe (biblioteka `fl_chart`) pokazujące czas i ukończenia w wybranym okresie (dzień, tydzień, miesiąc, cały czas).
-- **Historia**: Przegląd aktywności i postępu celów z podziałem na dni, z kolorowymi wskaźnikami postępu.
+- **Statystyki**: Wykresy słupkowe (biblioteka `fl_chart`) pokazujące czas i ukończenia w wybranym okresie (dzień, tydzień, miesiąc, cały czas). Informacje o "streakach" ukończeń celów pod rząd oraz dodatkowe statystyki mające na celu zmotywować użytkownika do działania.
+- **Historia**: Przegląd aktywności i postępu celów z podziałem na dni, z wizualizowaniem aktywności i postępu w celach.
 - **Zarządzanie aktywnościami**: Dodawanie, edytowanie, usuwanie i zmiana kolejności aktywności (maks. 10).
-- **Ustawienia**: Przełączanie między trybem jasnym a ciemnym oraz resetowanie wszystkich danych.
+- **Ustawienia**: Dostosowywanie aplikacji do swoich potrzeb, kontakt, zarządzanie danymi oraz informacje o aplikacji.
 - **Persystencja danych**: Przechowywanie aktywności, logów i celów w `SharedPreferences`.
 
 ## Struktura projektu
@@ -29,6 +28,7 @@ Projekt został stworzony jako indywidualna inicjatywa, z naciskiem na prostotę
     - `settings_page.dart`: Ustawienia motywu i reset danych.
 - **Utils** (`utils/`):
     - `format_utils.dart`: Funkcja formatowania czasu (`HH:mm:ss`).
+    - `ad_manager.dart` : Zarządzanie reklamami z użyciem AdMob.
 
 ## Wymagania
 - Flutter SDK (zalecana wersja: najnowsza stabilna)
