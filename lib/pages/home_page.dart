@@ -12,6 +12,7 @@ import '../pages/activities_page.dart';
 import '../pages/stats_page.dart';
 import '../pages/history_page.dart';
 import '../pages/settings_page.dart';
+import '../pages/progress_page.dart';
 
 class HomePage extends StatefulWidget {
   final void Function(bool) onThemeChanged;
@@ -62,13 +63,13 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadData() async {
     print('[DEBUG] _loadData start');
     final result = await _loadDataFromPrefs(widget.launchCount == 1 ? 1 : 0);
-    print('[DEBUG] _loadData result: activities=${result['activities']}, logs=${result['logs']}, goals=${result['goals']}');
+    print('[DEBUG] _loadData result: activities=${result['activities'].length}, logs=${result['logs'].length}, goals=${result['goals'].length}');
     setState(() {
       activities = result['activities'] as List<Activity>;
       activityLogs = result['logs'] as List<ActivityLog>;
       goals = result['goals'] as List<Goal>;
     });
-    print('[DEBUG] _loadData setState: activities=$activities');
+    print('[DEBUG] _loadData setState: activities=${activities.length}');
   }
 
   static Future<Map<String, dynamic>> _loadDataFromPrefs(int shouldLoadDefaultData) async {
@@ -85,7 +86,7 @@ class _HomePageState extends State<HomePage> {
         TimedActivity(name: 'Focus'),
         CheckableActivity(name: 'Drink water'),
       ];
-      print('[DEBUG] Default activities created: $activities');
+      print('[DEBUG] Default activities created: ${activities.length}');
       await prefs.setString('activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
     } else {
       try {
@@ -95,7 +96,7 @@ class _HomePageState extends State<HomePage> {
           activities = [];
         } else {
           final List<dynamic> activitiesList = decoded;
-          print('[DEBUG] Decoded activitiesList: $activitiesList');
+          print('[DEBUG] Decoded activitiesList: ${activitiesList.length}');
           activities = activitiesList.where((json) {
             if (json is! Map<String, dynamic>) {
               print('[DEBUG] Invalid activity JSON: $json');
@@ -116,7 +117,7 @@ class _HomePageState extends State<HomePage> {
               return null;
             }
           }).whereType<Activity>().take(maxActivities).toList();
-          print('[DEBUG] Parsed activities: $activities');
+          print('[DEBUG] Parsed activities: ${activities.length}');
         }
       } catch (e) {
         print('[DEBUG] Error parsing activities: $e');
@@ -131,7 +132,7 @@ class _HomePageState extends State<HomePage> {
       try {
         final List<dynamic> logsList = jsonDecode(logsJson);
         logs = logsList.map((json) => ActivityLog.fromJson(json)).take(maxLogs).toList();
-        print('[DEBUG] Parsed logs: $logs');
+        print('[DEBUG] Parsed logs: ${logs.length}');
       } catch (e) {
         print('[DEBUG] Error parsing logs: $e');
         logs = [];
@@ -144,7 +145,7 @@ class _HomePageState extends State<HomePage> {
       try {
         final List<dynamic> goalsList = jsonDecode(goalsJson);
         goals = goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
-        print('[DEBUG] Parsed goals: $goals');
+        print('[DEBUG] Parsed goals: ${goals.length}');
       } catch (e) {
         print('[DEBUG] Error parsing goals: $e');
         goals = [];
@@ -211,7 +212,7 @@ class _HomePageState extends State<HomePage> {
     await prefs.remove('activities');
     await prefs.remove('activityLogs');
     await prefs.remove('goals');
-    await _saveData();
+    await _loadData();
   }
 
   void startTimer() {
@@ -321,8 +322,8 @@ class _HomePageState extends State<HomePage> {
     if (selectedActivity == null || selectedActivity is! TimedActivity || duration <= Duration.zero) {
       return;
     }
-    final dateStart = DateTime.now().subtract(const Duration(days: 1));
-    final dateEnd = DateTime.now();
+    final dateStart = selectedDate.subtract(const Duration(days: 1));
+    final dateEnd = selectedDate.add(const Duration(days: 1));
     final relevantLogs = activityLogs
         .where((log) =>
     log.activityName == selectedActivity!.name &&
@@ -385,8 +386,8 @@ class _HomePageState extends State<HomePage> {
     if (selectedActivity == null || selectedActivity is! CheckableActivity || count <= 0) {
       return;
     }
-    final dateStart = DateTime.now().subtract(const Duration(days: 1));
-    final dateEnd = DateTime.now();
+    final dateStart = selectedDate.subtract(const Duration(days: 1));
+    final dateEnd = selectedDate.add(const Duration(days: 1));
     final relevantLogs = activityLogs
         .where((log) =>
     log.activityName == selectedActivity!.name &&
@@ -447,7 +448,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           bottom: const TabBar(
@@ -460,6 +461,7 @@ class _HomePageState extends State<HomePage> {
               Tab(icon: Icon(Icons.timer), text: 'Tracker'),
               Tab(icon: Icon(Icons.flag), text: 'Goals'),
               Tab(icon: Icon(Icons.list), text: 'Activities'),
+              Tab(icon: Icon(Icons.show_chart), text: 'Progress'),
               Tab(icon: Icon(Icons.bar_chart), text: 'Stats'),
               Tab(icon: Icon(Icons.calendar_today), text: 'History'),
             ],
@@ -502,6 +504,11 @@ class _HomePageState extends State<HomePage> {
               activities: activities,
               onUpdate: updateActivities,
               launchCount: widget.launchCount,
+            ),
+            ProgressPage(
+              activities: activities,
+              activityLogs: activityLogs,
+              goals: goals,
             ),
             StatsPage(
               activityLogs: activityLogs,
