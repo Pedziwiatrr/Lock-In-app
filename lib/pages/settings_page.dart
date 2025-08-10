@@ -59,9 +59,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void _loadAndShowConsentForm() {
     ConsentForm.loadConsentForm(
           (ConsentForm consentForm) {
-        // The form is shown here. The callback runs when the form is dismissed.
         consentForm.show((formError) {
-          // The recursive call that caused the loop has been removed.
           if (formError != null) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -87,7 +85,7 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (_) => AlertDialog(
         title: const Text('Reset Data'),
         content: const Text(
-          'Are you sure you want to reset all activities, logs, and goals? This action cannot be undone.',
+          'Are you sure you want to reset all activities, logs, goals, and progress? This action cannot be undone.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
@@ -190,7 +188,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const Divider(),
           ListTile(
             title: const Text('Reset Data'),
-            subtitle: const Text('Delete all activities, logs, and goals.'),
+            subtitle: const Text('Delete all activities, logs, goals, and progress.'),
             trailing: const Icon(Icons.delete_forever, color: Colors.red),
             onTap: _confirmResetData,
           ),
