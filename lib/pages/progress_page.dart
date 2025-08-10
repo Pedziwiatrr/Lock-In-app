@@ -76,11 +76,12 @@ class ProgressService {
   static const List<Rank> ranks = [
     Rank(name: 'Rookie', xpRequired: 0, icon: Icons.child_care),
     Rank(name: 'Intermediate', xpRequired: 100, icon: Icons.school),
-    Rank(name: 'Expert', xpRequired: 400, icon: Icons.construction),
-    Rank(name: 'Master', xpRequired: 1200, icon: Icons.military_tech),
-    Rank(name: 'Champion', xpRequired: 2700, icon: Icons.star),
-    Rank(name: 'Legend', xpRequired: 6000, icon: Icons.emoji_events),
-    Rank(name: 'Truly Locked In', xpRequired: 15000, icon: Icons.auto_awesome),
+    Rank(name: 'Grinder', xpRequired: 400, icon: Icons.construction),
+    Rank(name: 'Expert', xpRequired: 1200, icon: Icons.insights),
+    Rank(name: 'Naster', xpRequired: 2700, icon: Icons.military_tech),
+    Rank(name: 'Champion', xpRequired: 6000, icon: Icons.star),
+    Rank(name: 'Legend', xpRequired: 10000, icon: Icons.emoji_events),
+    Rank(name: 'Truly Locked In', xpRequired: 20000, icon: Icons.auto_awesome),
   ];
 
   static final List<Quest> _quests = [
@@ -88,48 +89,93 @@ class ProgressService {
         id: 'q1',
         title: 'First Step',
         icon: Icons.add_circle_outline,
-        levels: [QuestLevel(description: 'Create your own custom activity.', xpReward: 20, target: 1)],
+        levels: [QuestLevel(description: 'Create a new custom activity.', xpReward: 30, target: 1)],
         getProgress: (a, l, g) => (a.length > 2) ? 1 : 0),
     Quest(
         id: 'q2',
-        title: 'Ambitious',
+        title: 'Goal Setter',
         icon: Icons.flag_outlined,
-        levels: [QuestLevel(description: 'Create your first goal.', xpReward: 30, target: 1)],
+        levels: [QuestLevel(description: 'Create your first goal.', xpReward: 40, target: 1)],
         getProgress: (a, l, g) => g.isNotEmpty ? 1 : 0),
     Quest(
         id: 'q3',
-        title: 'Taking Action',
+        title: 'Locking in',
         icon: Icons.hourglass_top_outlined,
         levels: [
-          QuestLevel(description: 'Log a total of 1 hour in any timed activity.', xpReward: 60, target: 1),
-          QuestLevel(description: 'Log a total of 10 hours in any timed activity.', xpReward: 150, target: 10),
-          QuestLevel(description: 'Log a total of 25 hours in the "Focus" activity.', xpReward: 250, target: 25),
-          QuestLevel(description: 'Log a total of 100 hours.', xpReward: 500, target: 100),
-          QuestLevel(description: 'Log a total of 500 hours.', xpReward: 1200, target: 500),
-          QuestLevel(description: 'Log a total of 2000 hours.', xpReward: 3000, target: 2000),
+          QuestLevel(description: 'Log a total of 1 hour.', xpReward: 50, target: 1),
+          QuestLevel(description: 'Log a total of 3 hours.', xpReward: 100, target: 3),
+          QuestLevel(description: 'Log a total of 10 hours.', xpReward: 200, target: 10),
+          QuestLevel(description: 'Log a total of 50 hours.', xpReward: 400, target: 50),
+          QuestLevel(description: 'Log a total of 100 hours.', xpReward: 600, target: 100),
+          QuestLevel(description: 'Log a total of 500 hours.', xpReward: 1000, target: 500),
+          QuestLevel(description: 'Log a total of 1000 hours.', xpReward: 1600, target: 1000),
+          QuestLevel(description: 'Log a total of 300 hours.', xpReward: 4000, target: 3000),
           QuestLevel(description: 'Log a total of 10000 hours.', xpReward: 10000, target: 10000),
         ],
         getProgress: (a, l, g) => l.fold<Duration>(Duration.zero, (p, e) => p + e.duration).inHours),
     Quest(
-        id: 'q4_new',
+        id: 'q4',
         title: 'Habit Builder',
         icon: Icons.check_circle_outline,
         levels: [
-          QuestLevel(description: 'Log a total of 10 completions.', xpReward: 50, target: 10),
-          QuestLevel(description: 'Log a total of 25 completions.', xpReward: 100, target: 25),
-          QuestLevel(description: 'Log a total of 100 completions.', xpReward: 200, target: 100),
-          QuestLevel(description: 'Log a total of 500 completions.', xpReward: 500, target: 500),
-          QuestLevel(description: 'Log a total of 1000 completions.', xpReward: 800, target: 1000),
-          QuestLevel(description: 'Log a total of 3000 completions.', xpReward: 1600, target: 3000),
-          QuestLevel(description: 'Log a total of 10000 completions.', xpReward: 10000, target: 10000),
+          QuestLevel(description: 'Log 3 total completions.', xpReward: 20, target: 3),
+          QuestLevel(description: 'Log 10 total completions.', xpReward: 75, target: 10),
+          QuestLevel(description: 'Log 25 total completions.', xpReward: 50, target: 25),
+          QuestLevel(description: 'Log 100 total completions.', xpReward: 100, target: 100),
+          QuestLevel(description: 'Log 500 total completions.', xpReward: 250, target: 500),
+          QuestLevel(description: 'Log 1000 total completions.', xpReward: 500, target: 1000),
+          QuestLevel(description: 'Log 2500 total completions.', xpReward: 3000, target: 2500),
+          QuestLevel(description: 'Log 5000 total completions.', xpReward: 6000, target: 5000),
+          QuestLevel(description: 'Log 10000 total completions.', xpReward: 10000, target: 10000),
         ],
         getProgress: (a, l, g) => l.where((log) => log.isCheckable).length),
     Quest(
-      id: 'q_repeat_timed',
+        id: 'q5',
+        title: 'Activity Specialist',
+        icon: Icons.psychology_outlined,
+        levels: [
+          QuestLevel(description: 'Log 10 hours in a single timed activity.', xpReward: 150, target: 10),
+          QuestLevel(description: 'Log 25 hours in a single timed activity.', xpReward: 250, target: 25),
+          QuestLevel(description: 'Log 100 hours in a single timed activity.', xpReward: 500, target: 100),
+          QuestLevel(description: 'Log 500 hours in a single timed activity.', xpReward: 1000, target: 1000),
+          QuestLevel(description: 'Log 1500 hours in a single timed activity.', xpReward: 2000, target: 1500),
+          QuestLevel(description: 'Log 4000 hours in a single timed activity.', xpReward: 5000, target: 4000),
+          QuestLevel(description: 'Log 10000 hours in a single timed activity.', xpReward: 10000, target: 10000),
+        ],
+        getProgress: (a, l, g) {
+          final timedActivities = a.whereType<TimedActivity>();
+          if (timedActivities.isEmpty) return 0;
+          return timedActivities.map((activity) {
+            return l.where((log) => log.activityName == activity.name && !log.isCheckable)
+                .fold<Duration>(Duration.zero, (p, e) => p + e.duration).inHours;
+          }).reduce(max);
+        }),
+    Quest(
+        id: 'q6',
+        title: 'Routine Master',
+        icon: Icons.checklist_rtl_outlined,
+        levels: [
+          QuestLevel(description: 'Log 5 completions for a single checkable activity.', xpReward: 25, target: 5),
+          QuestLevel(description: 'Log 20 completions for a single checkable activity.', xpReward: 100, target: 20),
+          QuestLevel(description: 'Log 150 completions for a single checkable activity.', xpReward: 250, target: 150),
+          QuestLevel(description: 'Log 500 completions for a single checkable activity.', xpReward: 500, target: 500),
+          QuestLevel(description: 'Log 1500 completions for a single checkable activity.', xpReward: 1000, target: 1500),
+          QuestLevel(description: 'Log 4000 completions for a single checkable activity.', xpReward: 3000, target: 4000),
+          QuestLevel(description: 'Log 10000 completions for a single checkable activity.', xpReward: 10000, target: 10000),
+        ],
+        getProgress: (a, l, g) {
+          final checkableActivities = a.whereType<CheckableActivity>();
+          if (checkableActivities.isEmpty) return 0;
+          return checkableActivities.map((activity) {
+            return l.where((log) => log.activityName == activity.name && log.isCheckable).length;
+          }).reduce((v, e) => max(v,e));
+        }),
+    Quest(
+      id: 'q_repeat_1',
       title: 'Extra Effort',
       icon: Icons.repeat,
       isRepeatable: true,
-      levels: [QuestLevel(description: 'Log 2 hours in any timed activity. (Repeatable)', xpReward: 50, target: 2)],
+      levels: [QuestLevel(description: 'Log 2 hours in any timed activity to earn XP.', xpReward: 50, target: 2)],
       getProgress: (a, l, g) => l.fold<Duration>(Duration.zero, (p, e) => p + e.duration).inHours,
     ),
     Quest(
@@ -137,10 +183,12 @@ class ProgressService {
       title: 'Consistency Check',
       icon: Icons.repeat_one,
       isRepeatable: true,
-      levels: [QuestLevel(description: 'Log 5 completions in any checkable activity. (Repeatable)', xpReward: 30, target: 5)],
+      levels: [QuestLevel(description: 'Log 5 completions in any checkable activity. (Repeatable)', xpReward: 50, target: 5)],
       getProgress: (a, l, g) => l.where((log) => log.isCheckable).length,
     ),
   ];
+
+  static List<Quest> get quests => _quests;
 
   int get totalXp {
     int xp = 0;
