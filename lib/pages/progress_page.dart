@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/activity.dart';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
@@ -22,7 +24,7 @@ class Quest {
   final IconData icon;
   final bool isRepeatable;
   final List<QuestLevel> levels;
-  final num Function(List<Activity>, List<ActivityLog>, List<Goal>) getProgress;
+  final num Function(List<Activity>, List<ActivityLog>, List<Goal>, int, bool) getProgress;
 
   const Quest({
     required this.id,
@@ -66,11 +68,15 @@ class ProgressService {
   final List<Activity> activities;
   final List<ActivityLog> activityLogs;
   final List<Goal> goals;
+  final int launchCount;
+  final bool hasRatedApp;
 
   ProgressService({
     required this.activities,
     required this.activityLogs,
     required this.goals,
+    required this.launchCount,
+    required this.hasRatedApp,
   });
 
   static const List<Rank> ranks = [
@@ -89,30 +95,28 @@ class ProgressService {
         id: 'q1',
         title: 'First Step',
         icon: Icons.add_circle_outline,
-        levels: [QuestLevel(description: 'Create a new custom activity.', xpReward: 30, target: 1)],
-        getProgress: (a, l, g) => (a.length > 2) ? 1 : 0),
+        levels: [QuestLevel(description: 'Create your own custom activity.', xpReward: 30, target: 1)],
+        getProgress: (a, l, g, lc, hr) => (a.length > 2) ? 1 : 0),
     Quest(
         id: 'q2',
         title: 'Goal Setter',
         icon: Icons.flag_outlined,
         levels: [QuestLevel(description: 'Create your first goal.', xpReward: 40, target: 1)],
-        getProgress: (a, l, g) => g.isNotEmpty ? 1 : 0),
+        getProgress: (a, l, g, lc, hr) => g.isNotEmpty ? 1 : 0),
     Quest(
         id: 'q3',
         title: 'Locking in',
         icon: Icons.hourglass_top_outlined,
         levels: [
-          QuestLevel(description: 'Log a total of 1 hour.', xpReward: 50, target: 1),
-          QuestLevel(description: 'Log a total of 3 hours.', xpReward: 100, target: 3),
-          QuestLevel(description: 'Log a total of 10 hours.', xpReward: 200, target: 10),
-          QuestLevel(description: 'Log a total of 50 hours.', xpReward: 400, target: 50),
-          QuestLevel(description: 'Log a total of 100 hours.', xpReward: 600, target: 100),
-          QuestLevel(description: 'Log a total of 500 hours.', xpReward: 1000, target: 500),
-          QuestLevel(description: 'Log a total of 1000 hours.', xpReward: 1600, target: 1000),
-          QuestLevel(description: 'Log a total of 300 hours.', xpReward: 4000, target: 3000),
+          QuestLevel(description: 'Log a total of 1 hour in any timed activity.', xpReward: 60, target: 1),
+          QuestLevel(description: 'Log a total of 10 hours in any timed activity.', xpReward: 150, target: 10),
+          QuestLevel(description: 'Log a total of 25 hours in the "Focus" activity.', xpReward: 250, target: 25),
+          QuestLevel(description: 'Log a total of 100 hours.', xpReward: 500, target: 100),
+          QuestLevel(description: 'Log a total of 500 hours.', xpReward: 1200, target: 500),
+          QuestLevel(description: 'Log a total of 2000 hours.', xpReward: 3000, target: 2000),
           QuestLevel(description: 'Log a total of 10000 hours.', xpReward: 10000, target: 10000),
         ],
-        getProgress: (a, l, g) => l.fold<Duration>(Duration.zero, (p, e) => p + e.duration).inHours),
+        getProgress: (a, l, g, lc, hr) => l.fold<Duration>(Duration.zero, (p, e) => p + e.duration).inHours),
     Quest(
         id: 'q4',
         title: 'Habit Builder',
@@ -128,7 +132,7 @@ class ProgressService {
           QuestLevel(description: 'Log 5000 total completions.', xpReward: 6000, target: 5000),
           QuestLevel(description: 'Log 10000 total completions.', xpReward: 10000, target: 10000),
         ],
-        getProgress: (a, l, g) => l.where((log) => log.isCheckable).length),
+        getProgress: (a, l, g, lc, hr) => l.where((log) => log.isCheckable).length),
     Quest(
         id: 'q5',
         title: 'Activity Specialist',
@@ -142,7 +146,7 @@ class ProgressService {
           QuestLevel(description: 'Log 4000 hours in a single timed activity.', xpReward: 5000, target: 4000),
           QuestLevel(description: 'Log 10000 hours in a single timed activity.', xpReward: 10000, target: 10000),
         ],
-        getProgress: (a, l, g) {
+        getProgress: (a, l, g, lc, hr) {
           final timedActivities = a.whereType<TimedActivity>();
           if (timedActivities.isEmpty) return 0;
           return timedActivities.map((activity) {
@@ -163,7 +167,7 @@ class ProgressService {
           QuestLevel(description: 'Log 4000 completions for a single checkable activity.', xpReward: 3000, target: 4000),
           QuestLevel(description: 'Log 10000 completions for a single checkable activity.', xpReward: 10000, target: 10000),
         ],
-        getProgress: (a, l, g) {
+        getProgress: (a, l, g, lc, hr) {
           final checkableActivities = a.whereType<CheckableActivity>();
           if (checkableActivities.isEmpty) return 0;
           return checkableActivities.map((activity) {
@@ -171,12 +175,32 @@ class ProgressService {
           }).reduce((v, e) => max(v,e));
         }),
     Quest(
+        id: 'q7_logins',
+        title: 'Regular Visitor',
+        icon: Icons.login,
+        levels: [
+          QuestLevel(description: 'Launch the app 3 times.', xpReward: 25, target: 3),
+          QuestLevel(description: 'Launch the app 10 times.', xpReward: 50, target: 10),
+          QuestLevel(description: 'Launch the app 30 times.', xpReward: 100, target: 30),
+          QuestLevel(description: 'Launch the app 100 times.', xpReward: 250, target: 100),
+          QuestLevel(description: 'Launch the app 365 times.', xpReward: 1000, target: 365),
+          QuestLevel(description: 'Launch the app 1825 times.', xpReward: 3000, target: 1825),
+          QuestLevel(description: 'Launch the app 10000 times.', xpReward: 10000, target: 10000),
+        ],
+        getProgress: (a, l, g, launchCount, hr) => launchCount),
+    Quest(
+        id: 'q8_rate',
+        title: 'Supporter',
+        icon: Icons.rate_review_outlined,
+        levels: [QuestLevel(description: 'Rate the app on the Google Play store :)\n [to do this just click this text].', xpReward: 200, target: 1)],
+        getProgress: (a, l, g, lc, hasRated) => hasRated ? 1 : 0),
+    Quest(
       id: 'q_repeat_1',
       title: 'Extra Effort',
       icon: Icons.repeat,
       isRepeatable: true,
       levels: [QuestLevel(description: 'Log 2 hours in any timed activity to earn XP.', xpReward: 50, target: 2)],
-      getProgress: (a, l, g) => l.fold<Duration>(Duration.zero, (p, e) => p + e.duration).inHours,
+      getProgress: (a, l, g, lc, hr) => l.fold<Duration>(Duration.zero, (p, e) => p + e.duration).inHours,
     ),
     Quest(
       id: 'q_repeat_checkable',
@@ -184,7 +208,7 @@ class ProgressService {
       icon: Icons.repeat_one,
       isRepeatable: true,
       levels: [QuestLevel(description: 'Log 5 completions in any checkable activity. (Repeatable)', xpReward: 50, target: 5)],
-      getProgress: (a, l, g) => l.where((log) => log.isCheckable).length,
+      getProgress: (a, l, g, lc, hr) => l.where((log) => log.isCheckable).length,
     ),
   ];
 
@@ -193,7 +217,7 @@ class ProgressService {
   int get totalXp {
     int xp = 0;
     for (var quest in _quests) {
-      final progress = quest.getProgress(activities, activityLogs, goals);
+      final progress = quest.getProgress(activities, activityLogs, goals, launchCount, hasRatedApp);
       if (quest.isRepeatable) {
         final level = quest.levels.first;
         if (level.target > 0) {
@@ -226,7 +250,7 @@ class ProgressService {
   List<ActiveQuestInfo> get activeQuests {
     final List<ActiveQuestInfo> active = [];
     for (var quest in _quests) {
-      final progress = quest.getProgress(activities, activityLogs, goals);
+      final progress = quest.getProgress(activities, activityLogs, goals, launchCount, hasRatedApp);
       if (quest.isRepeatable) {
         active.add(ActiveQuestInfo(
           quest: quest,
@@ -268,12 +292,14 @@ class ProgressPage extends StatefulWidget {
   final List<Activity> activities;
   final List<ActivityLog> activityLogs;
   final List<Goal> goals;
+  final int launchCount;
 
   const ProgressPage({
     super.key,
     required this.activities,
     required this.activityLogs,
     required this.goals,
+    required this.launchCount,
   });
 
   @override
@@ -282,15 +308,52 @@ class ProgressPage extends StatefulWidget {
 
 class _ProgressPageState extends State<ProgressPage> {
   late ProgressService _progressService;
+  bool _hasRatedApp = false;
 
   @override
   void initState() {
     super.initState();
+    _loadRateStatus();
+    _updateProgressService();
+  }
+
+  void _updateProgressService() {
     _progressService = ProgressService(
       activities: widget.activities,
       activityLogs: widget.activityLogs,
       goals: widget.goals,
+      launchCount: widget.launchCount,
+      hasRatedApp: _hasRatedApp,
     );
+  }
+
+  Future<void> _loadRateStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _hasRatedApp = prefs.getBool('hasRatedApp') ?? false;
+        _updateProgressService();
+      });
+    }
+  }
+
+  Future<void> _handleRateApp() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasRatedApp', true);
+
+    const url = 'https://play.google.com/store/apps/details?id=com.example.lockin';
+    final uri = Uri.parse(url);
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+
+    if (mounted) {
+      setState(() {
+        _hasRatedApp = true;
+        _updateProgressService();
+      });
+    }
   }
 
   @override
@@ -298,13 +361,10 @@ class _ProgressPageState extends State<ProgressPage> {
     super.didUpdateWidget(oldWidget);
     if (widget.activities != oldWidget.activities ||
         widget.activityLogs != oldWidget.activityLogs ||
-        widget.goals != oldWidget.goals) {
+        widget.goals != oldWidget.goals ||
+        widget.launchCount != oldWidget.launchCount) {
       setState(() {
-        _progressService = ProgressService(
-          activities: widget.activities,
-          activityLogs: widget.activityLogs,
-          goals: widget.goals,
-        );
+        _updateProgressService();
       });
     }
   }
@@ -411,7 +471,7 @@ class _ProgressPageState extends State<ProgressPage> {
                   progressPercent = max(0.0, progressValue / (progressTotal > 0 ? progressTotal : 1));
                 }
 
-                return Card(
+                final questCard = Card(
                   margin: const EdgeInsets.symmetric(vertical: 4.0),
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
@@ -425,30 +485,39 @@ class _ProgressPageState extends State<ProgressPage> {
                           subtitle: Text(nextLevel.description),
                           trailing: Text('+${nextLevel.xpReward} XP', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                          child: Column(
-                            children: [
-                              LinearProgressIndicator(
-                                value: progressPercent,
-                                minHeight: 8,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('${progressValue.toInt()}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                                  Text('${progressTotal.toInt()}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                                ],
-                              ),
-                            ],
+                        if (quest.id != 'q8_rate')
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                            child: Column(
+                              children: [
+                                LinearProgressIndicator(
+                                  value: progressPercent,
+                                  minHeight: 8,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('${progressValue.toInt()}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                    Text('${progressTotal.toInt()}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
                 );
+
+                if (quest.id == 'q8_rate' && !_hasRatedApp) {
+                  return InkWell(
+                    onTap: _handleRateApp,
+                    child: questCard,
+                  );
+                }
+                return questCard;
               },
             ),
           const SizedBox(height: 80),
