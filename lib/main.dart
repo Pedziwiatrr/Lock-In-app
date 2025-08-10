@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'pages/home_page.dart';
-import 'utils/ad_manager.dart';
 import 'dart:convert';
+import 'dart:async';
 
 void main() async {
   print('[DEBUG] Starting LockIn Tracker App');
@@ -27,99 +27,51 @@ void main() async {
     await prefs.setString('activities', jsonEncode(defaultActivities));
   }
 
+  final Completer<void> consentCompleter = Completer<void>();
+
+  print('[DEBUG] Starting consent info update');
+  ConsentInformation.instance.requestConsentInfoUpdate(
+    ConsentRequestParameters(),
+        () async {
+      final consentStatus = await ConsentInformation.instance.getConsentStatus();
+      print('[DEBUG] Consent status after update: $consentStatus');
+
+      if (await ConsentInformation.instance.isConsentFormAvailable()) {
+        print('[DEBUG] Consent form available and required, loading form');
+        ConsentForm.loadConsentForm(
+              (ConsentForm consentForm) {
+            consentForm.show(
+                  (FormError? error) {
+                if (error != null) {
+                  print('[DEBUG] Consent form error: ${error.message}');
+                }
+                consentCompleter.complete();
+              },
+            );
+          },
+              (FormError error) {
+            print('[DEBUG] Load consent form error: ${error.message}');
+            consentCompleter.complete();
+          },
+        );
+      } else {
+        print('[DEBUG] Consent form not available or not required');
+        consentCompleter.complete();
+      }
+    },
+        (FormError error) {
+      print('[DEBUG] Consent info update error: ${error.message}');
+      consentCompleter.complete();
+    },
+  );
+
+  await consentCompleter.future;
+
   try {
     await MobileAds.instance.initialize();
     print('[DEBUG] Mobile Ads initialized');
-
-    bool consentAsked = prefs.getBool('consentAsked') ?? false;
-    print('[DEBUG] Consent asked previously: $consentAsked');
-
-    ConsentStatus consentStatus = await ConsentInformation.instance.getConsentStatus();
-    print('[DEBUG] Initial consent status: $consentStatus');
-
-    if (!consentAsked || consentStatus == ConsentStatus.required) {
-      print('[DEBUG] Starting consent info update');
-      ConsentInformation.instance.requestConsentInfoUpdate(
-        ConsentRequestParameters(),
-            () async {
-          consentStatus = await ConsentInformation.instance.getConsentStatus();
-          print('[DEBUG] Consent status after update: $consentStatus');
-
-          if (await ConsentInformation.instance.isConsentFormAvailable()) {
-            print('[DEBUG] Consent form available and required, loading form');
-            ConsentForm.loadConsentForm(
-                  (ConsentForm consentForm) async {
-                consentForm.show(
-                      (FormError? error) async {
-                    if (error != null) {
-                      print('[DEBUG] Consent form error: ${error.message}');
-                      await prefs.setBool('personalizedAdsConsent', false);
-                      print('[DEBUG] Personalized ads disabled due to form error');
-                    } else {
-                      print('[DEBUG] Initializing consent form');
-                      final status = await ConsentInformation.instance.getConsentStatus();
-                      final canRequest = await ConsentInformation.instance.canRequestAds();
-                      bool personalizedAds = status == ConsentStatus.obtained && canRequest;
-
-                      if (personalizedAds) {
-                        final requestConfig = await MobileAds.instance.getRequestConfiguration();
-                        personalizedAds = requestConfig.tagForChildDirectedTreatment == null &&
-                            requestConfig.tagForUnderAgeOfConsent == null &&
-                            requestConfig.maxAdContentRating == null;
-                      }
-
-                      await prefs.setBool('personalizedAdsConsent', personalizedAds);
-                      print('[DEBUG] Consent initialized: personalizedAdsConsent=$personalizedAds');
-                      print('[DEBUG] Consent status after form: $status, Can request ads: $canRequest');
-                    }
-                    await prefs.setBool('consentAsked', true);
-                    await AdManager.initialize();
-                  },
-                );
-              },
-                  (FormError error) async {
-                print('[DEBUG] Load consent form error: ${error.message}');
-                await prefs.setBool('personalizedAdsConsent', false);
-                await prefs.setBool('consentAsked', true);
-                print('[DEBUG] Personalized ads disabled due to load error');
-                await AdManager.initialize();
-              },
-            );
-          } else {
-            print('[DEBUG] Consent form not available or not required');
-            bool personalizedAds = consentStatus == ConsentStatus.obtained;
-            if (personalizedAds) {
-              final requestConfig = await MobileAds.instance.getRequestConfiguration();
-              personalizedAds = requestConfig.tagForChildDirectedTreatment == null &&
-                  requestConfig.tagForUnderAgeOfConsent == null &&
-                  requestConfig.maxAdContentRating == null;
-            }
-            await prefs.setBool('personalizedAdsConsent', personalizedAds);
-            await prefs.setBool('consentAsked', true);
-            print('[DEBUG] Personalized ads set to: $personalizedAds');
-            await AdManager.initialize();
-          }
-        },
-            (FormError error) async {
-          print('[DEBUG] Consent info update error: ${error.message}');
-          await prefs.setBool('personalizedAdsConsent', false);
-          await prefs.setBool('consentAsked', true);
-          print('[DEBUG] Personalized ads disabled due to update error');
-          await AdManager.initialize();
-        },
-      );
-    } else {
-      print('[DEBUG] Skipping consent flow, using stored consent');
-      bool personalizedAds = prefs.getBool('personalizedAdsConsent') ?? false;
-      print('[DEBUG] Using stored personalizedAdsConsent=$personalizedAds');
-      await AdManager.initialize();
-    }
   } catch (e) {
     print('[DEBUG] AdMob or UMP init error: $e');
-    await prefs.setBool('personalizedAdsConsent', false);
-    await prefs.setBool('consentAsked', true);
-    print('[DEBUG] Personalized ads disabled due to init error');
-    await AdManager.initialize();
   }
 
   print('[DEBUG] App started with launchCount=$launchCount');
