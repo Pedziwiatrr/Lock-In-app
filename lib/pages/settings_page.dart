@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../utils/privacy_policy_screen.dart';
-import '../utils/ad_manager.dart';
 
 class SettingsPage extends StatefulWidget {
   final bool isDarkMode;
@@ -24,139 +22,59 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late bool _isDarkMode;
-  bool? _personalizedAdsConsent;
-  bool _consentLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _isDarkMode = widget.isDarkMode;
-    _loadConsent();
   }
 
-  Future<void> _loadConsent() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _personalizedAdsConsent = prefs.getBool('personalizedAdsConsent') ?? false;
-      _consentLoaded = true;
-    });
-  }
-
-  Future<void> _showConsentForm() async {
-    final prefs = await SharedPreferences.getInstance();
+  void _showConsentForm() {
     ConsentInformation.instance.reset();
+    final params = ConsentRequestParameters();
+
     ConsentInformation.instance.requestConsentInfoUpdate(
-      ConsentRequestParameters(
-        consentDebugSettings: ConsentDebugSettings(
-          debugGeography: DebugGeography.debugGeographyEea,
-        ),
-      ),
+      params,
           () async {
         if (await ConsentInformation.instance.isConsentFormAvailable()) {
-          print('[DEBUG] Consent form available and required, loading form');
-          ConsentForm.loadConsentForm(
-                (ConsentForm consentForm) async {
-              consentForm.show(
-                    (FormError? error) async {
-                  if (error != null) {
-                    print('[DEBUG] Consent form error: ${error.message}');
-                    await prefs.setBool('personalizedAdsConsent', false);
-                    setState(() {
-                      _personalizedAdsConsent = false;
-                    });
-                    await AdManager.initialize();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Failed to process consent')),
-                      );
-                    }
-                  } else {
-                    print('[DEBUG] Initializing consent form');
-                    final status = await ConsentInformation.instance.getConsentStatus();
-                    final canRequest = await ConsentInformation.instance.canRequestAds();
-                    bool personalizedAds = status == ConsentStatus.obtained && canRequest;
-
-                    if (personalizedAds) {
-                      final requestConfig = await MobileAds.instance.getRequestConfiguration();
-                      personalizedAds = requestConfig.tagForChildDirectedTreatment == null &&
-                          requestConfig.tagForUnderAgeOfConsent == null &&
-                          requestConfig.maxAdContentRating == null;
-                    }
-
-                    await prefs.setBool('personalizedAdsConsent', personalizedAds);
-                    setState(() {
-                      _personalizedAdsConsent = personalizedAds;
-                    });
-                    await AdManager.initialize();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            personalizedAds
-                                ? 'Personalized ads enabled'
-                                : 'Personalized ads disabled',
-                          ),
-                        ),
-                      );
-                    }
-                    print('[DEBUG] Consent initialized: personalizedAdsConsent=$personalizedAds');
-                    print('[DEBUG] Consent status after form: $status, Can request ads: $canRequest');
-                  }
-                },
-              );
-            },
-                (FormError loadError) async {
-              print('[DEBUG] Load consent form error: ${loadError.message}');
-              await prefs.setBool('personalizedAdsConsent', false);
-              setState(() {
-                _personalizedAdsConsent = false;
-              });
-              await AdManager.initialize();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Failed to load consent form')),
-                );
-              }
-            },
-          );
+          _loadAndShowConsentForm();
         } else {
-          print('[DEBUG] Consent form not available or not required');
-          bool personalizedAds = (await ConsentInformation.instance.getConsentStatus()) == ConsentStatus.obtained;
-          if (personalizedAds) {
-            final requestConfig = await MobileAds.instance.getRequestConfiguration();
-            personalizedAds = requestConfig.tagForChildDirectedTreatment == null &&
-                requestConfig.tagForUnderAgeOfConsent == null &&
-                requestConfig.maxAdContentRating == null;
-          }
-          await prefs.setBool('personalizedAdsConsent', personalizedAds);
-          setState(() {
-            _personalizedAdsConsent = personalizedAds;
-          });
-          await AdManager.initialize();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  personalizedAds
-                      ? 'Personalized ads enabled'
-                      : 'Personalized ads disabled',
-                ),
-              ),
+              const SnackBar(content: Text('Consent form is not available at this time.')),
             );
           }
-          print('[DEBUG] Personalized ads set to: $personalizedAds');
         }
       },
-          (FormError updateError) async {
-        print('[DEBUG] Consent info update error: ${updateError.message}');
-        await prefs.setBool('personalizedAdsConsent', false);
-        setState(() {
-          _personalizedAdsConsent = false;
-        });
-        await AdManager.initialize();
+          (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update consent info')),
+            SnackBar(content: Text('Failed to update consent info: ${error.message}')),
+          );
+        }
+      },
+    );
+  }
+
+  void _loadAndShowConsentForm() {
+    ConsentForm.loadConsentForm(
+          (ConsentForm consentForm) {
+        // The form is shown here. The callback runs when the form is dismissed.
+        consentForm.show((formError) {
+          // The recursive call that caused the loop has been removed.
+          if (formError != null) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Consent form error: ${formError.message}')),
+              );
+            }
+          }
+        });
+      },
+          (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to load consent form: ${error.message}')),
           );
         }
       },
@@ -238,15 +156,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const Divider(),
           ListTile(
-            title: const Text('Personalized Ads'),
-            subtitle: Text(
-              !_consentLoaded
-                  ? 'Loading...'
-                  : (_personalizedAdsConsent! ? 'Enabled' : 'Disabled'),
-            ),
+            title: const Text('Ad Preferences'),
+            subtitle: const Text('Manage your consent settings.'),
             trailing: ElevatedButton(
-              onPressed: !_consentLoaded ? null : _showConsentForm,
-              child: const Text('Change ad settings'),
+              onPressed: _showConsentForm,
+              child: const Text('Change'),
             ),
           ),
           const Divider(),
