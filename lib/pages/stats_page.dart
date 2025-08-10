@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import '../models/activity.dart';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
@@ -30,7 +31,7 @@ class HistoryDataProvider {
         'start': start,
         'end': end,
         'selectedActivity': selectedActivity,
-      }).timeout(const Duration(seconds: 5), onTimeout: () {
+      }).timeout(const Duration(seconds: 10), onTimeout: () {
         print('[DEBUG] getGoalStatusesForPeriod: Timed out');
         return [];
       });
@@ -51,134 +52,76 @@ class HistoryDataProvider {
     final selectedActivity = params['selectedActivity'] as String?;
 
     print('[DEBUG] _computeGoalStatusesForPeriod: Processing ${goals.length} goals, ${activityLogs.length} logs');
-
     final List<Map<String, dynamic>> statuses = [];
 
     for (var goal in goals.where((g) =>
     g.goalDuration > Duration.zero &&
-        (selectedActivity == null || g.activityName == selectedActivity) &&
-        g.startDate.isBefore(end.add(const Duration(days: 1))) &&
-        (g.endDate == null || g.endDate!.isAfter(start)))) {
-      DateTime periodStart;
-      DateTime periodEnd;
-
+        (selectedActivity == null || g.activityName == selectedActivity))) {
+      DateTime iterDate;
       switch (goal.goalType) {
         case GoalType.daily:
-          periodStart = DateTime(start.year, start.month, start.day);
-          periodEnd = periodStart.add(const Duration(days: 1, milliseconds: -1));
-          while (periodStart.isBefore(end.add(const Duration(days: 1))) &&
-              (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
-            final activityLogsFiltered = activityLogs
-                .where((log) =>
-            log.activityName == goal.activityName &&
-                log.date.isAfter(periodStart.subtract(const Duration(milliseconds: 1))) &&
-                log.date.isBefore(periodStart.add(const Duration(days: 1))))
-                .toList();
-
-            bool isCheckable = activities
-                .firstWhere((a) => a.name == goal.activityName, orElse: () => CheckableActivity(name: goal.activityName))
-            is CheckableActivity;
-
-            bool isSuccessful = false;
-            if (isCheckable) {
-              final completions = activityLogsFiltered.where((log) => log.isCheckable).length;
-              isSuccessful = completions >= goal.goalDuration.inMinutes;
-            } else {
-              final totalTime = activityLogsFiltered.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
-              isSuccessful = totalTime >= goal.goalDuration;
+          iterDate = DateTime(start.year, start.month, start.day);
+          while (iterDate.isBefore(end.add(const Duration(days: 1)))) {
+            if (goal.startDate.isAfter(iterDate) || (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
+              iterDate = iterDate.add(const Duration(days: 1));
+              continue;
             }
-
-            bool isPeriodEnded = periodStart.isBefore(DateTime.now());
-
-            statuses.add({
-              'goal': goal,
-              'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
-              'date': periodStart,
-            });
-
-            periodStart = periodStart.add(const Duration(days: 1));
-            periodEnd = periodStart.add(const Duration(days: 1, milliseconds: -1));
+            statuses.add(_calculateStatusForPeriod(goal, activityLogs, activities, iterDate, iterDate.add(const Duration(days: 1))));
+            iterDate = iterDate.add(const Duration(days: 1));
           }
           break;
         case GoalType.weekly:
-          periodStart = start.subtract(Duration(days: start.weekday - 1));
-          periodEnd = periodStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
-          while (periodStart.isBefore(end.add(const Duration(days: 1))) &&
-              (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
-            final activityLogsFiltered = activityLogs
-                .where((log) =>
-            log.activityName == goal.activityName &&
-                log.date.isAfter(periodStart.subtract(const Duration(milliseconds: 1))) &&
-                log.date.isBefore(periodEnd.add(const Duration(milliseconds: 1))))
-                .toList();
-
-            bool isCheckable = activities
-                .firstWhere((a) => a.name == goal.activityName, orElse: () => CheckableActivity(name: goal.activityName))
-            is CheckableActivity;
-
-            bool isSuccessful = false;
-            if (isCheckable) {
-              final completions = activityLogsFiltered.where((log) => log.isCheckable).length;
-              isSuccessful = completions >= goal.goalDuration.inMinutes;
-            } else {
-              final totalTime = activityLogsFiltered.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
-              isSuccessful = totalTime >= goal.goalDuration;
+          iterDate = start.subtract(Duration(days: start.weekday - 1));
+          while (iterDate.isBefore(end.add(const Duration(days: 1)))) {
+            if (goal.startDate.isAfter(iterDate.add(const Duration(days: 7))) || (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
+              iterDate = iterDate.add(const Duration(days: 7));
+              continue;
             }
-
-            bool isPeriodEnded = periodEnd.isBefore(DateTime.now());
-
-            statuses.add({
-              'goal': goal,
-              'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
-              'date': periodStart,
-            });
-
-            periodStart = periodStart.add(const Duration(days: 7));
-            periodEnd = periodStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+            statuses.add(_calculateStatusForPeriod(goal, activityLogs, activities, iterDate, iterDate.add(const Duration(days: 7))));
+            iterDate = iterDate.add(const Duration(days: 7));
           }
           break;
         case GoalType.monthly:
-          periodStart = DateTime(start.year, start.month, 1);
-          periodEnd = DateTime(start.year, start.month + 1, 1).subtract(const Duration(milliseconds: 1));
-          while (periodStart.isBefore(end.add(const Duration(days: 1))) &&
-              (goal.endDate == null || periodStart.isBefore(goal.endDate!))) {
-            final activityLogsFiltered = activityLogs
-                .where((log) =>
-            log.activityName == goal.activityName &&
-                log.date.isAfter(periodStart.subtract(const Duration(milliseconds: 1))) &&
-                log.date.isBefore(periodEnd.add(const Duration(milliseconds: 1))))
-                .toList();
-
-            bool isCheckable = activities
-                .firstWhere((a) => a.name == goal.activityName, orElse: () => CheckableActivity(name: goal.activityName))
-            is CheckableActivity;
-
-            bool isSuccessful = false;
-            if (isCheckable) {
-              final completions = activityLogsFiltered.where((log) => log.isCheckable).length;
-              isSuccessful = completions >= goal.goalDuration.inMinutes;
-            } else {
-              final totalTime = activityLogsFiltered.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
-              isSuccessful = totalTime >= goal.goalDuration;
+          iterDate = DateTime(start.year, start.month, 1);
+          while (iterDate.isBefore(end.add(const Duration(days: 1)))) {
+            final nextMonth = DateTime(iterDate.year, iterDate.month + 1, 1);
+            if (goal.startDate.isAfter(nextMonth) || (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
+              iterDate = nextMonth;
+              continue;
             }
-
-            bool isPeriodEnded = periodEnd.isBefore(DateTime.now());
-
-            statuses.add({
-              'goal': goal,
-              'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
-              'date': periodStart,
-            });
-
-            periodStart = DateTime(periodStart.year, periodStart.month + 1, 1);
-            periodEnd = DateTime(periodStart.year, periodStart.month + 1, 1).subtract(const Duration(milliseconds: 1));
+            statuses.add(_calculateStatusForPeriod(goal, activityLogs, activities, iterDate, nextMonth));
+            iterDate = nextMonth;
           }
           break;
       }
     }
-
     print('[DEBUG] _computeGoalStatusesForPeriod: Returning ${statuses.length} statuses');
     return statuses;
+  }
+
+  static Map<String, dynamic> _calculateStatusForPeriod(Goal goal, List<ActivityLog> allLogs, List<Activity> activities, DateTime periodStart, DateTime periodEnd) {
+    final activityLogsFiltered = allLogs.where((log) =>
+    log.activityName == goal.activityName &&
+        !log.date.isBefore(periodStart) &&
+        log.date.isBefore(periodEnd)).toList();
+
+    bool isCheckable = activities.any((a) => a.name == goal.activityName && a is CheckableActivity);
+
+    bool isSuccessful = false;
+    if (isCheckable) {
+      final completions = activityLogsFiltered.where((log) => log.isCheckable).length;
+      isSuccessful = completions >= goal.goalDuration.inMinutes;
+    } else {
+      final totalTime = activityLogsFiltered.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
+      isSuccessful = totalTime >= goal.goalDuration;
+    }
+
+    bool isPeriodEnded = periodEnd.isBefore(DateTime.now());
+    return {
+      'goal': goal,
+      'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
+      'date': periodStart,
+    };
   }
 
   Future<int> getCurrentStreak(String? selectedActivity) async {
@@ -186,101 +129,48 @@ class HistoryDataProvider {
     try {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
-      int streak = 0;
-      DateTime currentDate = today;
-      final earliestDate = DateTime(2000); // Prevent infinite loop
+      final firstLogDate = activityLogs.isNotEmpty
+          ? activityLogs.map((e) => e.date).reduce((a, b) => a.isBefore(b) ? a : b)
+          : today;
 
-      while (currentDate.isAfter(earliestDate)) {
-        final statuses = await getGoalStatusesForPeriod(currentDate, currentDate, selectedActivity)
-            .timeout(const Duration(seconds: 3), onTimeout: () {
-          print('[DEBUG] getGoalStatusesForPeriod in getCurrentStreak: Timed out');
-          return [];
-        });
-        final dailyStatuses = statuses.where((s) => s['goal'].goalType == GoalType.daily).toList();
+      final allDailyStatuses = await getGoalStatusesForPeriod(firstLogDate, now, selectedActivity);
 
-        if (dailyStatuses.isEmpty) {
-          print('[DEBUG] getCurrentStreak: No daily statuses for $currentDate, breaking');
-          break;
-        }
-
-        final allSuccessful = dailyStatuses.every((s) => s['status'] == 'successful');
-        if (!allSuccessful) {
-          print('[DEBUG] getCurrentStreak: Not all successful for $currentDate, breaking');
-          break;
-        }
-
-        streak++;
-        currentDate = currentDate.subtract(const Duration(days: 1));
+      final dailyStatusesByDate = <DateTime, bool>{};
+      for (var status in allDailyStatuses.where((s) => (s['goal'] as Goal).goalType == GoalType.daily)) {
+        final date = status['date'] as DateTime;
+        final isSuccess = status['status'] == 'successful';
+        dailyStatusesByDate[date] = dailyStatusesByDate.containsKey(date) ? dailyStatusesByDate[date]! && isSuccess : isSuccess;
       }
 
-      print('[DEBUG] getCurrentStreak: Returning streak=$streak');
-      return streak;
+      int currentStreak = 0;
+      DateTime currentDate = today;
+      while (dailyStatusesByDate[currentDate] == true) {
+        currentStreak++;
+        currentDate = currentDate.subtract(const Duration(days: 1));
+      }
+      print('[DEBUG] getCurrentStreak: Returning streak=$currentStreak');
+      return currentStreak;
     } catch (e) {
       print('[DEBUG] getCurrentStreak: Error: $e');
       return 0;
     }
   }
+}
 
-  Future<Map<String, dynamic>> getLongestStreak(String? selectedActivity) async {
-    print('[DEBUG] getLongestStreak: Starting, selectedActivity=$selectedActivity');
-    try {
-      final now = DateTime.now();
-      final start = activityLogs.isNotEmpty
-          ? activityLogs
-          .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
-          .reduce((a, b) => a.isBefore(b) ? a : b)
-          : DateTime(2000);
+class GoalStatsData {
+  final int successful;
+  final int ongoing;
+  final int currentStreak;
+  final int longestStreak;
+  final DateTime? longestStreakStart;
 
-      int longestStreak = 0;
-      DateTime? longestStreakStart;
-      int currentStreak = 0;
-      DateTime? currentStreakStart;
-      DateTime currentDate = now;
-
-      while (currentDate.isAfter(start) || currentDate.isAtSameMomentAs(start)) {
-        final statuses = await getGoalStatusesForPeriod(currentDate, currentDate, selectedActivity)
-            .timeout(const Duration(seconds: 3), onTimeout: () {
-          print('[DEBUG] getGoalStatusesForPeriod in getLongestStreak: Timed out');
-          return [];
-        });
-        final dailyStatuses = statuses.where((s) => s['goal'].goalType == GoalType.daily).toList();
-
-        if (dailyStatuses.isEmpty) {
-          currentStreak = 0;
-          currentStreakStart = null;
-        } else {
-          final allSuccessful = dailyStatuses.every((s) => s['status'] == 'successful');
-          if (allSuccessful) {
-            currentStreak++;
-            currentStreakStart ??= currentDate;
-          } else {
-            if (currentStreak > longestStreak) {
-              longestStreak = currentStreak;
-              longestStreakStart = currentStreakStart;
-            }
-            currentStreak = 0;
-            currentStreakStart = null;
-          }
-        }
-
-        currentDate = currentDate.subtract(const Duration(days: 1));
-      }
-
-      if (currentStreak > longestStreak) {
-        longestStreak = currentStreak;
-        longestStreakStart = currentStreakStart;
-      }
-
-      print('[DEBUG] getLongestStreak: Returning length=$longestStreak, start=$longestStreakStart');
-      return {
-        'length': longestStreak,
-        'startDate': longestStreakStart,
-      };
-    } catch (e) {
-      print('[DEBUG] getLongestStreak: Error: $e');
-      return {'length': 0, 'startDate': null};
-    }
-  }
+  GoalStatsData({
+    required this.successful,
+    required this.ongoing,
+    required this.currentStreak,
+    required this.longestStreak,
+    this.longestStreakStart,
+  });
 }
 
 class StatsPage extends StatefulWidget {
@@ -304,17 +194,109 @@ class StatsPage extends StatefulWidget {
 class _StatsPageState extends State<StatsPage> {
   StatsPeriod selectedPeriod = StatsPeriod.total;
   String? selectedActivity;
+  Future<GoalStatsData>? _goalStatsFuture;
 
   @override
   void initState() {
     super.initState();
     print('[DEBUG] StatsPage initState: launchCount=${widget.launchCount}, goals=${widget.goals.length}, logs=${widget.activityLogs.length}, activities=${widget.activities.length}');
+    _fetchGoalData();
+  }
+
+  @override
+  void didUpdateWidget(covariant StatsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.goals != oldWidget.goals || widget.activityLogs != oldWidget.activityLogs || widget.activities != oldWidget.activities) {
+      _fetchGoalData();
+    }
   }
 
   @override
   void dispose() {
     print('[DEBUG] StatsPage: Disposing');
     super.dispose();
+  }
+
+  void _fetchGoalData() {
+    setState(() {
+      _goalStatsFuture = _getCombinedGoalData();
+    });
+  }
+
+  Future<GoalStatsData> _getCombinedGoalData() async {
+    print('[DEBUG] _getCombinedGoalData: Starting for selectedActivity=$selectedActivity');
+    try {
+      final historyProvider = HistoryDataProvider(
+        goals: widget.goals,
+        activityLogs: widget.activityLogs,
+        activities: widget.activities,
+      );
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final firstLogDate = widget.activityLogs.isNotEmpty
+          ? widget.activityLogs.map((e) => e.date).reduce((a, b) => a.isBefore(b) ? a : b)
+          : today;
+
+      final allStatuses = await historyProvider.getGoalStatusesForPeriod(firstLogDate, now, selectedActivity);
+
+      final dailyStatusesByDate = <DateTime, bool>{};
+      for(var status in allStatuses.where((s) => (s['goal'] as Goal).goalType == GoalType.daily)) {
+        final date = status['date'] as DateTime;
+        final isSuccess = status['status'] == 'successful';
+        dailyStatusesByDate[date] = dailyStatusesByDate.containsKey(date) ? dailyStatusesByDate[date]! && isSuccess : isSuccess;
+      }
+
+      int currentStreak = 0;
+      DateTime currentDate = today;
+      while(dailyStatusesByDate[currentDate] == true) {
+        currentStreak++;
+        currentDate = currentDate.subtract(const Duration(days: 1));
+      }
+
+      int longestStreak = 0;
+      DateTime? longestStreakStart;
+      int tempStreak = 0;
+      DateTime? tempStreakStart;
+
+      final sortedDates = dailyStatusesByDate.keys.toList()..sort((a,b) => b.compareTo(a));
+
+      for (var date in sortedDates) {
+        if (dailyStatusesByDate[date] == true) {
+          tempStreak++;
+          tempStreakStart ??= date;
+        } else {
+          if (tempStreak > longestStreak) {
+            longestStreak = tempStreak;
+            longestStreakStart = tempStreakStart?.subtract(Duration(days: tempStreak -1));
+          }
+          tempStreak = 0;
+          tempStreakStart = null;
+        }
+      }
+      if (tempStreak > longestStreak) {
+        longestStreak = tempStreak;
+        longestStreakStart = tempStreakStart?.subtract(Duration(days: tempStreak - 1));
+      }
+
+      int successful = allStatuses.where((s) => s['status'] == 'successful').length;
+      int ongoing = allStatuses.where((s) => s['status'] == 'ongoing').length;
+
+      final result = GoalStatsData(
+        successful: successful,
+        ongoing: ongoing,
+        currentStreak: currentStreak,
+        longestStreak: longestStreak,
+        longestStreakStart: longestStreakStart,
+      );
+
+      print('[DEBUG] _getCombinedGoalData: Completed successfully.');
+      return result;
+
+    } catch (e) {
+      print('[DEBUG] _getCombinedGoalData: Error: $e');
+      return GoalStatsData(successful: 0, ongoing: 0, currentStreak: 0, longestStreak: 0);
+    }
   }
 
   List<BarChartGroupData> getTimedChartData() {
@@ -463,80 +445,6 @@ class _StatsPageState extends State<StatsPage> {
     return result;
   }
 
-  Future<Map<String, dynamic>> getGoalStatusChartData() async {
-    print('[DEBUG] getGoalStatusChartData: Starting for period=$selectedPeriod, selectedActivity=$selectedActivity');
-    try {
-      final now = DateTime.now();
-      DateTime from;
-      DateTime to;
-
-      switch (selectedPeriod) {
-        case StatsPeriod.day:
-          from = DateTime(now.year, now.month, now.day);
-          to = from;
-          break;
-        case StatsPeriod.week:
-          from = now.subtract(Duration(days: now.weekday - 1));
-          to = from.add(const Duration(days: 6));
-          break;
-        case StatsPeriod.month:
-          from = DateTime(now.year, now.month, 1);
-          to = DateTime(now.year, now.month + 1, 1).subtract(const Duration(days: 1));
-          break;
-        case StatsPeriod.total:
-          from = widget.activityLogs.isNotEmpty
-              ? widget.activityLogs
-              .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
-              .reduce((a, b) => a.isBefore(b) ? a : b)
-              : DateTime(2000);
-          to = now;
-          break;
-      }
-
-      final historyProvider = HistoryDataProvider(
-        goals: widget.goals,
-        activityLogs: widget.activityLogs,
-        activities: widget.activities,
-      );
-
-      final statuses = await historyProvider.getGoalStatusesForPeriod(from, to, selectedActivity)
-          .timeout(const Duration(seconds: 5), onTimeout: () {
-        print('[DEBUG] getGoalStatusesForPeriod in getGoalStatusChartData: Timed out');
-        return [];
-      });
-
-      int successful = 0;
-      int ongoing = 0;
-
-      for (var statusEntry in statuses) {
-        final status = statusEntry['status'] as String;
-        if (status == 'successful') {
-          successful++;
-        } else if (status == 'ongoing') {
-          ongoing++;
-        }
-      }
-
-      final longestStreak = await historyProvider.getLongestStreak(selectedActivity)
-          .timeout(const Duration(seconds: 5), onTimeout: () {
-        print('[DEBUG] getLongestStreak in getGoalStatusChartData: Timed out');
-        return {'length': 0, 'startDate': null};
-      });
-
-      final result = {
-        'successful': successful,
-        'ongoing': ongoing,
-        'longestStreak': longestStreak['length'],
-        'longestStreakStart': longestStreak['startDate'],
-      };
-      print('[DEBUG] getGoalStatusChartData: Completed with result=$result');
-      return result;
-    } catch (e) {
-      print('[DEBUG] getGoalStatusChartData: Error: $e');
-      return {'successful': 0, 'ongoing': 0, 'longestStreak': 0, 'longestStreakStart': null};
-    }
-  }
-
   double getMaxY(List<BarChartGroupData> barGroups) {
     if (barGroups.isEmpty) return 10.0;
     final maxYValue = barGroups
@@ -633,11 +541,6 @@ class _StatsPageState extends State<StatsPage> {
     final timedChartData = getTimedChartData();
     final checkableChartData = getCheckableChartData();
     final monthLabels = getMonthLabels();
-    final historyProvider = HistoryDataProvider(
-      goals: widget.goals,
-      activityLogs: widget.activityLogs,
-      activities: widget.activities,
-    );
 
     print('[DEBUG] StatsPage build: selectedPeriod=$selectedPeriod, selectedActivity=$selectedActivity');
     return SingleChildScrollView(
@@ -656,7 +559,10 @@ class _StatsPageState extends State<StatsPage> {
             ],
             onChanged: (val) {
               if (val != null) {
-                setState(() => selectedPeriod = val);
+                setState(() {
+                  selectedPeriod = val;
+                  _fetchGoalData();
+                });
               }
             },
           ),
@@ -671,7 +577,10 @@ class _StatsPageState extends State<StatsPage> {
                   .map((a) => DropdownMenuItem<String>(value: a.name, child: Text(a.name))),
             ],
             onChanged: (val) {
-              setState(() => selectedActivity = val);
+              setState(() {
+                selectedActivity = val;
+                _fetchGoalData();
+              });
             },
           ),
           const SizedBox(height: 20),
@@ -895,8 +804,8 @@ class _StatsPageState extends State<StatsPage> {
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          FutureBuilder<Map<String, dynamic>>(
-            future: getGoalStatusChartData(),
+          FutureBuilder<GoalStatsData>(
+            future: _goalStatsFuture,
             builder: (context, snapshot) {
               print('[DEBUG] FutureBuilder goalStatus: state=${snapshot.connectionState}, error=${snapshot.error}');
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -906,38 +815,24 @@ class _StatsPageState extends State<StatsPage> {
                 print('[DEBUG] FutureBuilder goalStatus: Error: ${snapshot.error}');
                 return const Text('Error loading goal data.');
               }
-              final goalStatusData = snapshot.data ?? {'successful': 0, 'ongoing': 0, 'longestStreak': 0, 'longestStreakStart': null};
+              final goalStatusData = snapshot.data ?? GoalStatsData(successful: 0, ongoing: 0, currentStreak: 0, longestStreak: 0);
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '🏆 Goals Completed: ${goalStatusData['successful']}',
+                    '🏆 Goals Completed: ${goalStatusData.successful}',
                     style: const TextStyle(fontSize: 18),
                   ),
                   const SizedBox(height: 10),
-                  FutureBuilder<int>(
-                    future: historyProvider.getCurrentStreak(selectedActivity),
-                    builder: (context, streakSnapshot) {
-                      print('[DEBUG] FutureBuilder streak: state=${streakSnapshot.connectionState}, error=${streakSnapshot.error}');
-                      if (streakSnapshot.connectionState == ConnectionState.waiting) {
-                        return const CircularProgressIndicator();
-                      }
-                      if (streakSnapshot.hasError) {
-                        print('[DEBUG] FutureBuilder streak: Error: ${streakSnapshot.error}');
-                        return const Text('Error loading streak data.');
-                      }
-                      final currentStreak = streakSnapshot.data ?? 0;
-                      return Text(
-                        '🔥 Current Streak: $currentStreak days',
-                        style: const TextStyle(fontSize: 18),
-                      );
-                    },
+                  Text(
+                    '🔥 Current Streak: ${goalStatusData.currentStreak} days',
+                    style: const TextStyle(fontSize: 18),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    goalStatusData['longestStreak'] == 0
+                    goalStatusData.longestStreak == 0
                         ? '🔥 Longest Streak: None'
-                        : '🔥 Longest Streak: ${goalStatusData['longestStreak']} days (started ${goalStatusData['longestStreakStart']?.toString().split(' ')[0] ?? 'N/A'})',
+                        : '🔥 Longest Streak: ${goalStatusData.longestStreak} days (started ${goalStatusData.longestStreakStart?.toString().split(' ')[0] ?? 'N/A'})',
                     style: const TextStyle(fontSize: 18),
                   ),
                 ],
