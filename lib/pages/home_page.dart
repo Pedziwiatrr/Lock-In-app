@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math';
+import '../main.dart';
 import '../models/activity.dart';
 import '../models/goal.dart';
 import '../models/activity_log.dart';
@@ -47,6 +48,9 @@ class _HomePageState extends State<HomePage> {
   static const int maxActivities = 10;
   static const int maxGoals = 10;
 
+  Set<String> _previousCompletedQuestIds = {};
+  bool _hasRatedApp = false;
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +66,9 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadData() async {
     print('[DEBUG] _loadData start');
+    final prefs = await SharedPreferences.getInstance();
+    _hasRatedApp = prefs.getBool('hasRatedApp') ?? false;
+
     final result = await _loadDataFromPrefs(widget.launchCount == 1 ? 1 : 0);
     print('[DEBUG] _loadData result: activities=${result['activities'].length}, logs=${result['logs'].length}, goals=${result['goals'].length}');
     setState(() {
@@ -69,7 +76,95 @@ class _HomePageState extends State<HomePage> {
       activityLogs = result['logs'] as List<ActivityLog>;
       goals = result['goals'] as List<Goal>;
     });
+    _updatePreviousQuestsState();
     print('[DEBUG] _loadData setState: activities=${activities.length}');
+  }
+
+  Set<String> _getAllCompletedQuestLevelIds() {
+    final service = ProgressService(
+        activities: activities,
+        activityLogs: activityLogs,
+        goals: goals,
+        launchCount: widget.launchCount,
+        hasRatedApp: _hasRatedApp);
+    final Set<String> completedIds = {};
+
+    for (var quest in ProgressService.quests) {
+      final progress = quest.getProgress(activities, activityLogs, goals, widget.launchCount, _hasRatedApp);
+      if (quest.isRepeatable) {
+        final level = quest.levels.first;
+        if (level.target > 0) {
+          final completions = (progress / level.target).floor();
+          for (int i = 1; i <= completions; i++) {
+            completedIds.add('${quest.id}-$i');
+          }
+        }
+      } else {
+        for (var level in quest.levels) {
+          if (progress >= level.target) {
+            completedIds.add('${quest.id}-${level.target}');
+          }
+        }
+      }
+    }
+    return completedIds;
+  }
+
+  void _updatePreviousQuestsState() {
+    _previousCompletedQuestIds = _getAllCompletedQuestLevelIds();
+  }
+
+  void _checkQuestCompletions() {
+    final currentCompletedIds = _getAllCompletedQuestLevelIds();
+    final newlyCompletedIds = currentCompletedIds.difference(_previousCompletedQuestIds);
+
+    if (newlyCompletedIds.isNotEmpty) {
+      for (final id in newlyCompletedIds) {
+        for (var quest in ProgressService.quests) {
+          QuestLevel? completedLevel;
+          if (quest.isRepeatable) {
+            if (id.startsWith(quest.id)) {
+              completedLevel = quest.levels.first;
+            }
+          } else {
+            for (var level in quest.levels) {
+              if ('${quest.id}-${level.target}' == id) {
+                completedLevel = level;
+                break;
+              }
+            }
+          }
+
+          if (completedLevel != null) {
+            scaffoldMessengerKey.currentState?.showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                margin: const EdgeInsets.all(12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                content: Row(
+                  children: [
+                    const Icon(Icons.emoji_events, color: Colors.amber),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Quest Completed!', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text('"${quest.title}" (+${completedLevel.xpReward} XP)'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+            break;
+          }
+        }
+      }
+    }
+    _previousCompletedQuestIds = currentCompletedIds;
   }
 
   static Future<Map<String, dynamic>> _loadDataFromPrefs(int shouldLoadDefaultData) async {
@@ -186,6 +281,8 @@ class _HomePageState extends State<HomePage> {
       'logs': activityLogs,
       'goals': goals,
     });
+
+    _checkQuestCompletions();
   }
 
   static Future<void> _saveDataToPrefs(Map<String, dynamic> data) async {
@@ -200,6 +297,12 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _resetData() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('activities');
+    await prefs.remove('activityLogs');
+    await prefs.remove('goals');
+    await prefs.remove('launchCount');
+    await prefs.remove('hasRatedApp');
+
     setState(() {
       activities = [];
       activityLogs = [];
@@ -209,9 +312,7 @@ class _HomePageState extends State<HomePage> {
       stopwatch.reset();
       _timer?.cancel();
     });
-    await prefs.remove('activities');
-    await prefs.remove('activityLogs');
-    await prefs.remove('goals');
+
     await _loadData();
   }
 
@@ -426,7 +527,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   void updateActivities() {
-    setState(() {});
     _saveData();
   }
 
@@ -509,6 +609,7 @@ class _HomePageState extends State<HomePage> {
               activities: activities,
               activityLogs: activityLogs,
               goals: goals,
+              launchCount: widget.launchCount,
             ),
             StatsPage(
               activityLogs: activityLogs,
