@@ -84,7 +84,7 @@ class ProgressService {
     Rank(name: 'Intermediate', xpRequired: 100, icon: Icons.school),
     Rank(name: 'Grinder', xpRequired: 400, icon: Icons.construction),
     Rank(name: 'Expert', xpRequired: 1200, icon: Icons.insights),
-    Rank(name: 'Master', xpRequired: 2700, icon: Icons.military_tech),
+    Rank(name: 'Naster', xpRequired: 2700, icon: Icons.military_tech),
     Rank(name: 'Champion', xpRequired: 6000, icon: Icons.star),
     Rank(name: 'Legend', xpRequired: 10000, icon: Icons.emoji_events),
     Rank(name: 'Truly Locked In', xpRequired: 20000, icon: Icons.auto_awesome),
@@ -180,11 +180,12 @@ class ProgressService {
         icon: Icons.login,
         levels: [
           QuestLevel(description: 'Launch the app 3 times.', xpReward: 25, target: 3),
-          QuestLevel(description: 'Launch the app 10 times.', xpReward: 50, target: 10),
+          QuestLevel(description: 'Launch the app 7 times.', xpReward: 50, target: 7),
           QuestLevel(description: 'Launch the app 30 times.', xpReward: 100, target: 30),
           QuestLevel(description: 'Launch the app 100 times.', xpReward: 250, target: 100),
           QuestLevel(description: 'Launch the app 365 times.', xpReward: 1000, target: 365),
-          QuestLevel(description: 'Launch the app 1825 times.', xpReward: 3000, target: 1825),
+          QuestLevel(description: 'Launch the app 1000 times.', xpReward: 2000, target: 10000),
+          QuestLevel(description: 'Launch the app 3000 times.', xpReward: 4000, target: 3000),
           QuestLevel(description: 'Launch the app 10000 times.', xpReward: 10000, target: 10000),
         ],
         getProgress: (a, l, g, launchCount, hr) => launchCount),
@@ -192,7 +193,7 @@ class ProgressService {
         id: 'q8_rate',
         title: 'Supporter',
         icon: Icons.rate_review_outlined,
-        levels: [QuestLevel(description: 'Rate the app on the Google Play store :)\n [to do this just click this text].', xpReward: 200, target: 1)],
+        levels: [QuestLevel(description: 'Rate the app on the Google Play store - to do so just click on this text :)', xpReward: 150, target: 1)],
         getProgress: (a, l, g, lc, hasRated) => hasRated ? 1 : 0),
     Quest(
       id: 'q_repeat_1',
@@ -314,27 +315,26 @@ class _ProgressPageState extends State<ProgressPage> {
   void initState() {
     super.initState();
     _loadRateStatus();
-    _updateProgressService();
   }
 
   void _updateProgressService() {
-    _progressService = ProgressService(
-      activities: widget.activities,
-      activityLogs: widget.activityLogs,
-      goals: widget.goals,
-      launchCount: widget.launchCount,
-      hasRatedApp: _hasRatedApp,
-    );
+    if (mounted) {
+      setState(() {
+        _progressService = ProgressService(
+          activities: widget.activities,
+          activityLogs: widget.activityLogs,
+          goals: widget.goals,
+          launchCount: widget.launchCount,
+          hasRatedApp: _hasRatedApp,
+        );
+      });
+    }
   }
 
   Future<void> _loadRateStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _hasRatedApp = prefs.getBool('hasRatedApp') ?? false;
-        _updateProgressService();
-      });
-    }
+    _hasRatedApp = prefs.getBool('hasRatedApp') ?? false;
+    _updateProgressService();
   }
 
   Future<void> _handleRateApp() async {
@@ -363,9 +363,7 @@ class _ProgressPageState extends State<ProgressPage> {
         widget.activityLogs != oldWidget.activityLogs ||
         widget.goals != oldWidget.goals ||
         widget.launchCount != oldWidget.launchCount) {
-      setState(() {
-        _updateProgressService();
-      });
+      _updateProgressService();
     }
   }
 
