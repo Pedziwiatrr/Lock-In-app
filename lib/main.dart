@@ -38,26 +38,31 @@ void main() async {
       final consentStatus = await ConsentInformation.instance.getConsentStatus();
       print('[DEBUG] Consent status after update: $consentStatus');
 
-      if (await ConsentInformation.instance.isConsentFormAvailable()) {
-        print('[DEBUG] Consent form available and required, loading form');
-        ConsentForm.loadConsentForm(
-              (ConsentForm consentForm) {
-            consentForm.show(
-                  (FormError? error) {
-                if (error != null) {
-                  print('[DEBUG] Consent form error: ${error.message}');
-                }
-                consentCompleter.complete();
-              },
-            );
-          },
-              (FormError error) {
-            print('[DEBUG] Load consent form error: ${error.message}');
-            consentCompleter.complete();
-          },
-        );
+      if (consentStatus == ConsentStatus.required) {
+        if (await ConsentInformation.instance.isConsentFormAvailable()) {
+          print('[DEBUG] Consent form available and required, loading form');
+          ConsentForm.loadConsentForm(
+                (ConsentForm consentForm) {
+              consentForm.show(
+                    (FormError? error) {
+                  if (error != null) {
+                    print('[DEBUG] Consent form error: ${error.message}');
+                  }
+                  consentCompleter.complete();
+                },
+              );
+            },
+                (FormError error) {
+              print('[DEBUG] Load consent form error: ${error.message}');
+              consentCompleter.complete();
+            },
+          );
+        } else {
+          print('[DEBUG] Consent form not available despite being required');
+          consentCompleter.complete();
+        }
       } else {
-        print('[DEBUG] Consent form not available or not required');
+        print('[DEBUG] Consent form not required. Status: $consentStatus');
         consentCompleter.complete();
       }
     },
@@ -117,6 +122,7 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
     await prefs.remove('activities');
     await prefs.remove('activityLogs');
     await prefs.remove('goals');
+    await prefs.remove('launchCount');
   }
 
   @override
