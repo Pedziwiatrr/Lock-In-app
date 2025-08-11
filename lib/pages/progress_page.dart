@@ -84,7 +84,7 @@ class ProgressService {
     Rank(name: 'Intermediate', xpRequired: 100, icon: Icons.school),
     Rank(name: 'Grinder', xpRequired: 400, icon: Icons.construction),
     Rank(name: 'Expert', xpRequired: 1200, icon: Icons.insights),
-    Rank(name: 'Naster', xpRequired: 2700, icon: Icons.military_tech),
+    Rank(name: 'Master', xpRequired: 2700, icon: Icons.military_tech),
     Rank(name: 'Champion', xpRequired: 6000, icon: Icons.star),
     Rank(name: 'Legend', xpRequired: 10000, icon: Icons.emoji_events),
     Rank(name: 'Truly Locked In', xpRequired: 20000, icon: Icons.auto_awesome),
