@@ -5,6 +5,8 @@ import 'pages/home_page.dart';
 import 'dart:convert';
 import 'dart:async';
 
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
 void main() async {
   print('[DEBUG] Starting LockIn Tracker App');
   WidgetsFlutterBinding.ensureInitialized();
@@ -126,6 +128,7 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scaffoldMessengerKey: scaffoldMessengerKey,
       title: 'LockIn Tracker',
       theme: ThemeData.light(),
       darkTheme: ThemeData.dark(),
