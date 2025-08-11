@@ -191,10 +191,13 @@ class StatsPage extends StatefulWidget {
   State<StatsPage> createState() => _StatsPageState();
 }
 
-class _StatsPageState extends State<StatsPage> {
+class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixin {
   StatsPeriod selectedPeriod = StatsPeriod.total;
   String? selectedActivity;
   Future<GoalStatsData>? _goalStatsFuture;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -528,6 +531,7 @@ class _StatsPageState extends State<StatsPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final stats = filteredActivities();
     final timeTotals = stats['timeTotals'] as Map<String, Duration>;
     final completionTotals = stats['completionTotals'] as Map<String, int>;
