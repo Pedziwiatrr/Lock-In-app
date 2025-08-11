@@ -99,7 +99,7 @@ class ProgressService {
         getProgress: (a, l, g, lc, hr) => (a.length > 2) ? 1 : 0),
     Quest(
         id: 'q2',
-        title: 'Goal Setter',
+        title: 'Ambitious',
         icon: Icons.flag_outlined,
         levels: [QuestLevel(description: 'Create your first goal.', xpReward: 40, target: 1)],
         getProgress: (a, l, g, lc, hr) => g.isNotEmpty ? 1 : 0),
@@ -308,18 +308,20 @@ class ProgressPage extends StatefulWidget {
 }
 
 class _ProgressPageState extends State<ProgressPage> {
-  late ProgressService _progressService;
+  ProgressService? _progressService;
   bool _hasRatedApp = false;
 
   @override
   void initState() {
     super.initState();
-    _loadRateStatus();
+    _loadDataAndInitService();
   }
 
-  void _updateProgressService() {
+  Future<void> _loadDataAndInitService() async {
+    final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {
+        _hasRatedApp = prefs.getBool('hasRatedApp') ?? false;
         _progressService = ProgressService(
           activities: widget.activities,
           activityLogs: widget.activityLogs,
@@ -329,12 +331,6 @@ class _ProgressPageState extends State<ProgressPage> {
         );
       });
     }
-  }
-
-  Future<void> _loadRateStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    _hasRatedApp = prefs.getBool('hasRatedApp') ?? false;
-    _updateProgressService();
   }
 
   Future<void> _handleRateApp() async {
@@ -351,7 +347,13 @@ class _ProgressPageState extends State<ProgressPage> {
     if (mounted) {
       setState(() {
         _hasRatedApp = true;
-        _updateProgressService();
+        _progressService = ProgressService(
+          activities: widget.activities,
+          activityLogs: widget.activityLogs,
+          goals: widget.goals,
+          launchCount: widget.launchCount,
+          hasRatedApp: _hasRatedApp,
+        );
       });
     }
   }
@@ -363,16 +365,28 @@ class _ProgressPageState extends State<ProgressPage> {
         widget.activityLogs != oldWidget.activityLogs ||
         widget.goals != oldWidget.goals ||
         widget.launchCount != oldWidget.launchCount) {
-      _updateProgressService();
+      setState(() {
+        _progressService = ProgressService(
+          activities: widget.activities,
+          activityLogs: widget.activityLogs,
+          goals: widget.goals,
+          launchCount: widget.launchCount,
+          hasRatedApp: _hasRatedApp,
+        );
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentRank = _progressService.currentRank;
-    final nextRank = _progressService.nextRank;
-    final totalXp = _progressService.totalXp;
-    final activeQuests = _progressService.activeQuests;
+    if (_progressService == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final currentRank = _progressService!.currentRank;
+    final nextRank = _progressService!.nextRank;
+    final totalXp = _progressService!.totalXp;
+    final activeQuests = _progressService!.activeQuests;
 
     double progressToNextRank = 0.0;
     int xpForNextRank = 0;
