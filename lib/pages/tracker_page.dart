@@ -59,7 +59,40 @@ class _TrackerPageState extends State<TrackerPage> {
   final AdManager _adManager = AdManager.instance;
   int? _currentStreak;
 
+  @override
+  void initState() {
+    super.initState();
+    _updateStreak();
+  }
+
+  @override
+  void didUpdateWidget(TrackerPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.activityLogs != oldWidget.activityLogs || widget.goals != oldWidget.goals) {
+      _updateStreak();
+    }
+  }
+
+  void _updateStreak() {
+    final historyProvider = HistoryDataProvider(
+      goals: widget.goals,
+      activityLogs: widget.activityLogs,
+      activities: widget.activities,
+    );
+    historyProvider.getCurrentStreak(null).then((value) {
+      if (mounted) {
+        setState(() {
+          _currentStreak = value;
+        });
+      }
+    });
+  }
+
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
+    final now = DateTime.now();
+    final isToday = widget.selectedDate.year == now.year &&
+        widget.selectedDate.month == now.month &&
+        widget.selectedDate.day == now.day;
     final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
     final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
     final Map<String, Map<String, dynamic>> dateActivities = {};
@@ -88,18 +121,13 @@ class _TrackerPageState extends State<TrackerPage> {
       }
     }
 
-    if (widget.selectedActivity != null && widget.selectedDate.day == DateTime.now().day) {
+    if (widget.selectedActivity != null &&
+        widget.selectedActivity is TimedActivity &&
+        isToday &&
+        widget.isRunning) {
       final activityName = widget.selectedActivity!.name;
-      if (!dateActivities.containsKey(activityName)) {
-        dateActivities[activityName] = {
-          'isTimed': widget.selectedActivity is TimedActivity,
-          'totalDuration': Duration.zero,
-          'completions': 0,
-        };
-      }
-      if (widget.selectedActivity is TimedActivity) {
-        dateActivities[activityName]!['totalDuration'] = (dateActivities[activityName]!['totalDuration'] as Duration) + widget.elapsed;
-      }
+      dateActivities[activityName]!['totalDuration'] =
+          (dateActivities[activityName]!['totalDuration'] as Duration) + widget.elapsed;
     }
 
     return dateActivities;
@@ -123,9 +151,7 @@ class _TrackerPageState extends State<TrackerPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
+            onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
           TextButton(
@@ -150,124 +176,65 @@ class _TrackerPageState extends State<TrackerPage> {
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-    print("TrackerPage initState: launchCount = ${widget.launchCount}");
-    final historyProvider = HistoryDataProvider(
-      goals: widget.goals,
-      activityLogs: widget.activityLogs,
-      activities: widget.activities,
-    );
-    historyProvider.getCurrentStreak(null).then((value) {
-      if (mounted) {
-        setState(() {
-          _currentStreak = value;
-        });
-      }
-    });
-  }
-
   void _handleStopTimer() {
-    print("Stop button pressed");
     widget.onStopTimer();
     _handleAdAndSave();
   }
 
   void _handleAdAndSave() {
     if (widget.selectedActivity is TimedActivity && _adManager.shouldShowAd(widget.elapsed)) {
-      print("Ad shown");
       _adManager.showRewardedAd(
-        onUserEarnedReward: () {
-          widget.onResetTimer();
-        },
-        onAdDismissed: () {
-          widget.onResetTimer();
-        },
-        onAdFailedToShow: () {
-          print("Ad failed to show");
-          widget.onResetTimer();
-        },
+        onUserEarnedReward: widget.onResetTimer,
+        onAdDismissed: widget.onResetTimer,
+        onAdFailedToShow: widget.onResetTimer,
       );
     } else {
-      print("Ad not shown");
       widget.onResetTimer();
     }
   }
 
   void _handleCheckAndAd() {
-    print("Check button pressed");
     if (widget.isRunning) {
-      print("Stopping timer");
       widget.onStopTimer();
     }
     _adManager.incrementCheckUsage().then((_) {
       if (widget.selectedActivity is CheckableActivity && _adManager.shouldShowCheckAd()) {
-        print("Ad shown");
         _adManager.showRewardedAd(
-          onUserEarnedReward: () {
-            widget.onCheckActivity();
-          },
-          onAdDismissed: () {
-            widget.onCheckActivity();
-          },
-          onAdFailedToShow: () {
-            print("Ad failed to show");
-            widget.onCheckActivity();
-          },
+          onUserEarnedReward: widget.onCheckActivity,
+          onAdDismissed: widget.onCheckActivity,
+          onAdFailedToShow: widget.onCheckActivity,
         );
       } else {
-        print("Ad not shown");
         widget.onCheckActivity();
       }
     });
   }
 
   void _handleAddManual(int intVal) {
-    print("Add button pressed");
     if (widget.isRunning) {
-      print("Stopping timer");
       widget.onStopTimer();
     }
     if (widget.selectedActivity is TimedActivity) {
       _adManager.incrementStoperUsage().then((_) {
         if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
-          print("Ad shown");
           _adManager.showRewardedAd(
-            onUserEarnedReward: () {
-              widget.onAddManualTime(Duration(minutes: intVal));
-            },
-            onAdDismissed: () {
-              widget.onAddManualTime(Duration(minutes: intVal));
-            },
-            onAdFailedToShow: () {
-              print("Ad failed to show");
-              widget.onAddManualTime(Duration(minutes: intVal));
-            },
+            onUserEarnedReward: () => widget.onAddManualTime(Duration(minutes: intVal)),
+            onAdDismissed: () => widget.onAddManualTime(Duration(minutes: intVal)),
+            onAdFailedToShow: () => widget.onAddManualTime(Duration(minutes: intVal)),
           );
         } else {
-          print("Ad not shown");
           widget.onAddManualTime(Duration(minutes: intVal));
         }
       });
     } else if (widget.selectedActivity is CheckableActivity) {
       _adManager.incrementCheckUsage().then((_) {
         if (_adManager.shouldShowCheckAd()) {
-          print("Ad shown");
           _adManager.showRewardedAd(
-            onUserEarnedReward: () {
-              widget.onAddManualCompletion(intVal);
-            },
-            onAdDismissed: () {
-              widget.onAddManualCompletion(intVal);
-            },
-            onAdFailedToShow: () {
-              print("Ad failed to show");
-              widget.onAddManualCompletion(intVal);
-            },
+            onUserEarnedReward: () => widget.onAddManualCompletion(intVal),
+            onAdDismissed: () => widget.onAddManualCompletion(intVal),
+            onAdFailedToShow: () => widget.onAddManualCompletion(intVal),
           );
         } else {
-          print("Ad not shown");
           widget.onAddManualCompletion(intVal);
         }
       });
@@ -275,50 +242,30 @@ class _TrackerPageState extends State<TrackerPage> {
   }
 
   void _handleSubtractManual(int intVal) {
-    print("Subtract button pressed");
     if (widget.isRunning) {
-      print("Stopping timer");
       widget.onStopTimer();
     }
     if (widget.selectedActivity is TimedActivity) {
       _adManager.incrementStoperUsage().then((_) {
         if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
-          print("Ad shown");
           _adManager.showRewardedAd(
-            onUserEarnedReward: () {
-              widget.onSubtractManualTime(Duration(minutes: intVal));
-            },
-            onAdDismissed: () {
-              widget.onSubtractManualTime(Duration(minutes: intVal));
-            },
-            onAdFailedToShow: () {
-              print("Ad failed to show");
-              widget.onSubtractManualTime(Duration(minutes: intVal));
-            },
+            onUserEarnedReward: () => widget.onSubtractManualTime(Duration(minutes: intVal)),
+            onAdDismissed: () => widget.onSubtractManualTime(Duration(minutes: intVal)),
+            onAdFailedToShow: () => widget.onSubtractManualTime(Duration(minutes: intVal)),
           );
         } else {
-          print("Ad not shown");
           widget.onSubtractManualTime(Duration(minutes: intVal));
         }
       });
     } else if (widget.selectedActivity is CheckableActivity) {
       _adManager.incrementCheckUsage().then((_) {
         if (_adManager.shouldShowCheckAd()) {
-          print("Ad shown");
           _adManager.showRewardedAd(
-            onUserEarnedReward: () {
-              widget.onSubtractManualCompletion(intVal);
-            },
-            onAdDismissed: () {
-              widget.onSubtractManualCompletion(intVal);
-            },
-            onAdFailedToShow: () {
-              print("Ad failed to show");
-              widget.onSubtractManualCompletion(intVal);
-            },
+            onUserEarnedReward: () => widget.onSubtractManualCompletion(intVal),
+            onAdDismissed: () => widget.onSubtractManualCompletion(intVal),
+            onAdFailedToShow: () => widget.onSubtractManualCompletion(intVal),
           );
         } else {
-          print("Ad not shown");
           widget.onSubtractManualCompletion(intVal);
         }
       });
@@ -327,15 +274,20 @@ class _TrackerPageState extends State<TrackerPage> {
 
   @override
   void dispose() {
-    print("TrackerPage dispose called");
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final isToday = widget.selectedDate.year == now.year &&
+        widget.selectedDate.month == now.month &&
+        widget.selectedDate.day == now.day;
+
     final dateActivities = getActivitiesForSelectedDate();
     final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
     final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
+
     final dateCompletions = widget.selectedActivity != null && widget.selectedActivity is CheckableActivity
         ? widget.activityLogs
         .where((log) =>
@@ -353,8 +305,7 @@ class _TrackerPageState extends State<TrackerPage> {
       final totalDuration = activityData['totalDuration'] as Duration;
       final completions = activityData['completions'] as int;
       return isTimed ? totalDuration > Duration.zero : completions > 0;
-    })
-        .toList();
+    }).toList();
 
     bool canSubtractTime = false;
     bool canSubtractCompletion = false;
@@ -365,9 +316,6 @@ class _TrackerPageState extends State<TrackerPage> {
       canSubtractTime = widget.selectedActivity is TimedActivity && relevantLogs.any((log) => !log.isCheckable && log.duration > Duration.zero);
       canSubtractCompletion = widget.selectedActivity is CheckableActivity && relevantLogs.any((log) => log.isCheckable);
     }
-
-    final now = DateTime.now();
-    final isToday = widget.selectedDate.year == now.year && widget.selectedDate.month == now.month && widget.selectedDate.day == now.day;
 
     final filteredActivitiesWithGoals = widget.activities.where((activity) {
       final goal = widget.goals.firstWhere(
@@ -427,7 +375,7 @@ class _TrackerPageState extends State<TrackerPage> {
             if (widget.selectedActivity is TimedActivity)
               Center(
                 child: Text(
-                  formatDuration(widget.elapsed),
+                  formatDuration(dateActivities[widget.selectedActivity!.name]!['totalDuration'] as Duration),
                   style: const TextStyle(fontSize: 60),
                 ),
               )
@@ -444,32 +392,22 @@ class _TrackerPageState extends State<TrackerPage> {
               children: [
                 if (widget.selectedActivity is TimedActivity) ...[
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.isRunning || widget.selectedDate.isAfter(DateTime.now()))
+                    onPressed: (widget.selectedActivity == null || widget.isRunning || !isToday)
                         ? null
-                        : () {
-                      print("Start button pressed");
-                      _adManager.incrementStoperUsage().then((_) => widget.onStartTimer());
-                    },
+                        : () => _adManager.incrementStoperUsage().then((_) => widget.onStartTimer()),
                     child: const Text('Start'),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: widget.isRunning
-                        ? () {
-                      print("Stop button pressed");
-                      _handleStopTimer();
-                    }
-                        : null,
+                    onPressed: widget.isRunning ? _handleStopTimer : null,
                     child: const Text('Stop'),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero || widget.selectedDate.isAfter(DateTime.now()))
+                    onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero || !isToday)
                         ? null
                         : () {
-                      print("Finish button pressed");
                       if (widget.isRunning) {
-                        print("Calling handleStopTimer from Finish");
                         _handleStopTimer();
                       } else {
                         _handleAdAndSave();
@@ -479,12 +417,9 @@ class _TrackerPageState extends State<TrackerPage> {
                   ),
                 ] else if (widget.selectedActivity is CheckableActivity)
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.selectedDate.isAfter(DateTime.now()))
+                    onPressed: (widget.selectedActivity == null || !isToday)
                         ? null
-                        : () {
-                      print("Check button pressed");
-                      _handleCheckAndAd();
-                    },
+                        : _handleCheckAndAd,
                     child: const Text('Check', style: TextStyle(fontSize: 20)),
                   ),
               ],
@@ -495,17 +430,14 @@ class _TrackerPageState extends State<TrackerPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.isRunning || widget.selectedDate.isAfter(DateTime.now()))
+                    onPressed: (widget.selectedActivity == null || widget.isRunning || !isToday)
                         ? null
-                        : () {
-                      print("Add button pressed");
-                      showInputDialog(
-                        widget.selectedActivity is TimedActivity ? 'Add Time' : 'Add Completions',
-                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
-                        widget.selectedActivity is TimedActivity,
-                            (intVal) => _handleAddManual(intVal),
-                      );
-                    },
+                        : () => showInputDialog(
+                      widget.selectedActivity is TimedActivity ? 'Add Time' : 'Add Completions',
+                      widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
+                      widget.selectedActivity is TimedActivity,
+                          (intVal) => _handleAddManual(intVal),
+                    ),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                     child: const Text('+', style: TextStyle(fontSize: 30)),
                   ),
@@ -514,17 +446,14 @@ class _TrackerPageState extends State<TrackerPage> {
                     onPressed: (widget.selectedActivity == null ||
                         (widget.selectedActivity is TimedActivity && !canSubtractTime) ||
                         (widget.selectedActivity is CheckableActivity && !canSubtractCompletion) ||
-                        widget.selectedDate.isAfter(DateTime.now()))
+                        !isToday)
                         ? null
-                        : () {
-                      print("Subtract button pressed");
-                      showInputDialog(
-                        widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions',
-                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
-                        widget.selectedActivity is TimedActivity,
-                            (intVal) => _handleSubtractManual(intVal),
-                      );
-                    },
+                        : () => showInputDialog(
+                      widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions',
+                      widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
+                      widget.selectedActivity is TimedActivity,
+                          (intVal) => _handleSubtractManual(intVal),
+                    ),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                     child: const Text('-', style: TextStyle(fontSize: 30)),
                   ),
@@ -589,44 +518,38 @@ class _TrackerPageState extends State<TrackerPage> {
 
                 final monthStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, 1);
                 final monthEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month + 1, 1).subtract(const Duration(milliseconds: 1));
+                final weekStart = dateStart.subtract(Duration(days: widget.selectedDate.weekday - 1));
+                final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+
+                final goalPeriodStart = goal.goalType == GoalType.daily
+                    ? dateStart
+                    : goal.goalType == GoalType.weekly
+                    ? weekStart
+                    : monthStart;
+
+                final goalPeriodEnd = goal.goalType == GoalType.daily
+                    ? dateEnd
+                    : goal.goalType == GoalType.weekly
+                    ? weekEnd
+                    : monthEnd;
 
                 final dateTime = widget.activityLogs
                     .where((log) =>
                 log.activityName == activity.name &&
-                    log.date.isAfter(goal.goalType == GoalType.daily
-                        ? dateStart
-                        : goal.goalType == GoalType.weekly
-                        ? dateStart.subtract(Duration(days: widget.selectedDate.weekday - 1))
-                        : monthStart) &&
-                    log.date.isBefore(goal.goalType == GoalType.daily
-                        ? dateEnd
-                        : goal.goalType == GoalType.weekly
-                        ? dateStart
-                        .subtract(Duration(days: widget.selectedDate.weekday - 1))
-                        .add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59))
-                        : monthEnd))
+                    log.date.isAfter(goalPeriodStart) &&
+                    log.date.isBefore(goalPeriodEnd))
                     .fold(Duration.zero, (sum, log) => sum + log.duration) +
                     (widget.isRunning &&
                         widget.selectedActivity?.name == activity.name &&
-                        widget.selectedDate.day == DateTime.now().day
+                        isToday
                         ? widget.elapsed
                         : Duration.zero);
 
                 final dateCompletions = widget.activityLogs
                     .where((log) =>
                 log.activityName == activity.name &&
-                    log.date.isAfter(goal.goalType == GoalType.daily
-                        ? dateStart
-                        : goal.goalType == GoalType.weekly
-                        ? dateStart.subtract(Duration(days: widget.selectedDate.weekday - 1))
-                        : monthStart) &&
-                    log.date.isBefore(goal.goalType == GoalType.daily
-                        ? dateEnd
-                        : goal.goalType == GoalType.weekly
-                        ? dateStart
-                        .subtract(Duration(days: widget.selectedDate.weekday - 1))
-                        .add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59))
-                        : monthEnd) &&
+                    log.date.isAfter(goalPeriodStart) &&
+                    log.date.isBefore(goalPeriodEnd) &&
                     log.isCheckable)
                     .length;
 
