@@ -317,20 +317,12 @@ class _TrackerPageState extends State<TrackerPage> {
       canSubtractCompletion = widget.selectedActivity is CheckableActivity && relevantLogs.any((log) => log.isCheckable);
     }
 
-    final filteredActivitiesWithGoals = widget.activities.where((activity) {
-      final goal = widget.goals.firstWhere(
-            (g) =>
-        g.activityName == activity.name &&
-            g.startDate.isBefore(dateEnd) &&
-            (g.endDate == null || g.endDate!.isAfter(dateStart)) &&
-            g.goalDuration > Duration.zero,
-        orElse: () => Goal(
-          activityName: activity.name,
-          goalDuration: Duration.zero,
-          startDate: DateTime(2000),
-        ),
-      );
-      return goal.goalDuration > Duration.zero;
+    final Set<String> existingActivityNames = widget.activities.map((a) => a.name).toSet();
+    final activeGoals = widget.goals.where((goal) {
+      return existingActivityNames.contains(goal.activityName) &&
+          goal.goalDuration > Duration.zero &&
+          goal.startDate.isBefore(dateEnd) &&
+          (goal.endDate == null || goal.endDate!.isAfter(dateStart));
     }).toList();
 
     return SingleChildScrollView(
@@ -493,7 +485,7 @@ class _TrackerPageState extends State<TrackerPage> {
               '✅ Goals',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            filteredActivitiesWithGoals.isEmpty
+            activeGoals.isEmpty
                 ? const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Text('No goals set for this date.'),
@@ -501,20 +493,10 @@ class _TrackerPageState extends State<TrackerPage> {
                 : ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: filteredActivitiesWithGoals.length,
+              itemCount: activeGoals.length,
               itemBuilder: (context, index) {
-                final activity = filteredActivitiesWithGoals[index];
-                final goal = widget.goals.firstWhere(
-                      (g) =>
-                  g.activityName == activity.name &&
-                      g.startDate.isBefore(dateEnd) &&
-                      (g.endDate == null || g.endDate!.isAfter(dateStart)),
-                  orElse: () => Goal(
-                    activityName: activity.name,
-                    goalDuration: Duration.zero,
-                    startDate: DateTime(2000),
-                  ),
-                );
+                final goal = activeGoals[index];
+                final activity = widget.activities.firstWhere((act) => act.name == goal.activityName);
 
                 final monthStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, 1);
                 final monthEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month + 1, 1).subtract(const Duration(milliseconds: 1));

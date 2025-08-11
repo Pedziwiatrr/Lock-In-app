@@ -1,0 +1,5 @@
+> Wprowadzić timer do paska powiadomień
+> Wprowadzić powiadomienia z przypomnieniami o celach
+> Naprawić problem ze streakiem
+> Naprawić problem z zakładką Selected Date / Today w Tracker page
+> Naprawić problem z zakładką Goals w Tracker page
