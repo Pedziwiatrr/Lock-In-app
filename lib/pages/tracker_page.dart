@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/activity.dart';
 import '../models/activity_log.dart';
@@ -176,18 +175,6 @@ class _TrackerPageState extends State<TrackerPage> {
     );
   }
 
-  void _handleAdAndSave() {
-    if (widget.selectedActivity is TimedActivity && _adManager.shouldShowAd(widget.elapsed)) {
-      _adManager.showRewardedAd(
-        onUserEarnedReward: widget.onResetTimer,
-        onAdDismissed: widget.onResetTimer,
-        onAdFailedToShow: widget.onResetTimer,
-      );
-    } else {
-      widget.onResetTimer();
-    }
-  }
-
   void _handleCheckAndAd() {
     if (widget.isRunning) {
       widget.onStopTimer();
@@ -264,6 +251,19 @@ class _TrackerPageState extends State<TrackerPage> {
           widget.onSubtractManualCompletion(intVal);
         }
       });
+    }
+  }
+
+  void _handleFinish() {
+    final timeToLog = widget.elapsed;
+    widget.onStopTimer();
+
+    if (widget.selectedActivity is TimedActivity && _adManager.shouldShowAd(timeToLog)) {
+      _adManager.showRewardedAd(
+        onUserEarnedReward: widget.onResetTimer,
+        onAdDismissed: widget.onResetTimer,
+        onAdFailedToShow: widget.onResetTimer,
+      );
     }
   }
 
@@ -360,12 +360,7 @@ class _TrackerPageState extends State<TrackerPage> {
                   ElevatedButton(
                     onPressed: (widget.selectedActivity == null || (!widget.isRunning && widget.elapsed == Duration.zero) || !isToday)
                         ? null
-                        : () {
-                      if (widget.isRunning) {
-                        widget.onStopTimer();
-                      }
-                      _handleAdAndSave();
-                    },
+                        : _handleFinish,
                     child: const Text('Finish'),
                   ),
                 ] else if (widget.selectedActivity is CheckableActivity)

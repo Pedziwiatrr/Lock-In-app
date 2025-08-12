@@ -87,7 +87,7 @@ class _HomePageState extends State<HomePage> {
       activities = result['activities'] as List<Activity>;
       activityLogs = result['logs'] as List<ActivityLog>;
       goals = result['goals'] as List<Goal>;
-      if (activities.isNotEmpty) {
+      if (activities.isNotEmpty && selectedActivity == null) {
         selectedActivity = activities.first;
       }
     });
@@ -292,6 +292,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _resetData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+    FlutterBackgroundService().invoke('stopService');
     setState(() {
       activities = [];
       activityLogs = [];
@@ -316,7 +317,7 @@ class _HomePageState extends State<HomePage> {
     if (selectedActivity == null || elapsed == Duration.zero) {
       _resetTimerState();
       return;
-    };
+    }
     if (activityLogs.length >= maxLogs) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
