@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'pages/home_page.dart';
+import 'utils/notification_service.dart';
 import 'dart:convert';
 import 'dart:async';
+import 'dart:ui';
 
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
-void main() async {
-  print('[DEBUG] Starting LockIn Tracker App');
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  tz.initializeTimeZones();
+  tz.setLocalLocation(tz.getLocation('Europe/Warsaw'));
+  await NotificationService().init();
+  await initializeService();
 
   final prefs = await SharedPreferences.getInstance();
   int launchCount = (prefs.getInt('launchCount') ?? 0) + 1;
@@ -29,65 +39,65 @@ void main() async {
     await prefs.setString('activities', jsonEncode(defaultActivities));
   }
 
-  final Completer<void> consentCompleter = Completer<void>();
+  runApp(LockInTrackerApp(launchCount: launchCount));
+}
 
-  print('[DEBUG] Starting consent info update');
-  ConsentInformation.instance.requestConsentInfoUpdate(
-    ConsentRequestParameters(),
-        () async {
-      final consentStatus = await ConsentInformation.instance.getConsentStatus();
-      print('[DEBUG] Consent status after update: $consentStatus');
+Future<void> initializeService() async {
+  final service = FlutterBackgroundService();
 
-      if (consentStatus == ConsentStatus.required) {
-        if (await ConsentInformation.instance.isConsentFormAvailable()) {
-          print('[DEBUG] Consent form available and required, loading form');
-          ConsentForm.loadConsentForm(
-                (ConsentForm consentForm) {
-              consentForm.show(
-                    (FormError? error) {
-                  if (error != null) {
-                    print('[DEBUG] Consent form error: ${error.message}');
-                  }
-                  consentCompleter.complete();
-                },
-              );
-            },
-                (FormError error) {
-              print('[DEBUG] Load consent form error: ${error.message}');
-              consentCompleter.complete();
-            },
-          );
-        } else {
-          print('[DEBUG] Consent form not available despite being required');
-          consentCompleter.complete();
-        }
-      } else {
-        print('[DEBUG] Consent form not required. Status: $consentStatus');
-        consentCompleter.complete();
-      }
-    },
-        (FormError error) {
-      print('[DEBUG] Consent info update error: ${error.message}');
-      consentCompleter.complete();
-    },
+  await service.configure(
+    androidConfiguration: AndroidConfiguration(
+      onStart: onStart,
+      autoStart: false,
+      isForegroundMode: true,
+      notificationChannelId: 'timer_channel',
+      initialNotificationTitle: 'Locked In',
+      initialNotificationContent: 'Initializing...',
+      foregroundServiceNotificationId: 888,
+    ),
+    iosConfiguration: IosConfiguration(
+      autoStart: false,
+      onForeground: onStart,
+    ),
   );
+}
 
-  await consentCompleter.future;
+@pragma('vm:entry-point')
+void onStart(ServiceInstance service) async {
+  DartPluginRegistrant.ensureInitialized();
+  final notificationService = NotificationService();
+  Timer? timer;
 
-  try {
-    await MobileAds.instance.initialize();
-    print('[DEBUG] Mobile Ads initialized');
-  } catch (e) {
-    print('[DEBUG] AdMob or UMP init error: $e');
+  if (service is AndroidServiceInstance) {
+    service.on('setAsForeground').listen((event) {
+      service.setAsForegroundService();
+    });
+
+    service.on('setAsBackground').listen((event) {
+      service.setAsBackgroundService();
+    });
   }
 
-  print('[DEBUG] App started with launchCount=$launchCount');
-  runApp(LockInTrackerApp(launchCount: launchCount));
+  service.on('stopService').listen((event) {
+    timer?.cancel();
+    notificationService.cancelTimerNotification();
+    service.stopSelf();
+  });
+
+  Duration elapsed = Duration.zero;
+  timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+    elapsed += const Duration(seconds: 1);
+    String formattedDuration =
+        '${elapsed.inMinutes.remainder(60).toString().padLeft(2, '0')}:${elapsed.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+
+    notificationService.showTimerNotification(formattedDuration);
+
+    service.invoke('update', {'elapsed': elapsed.inSeconds});
+  });
 }
 
 class LockInTrackerApp extends StatefulWidget {
   final int launchCount;
-
   const LockInTrackerApp({super.key, required this.launchCount});
 
   @override
