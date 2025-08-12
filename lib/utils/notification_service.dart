@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../models/goal.dart';
 
@@ -50,6 +51,9 @@ class NotificationService {
   }
 
   Future<void> scheduleGoalReminder(Goal goal) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!(prefs.getBool('goalReminderEnabled') ?? true)) return;
+
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
     final tz.TZDateTime scheduleTime = tz.TZDateTime(tz.local, now.year, now.month, now.day + 1, 20, 0);
 
@@ -77,6 +81,12 @@ class NotificationService {
   }
 
   Future<void> showTimerNotification(String formattedDuration) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!(prefs.getBool('timerNotificationEnabled') ?? true)) {
+      await cancelTimerNotification();
+      return;
+    }
+
     final notificationDetails = NotificationDetails(
       android: AndroidNotificationDetails(
         _timerChannel.id,
