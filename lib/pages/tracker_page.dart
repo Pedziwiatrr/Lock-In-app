@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/activity.dart';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
@@ -25,7 +27,6 @@ class TrackerPage extends StatefulWidget {
   final void Function(Duration) onSubtractManualTime;
   final void Function(int) onAddManualCompletion;
   final void Function(int) onSubtractManualCompletion;
-  final int launchCount;
 
   const TrackerPage({
     super.key,
@@ -46,7 +47,6 @@ class TrackerPage extends StatefulWidget {
     required this.onSubtractManualTime,
     required this.onAddManualCompletion,
     required this.onSubtractManualCompletion,
-    required this.launchCount,
   });
 
   @override
@@ -62,7 +62,12 @@ class _TrackerPageState extends State<TrackerPage> {
   @override
   void initState() {
     super.initState();
+    _requestPermissions();
     _updateStreak();
+  }
+
+  Future<void> _requestPermissions() async {
+    await Permission.notification.request();
   }
 
   @override
@@ -94,7 +99,7 @@ class _TrackerPageState extends State<TrackerPage> {
         widget.selectedDate.month == now.month &&
         widget.selectedDate.day == now.day;
     final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
-    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
+    final dateEnd = dateStart.add(const Duration(days: 1));
     final Map<String, Map<String, dynamic>> dateActivities = {};
 
     for (var activity in widget.activities) {
@@ -107,13 +112,8 @@ class _TrackerPageState extends State<TrackerPage> {
 
     for (var log in widget.activityLogs.where((log) => log.date.isAfter(dateStart) && log.date.isBefore(dateEnd))) {
       final activityName = log.activityName;
-      if (!dateActivities.containsKey(activityName)) {
-        dateActivities[activityName] = {
-          'isTimed': widget.activities.any((a) => a.name == activityName && a is TimedActivity),
-          'totalDuration': Duration.zero,
-          'completions': 0,
-        };
-      }
+      if (!dateActivities.containsKey(activityName)) continue;
+
       if (log.isCheckable) {
         dateActivities[activityName]!['completions'] += 1;
       } else if (dateActivities[activityName]!['isTimed']) {
@@ -174,11 +174,6 @@ class _TrackerPageState extends State<TrackerPage> {
         ],
       ),
     );
-  }
-
-  void _handleStopTimer() {
-    widget.onStopTimer();
-    _handleAdAndSave();
   }
 
   void _handleAdAndSave() {
@@ -286,44 +281,32 @@ class _TrackerPageState extends State<TrackerPage> {
 
     final dateActivities = getActivitiesForSelectedDate();
     final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
-    final dateEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day, 23, 59, 59, 999);
+    final dateEnd = dateStart.add(const Duration(days: 1));
 
     final dateCompletions = widget.selectedActivity != null && widget.selectedActivity is CheckableActivity
-        ? widget.activityLogs
-        .where((log) =>
-    log.activityName == widget.selectedActivity!.name &&
-        log.date.isAfter(dateStart) &&
-        log.date.isBefore(dateEnd) &&
-        log.isCheckable)
-        .length
+        ? widget.activityLogs.where((log) => log.activityName == widget.selectedActivity!.name && log.date.isAfter(dateStart) && log.date.isBefore(dateEnd) && log.isCheckable).length
         : 0;
 
-    final filteredDateActivities = dateActivities.entries
-        .where((entry) {
-      final activityData = entry.value;
-      final isTimed = activityData['isTimed'] as bool;
-      final totalDuration = activityData['totalDuration'] as Duration;
-      final completions = activityData['completions'] as int;
-      return isTimed ? totalDuration > Duration.zero : completions > 0;
-    }).toList();
+    final filteredDateActivities = dateActivities.entries.where((entry) => (entry.value['isTimed'] as bool) ? (entry.value['totalDuration'] as Duration > Duration.zero) : (entry.value['completions'] as int > 0)).toList();
 
     bool canSubtractTime = false;
     bool canSubtractCompletion = false;
     if (widget.selectedActivity != null) {
-      final relevantLogs = widget.activityLogs
-          .where((log) => log.activityName == widget.selectedActivity!.name && log.date.isAfter(dateStart) && log.date.isBefore(dateEnd))
-          .toList();
+      final relevantLogs = widget.activityLogs.where((log) => log.activityName == widget.selectedActivity!.name && log.date.isAfter(dateStart) && log.date.isBefore(dateEnd)).toList();
       canSubtractTime = widget.selectedActivity is TimedActivity && relevantLogs.any((log) => !log.isCheckable && log.duration > Duration.zero);
       canSubtractCompletion = widget.selectedActivity is CheckableActivity && relevantLogs.any((log) => log.isCheckable);
     }
 
-    final Set<String> existingActivityNames = widget.activities.map((a) => a.name).toSet();
     final activeGoals = widget.goals.where((goal) {
-      return existingActivityNames.contains(goal.activityName) &&
+      return widget.activities.any((a) => a.name == goal.activityName) &&
           goal.goalDuration > Duration.zero &&
           goal.startDate.isBefore(dateEnd) &&
           (goal.endDate == null || goal.endDate!.isAfter(dateStart));
     }).toList();
+
+    final totalTimeForDay = (widget.selectedActivity is TimedActivity)
+        ? (dateActivities[widget.selectedActivity!.name]?['totalDuration'] ?? Duration.zero)
+        : Duration.zero;
 
     return SingleChildScrollView(
       child: Padding(
@@ -339,45 +322,24 @@ class _TrackerPageState extends State<TrackerPage> {
                     hint: const Text('Choose activity'),
                     isExpanded: true,
                     items: widget.activities.map((a) => DropdownMenuItem(value: a, child: Text(a.name))).toList(),
-                    onChanged: (activity) {
-                      widget.onSelectActivity(activity);
-                    },
+                    onChanged: (activity) => widget.onSelectActivity(activity),
                   ),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: () async {
-                    final pickedDate = await showDatePicker(
-                      context: context,
-                      initialDate: widget.selectedDate,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime.now(),
-                    );
-                    if (pickedDate != null) {
-                      widget.onSelectDate(pickedDate);
-                    }
+                    final pickedDate = await showDatePicker(context: context, initialDate: widget.selectedDate, firstDate: DateTime(2000), lastDate: DateTime.now());
+                    if (pickedDate != null) widget.onSelectDate(pickedDate);
                   },
-                  child: Text(
-                    '${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year}',
-                  ),
+                  child: Text('${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year}'),
                 ),
               ],
             ),
             const SizedBox(height: 20),
             if (widget.selectedActivity is TimedActivity)
-              Center(
-                child: Text(
-                  formatDuration(dateActivities[widget.selectedActivity!.name]!['totalDuration'] as Duration),
-                  style: const TextStyle(fontSize: 60),
-                ),
-              )
+              Center(child: Text(formatDuration(totalTimeForDay), style: const TextStyle(fontSize: 60)))
             else if (widget.selectedActivity is CheckableActivity)
-              Center(
-                child: Text(
-                  '$dateCompletions time(s)',
-                  style: const TextStyle(fontSize: 60),
-                ),
-              ),
+              Center(child: Text('$dateCompletions time(s)', style: const TextStyle(fontSize: 60))),
             const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -386,34 +348,28 @@ class _TrackerPageState extends State<TrackerPage> {
                   ElevatedButton(
                     onPressed: (widget.selectedActivity == null || widget.isRunning || !isToday)
                         ? null
-                        : () => _adManager.incrementStoperUsage().then((_) => widget.onStartTimer()),
+                        : () { _adManager.incrementStoperUsage().then((_) => widget.onStartTimer()); },
                     child: const Text('Start'),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: widget.isRunning ? _handleStopTimer : null,
+                    onPressed: widget.isRunning ? widget.onStopTimer : null,
                     child: const Text('Stop'),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero || !isToday)
+                    onPressed: (widget.selectedActivity == null || (!widget.isRunning && widget.elapsed == Duration.zero) || !isToday)
                         ? null
                         : () {
                       if (widget.isRunning) {
-                        _handleStopTimer();
-                      } else {
-                        _handleAdAndSave();
+                        widget.onStopTimer();
                       }
+                      _handleAdAndSave();
                     },
                     child: const Text('Finish'),
                   ),
                 ] else if (widget.selectedActivity is CheckableActivity)
-                  ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || !isToday)
-                        ? null
-                        : _handleCheckAndAd,
-                    child: const Text('Check', style: TextStyle(fontSize: 20)),
-                  ),
+                  ElevatedButton(onPressed: (widget.selectedActivity == null || !isToday) ? null : _handleCheckAndAd, child: const Text('Check', style: TextStyle(fontSize: 20))),
               ],
             ),
             const SizedBox(height: 10),
@@ -422,74 +378,27 @@ class _TrackerPageState extends State<TrackerPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.isRunning || !isToday)
-                        ? null
-                        : () => showInputDialog(
-                      widget.selectedActivity is TimedActivity ? 'Add Time' : 'Add Completions',
-                      widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
-                      widget.selectedActivity is TimedActivity,
-                          (intVal) => _handleAddManual(intVal),
-                    ),
+                    onPressed: (widget.selectedActivity == null || widget.isRunning || !isToday) ? null : () => showInputDialog(widget.selectedActivity is TimedActivity ? 'Add Time' : 'Add Completions', widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions', widget.selectedActivity is TimedActivity, (intVal) => _handleAddManual(intVal)),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                     child: const Text('+', style: TextStyle(fontSize: 30)),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null ||
-                        (widget.selectedActivity is TimedActivity && !canSubtractTime) ||
-                        (widget.selectedActivity is CheckableActivity && !canSubtractCompletion) ||
-                        !isToday)
-                        ? null
-                        : () => showInputDialog(
-                      widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions',
-                      widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
-                      widget.selectedActivity is TimedActivity,
-                          (intVal) => _handleSubtractManual(intVal),
-                    ),
+                    onPressed: (widget.selectedActivity == null || (widget.selectedActivity is TimedActivity && !canSubtractTime) || (widget.selectedActivity is CheckableActivity && !canSubtractCompletion) || !isToday) ? null : () => showInputDialog(widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions', widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions', widget.selectedActivity is TimedActivity, (intVal) => _handleSubtractManual(intVal)),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                     child: const Text('-', style: TextStyle(fontSize: 30)),
                   ),
                 ],
               ),
             const SizedBox(height: 30),
-            Text(
-              isToday
-                  ? 'Today'
-                  : 'Selected Date (${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year})',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
+            Text(isToday ? 'Today' : 'Selected Date (${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year})', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             filteredDateActivities.isEmpty
-                ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('No activities logged for this date.'),
-            )
-                : Column(
-              children: filteredDateActivities.map((entry) {
-                final activityName = entry.key;
-                final activityData = entry.value;
-                final isTimed = activityData['isTimed'] as bool;
-                final totalDuration = activityData['totalDuration'] as Duration;
-                final completions = activityData['completions'] as int;
-
-                return ListTile(
-                  title: Text(activityName),
-                  trailing: Text(
-                    isTimed ? formatDuration(totalDuration) : '$completions time(s)',
-                    style: const TextStyle(fontSize: 18),
-                  ),
-                );
-              }).toList(),
-            ),
+                ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No activities logged for this date.'))
+                : Column(children: filteredDateActivities.map((entry) => ListTile(title: Text(entry.key), trailing: Text((entry.value['isTimed'] as bool) ? formatDuration(entry.value['totalDuration'] as Duration) : '${entry.value['completions']} time(s)', style: const TextStyle(fontSize: 18)))).toList()),
             const SizedBox(height: 20),
-            const Text(
-              '✅ Goals',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            const Text('✅ Goals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             activeGoals.isEmpty
-                ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('No goals set for this date.'),
-            )
+                ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No goals set for this date.'))
                 : ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -499,76 +408,37 @@ class _TrackerPageState extends State<TrackerPage> {
                 final activity = widget.activities.firstWhere((act) => act.name == goal.activityName);
 
                 final monthStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, 1);
-                final monthEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month + 1, 1).subtract(const Duration(milliseconds: 1));
+                final monthEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month + 1, 0);
                 final weekStart = dateStart.subtract(Duration(days: widget.selectedDate.weekday - 1));
                 final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
 
-                final goalPeriodStart = goal.goalType == GoalType.daily
-                    ? dateStart
-                    : goal.goalType == GoalType.weekly
-                    ? weekStart
-                    : monthStart;
+                final goalPeriodStart = goal.goalType == GoalType.daily ? dateStart : goal.goalType == GoalType.weekly ? weekStart : monthStart;
+                final goalPeriodEnd = goal.goalType == GoalType.daily ? dateEnd : goal.goalType == GoalType.weekly ? weekEnd : monthEnd;
 
-                final goalPeriodEnd = goal.goalType == GoalType.daily
-                    ? dateEnd
-                    : goal.goalType == GoalType.weekly
-                    ? weekEnd
-                    : monthEnd;
+                final loggedTimeInPeriod = widget.activityLogs.where((log) => log.activityName == activity.name && !log.isCheckable && log.date.isAfter(goalPeriodStart) && log.date.isBefore(goalPeriodEnd)).fold(Duration.zero, (sum, log) => sum + log.duration);
+                final totalTime = loggedTimeInPeriod + ((widget.isRunning && widget.selectedActivity?.name == activity.name && isToday) ? widget.elapsed : Duration.zero);
 
-                final dateTime = widget.activityLogs
-                    .where((log) =>
-                log.activityName == activity.name &&
-                    log.date.isAfter(goalPeriodStart) &&
-                    log.date.isBefore(goalPeriodEnd))
-                    .fold(Duration.zero, (sum, log) => sum + log.duration) +
-                    (widget.isRunning &&
-                        widget.selectedActivity?.name == activity.name &&
-                        isToday
-                        ? widget.elapsed
-                        : Duration.zero);
-
-                final dateCompletions = widget.activityLogs
-                    .where((log) =>
-                log.activityName == activity.name &&
-                    log.date.isAfter(goalPeriodStart) &&
-                    log.date.isBefore(goalPeriodEnd) &&
-                    log.isCheckable)
-                    .length;
+                final completionsInPeriod = widget.activityLogs.where((log) => log.activityName == activity.name && log.isCheckable && log.date.isAfter(goalPeriodStart) && log.date.isBefore(goalPeriodEnd)).length;
 
                 double percent = 0.0;
                 String remainingText = '';
                 if (activity is TimedActivity) {
-                  percent = goal.goalDuration.inSeconds == 0
-                      ? 0.0
-                      : (dateTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0);
-                  remainingText = (goal.goalDuration - dateTime).isNegative
-                      ? 'Goal completed!'
-                      : 'Remaining: ${formatDuration(goal.goalDuration - dateTime)}';
+                  percent = goal.goalDuration.inSeconds == 0 ? 0.0 : (totalTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0);
+                  remainingText = (goal.goalDuration - totalTime).isNegative ? 'Goal completed!' : 'Remaining: ${formatDuration(goal.goalDuration - totalTime)}';
                 } else {
-                  percent = goal.goalDuration.inMinutes == 0
-                      ? 0.0
-                      : (dateCompletions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
-                  remainingText = dateCompletions >= goal.goalDuration.inMinutes
-                      ? 'Goal completed!'
-                      : 'Remaining: ${goal.goalDuration.inMinutes - dateCompletions} completion(s)';
+                  percent = goal.goalDuration.inMinutes == 0 ? 0.0 : (completionsInPeriod / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
+                  remainingText = completionsInPeriod >= goal.goalDuration.inMinutes ? 'Goal completed!' : 'Remaining: ${completionsInPeriod - goal.goalDuration.inMinutes} completion(s)';
                 }
 
                 return ListTile(
-                  title: Text(
-                    activity.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
+                  title: Text(activity.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       LinearProgressIndicator(value: percent),
                       const SizedBox(height: 4),
                       Text(remainingText),
-                      Text(goal.goalType == GoalType.daily
-                          ? 'Daily'
-                          : goal.goalType == GoalType.weekly
-                          ? 'Weekly'
-                          : 'Monthly'),
+                      Text(goal.goalType == GoalType.daily ? 'Daily' : goal.goalType == GoalType.weekly ? 'Weekly' : 'Monthly'),
                     ],
                   ),
                   trailing: Text('${(percent * 100).toStringAsFixed(0)}%'),
@@ -576,12 +446,7 @@ class _TrackerPageState extends State<TrackerPage> {
               },
             ),
             const SizedBox(height: 20),
-            Text(
-              _currentStreak == null
-                  ? '🔥 Current Streak: ... 🔥'
-                  : '🔥 Current Streak: $_currentStreak days 🔥',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            Text(_currentStreak == null ? '🔥 Current Streak: ... 🔥' : '🔥 Current Streak: $_currentStreak days 🔥', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 80),
           ],
         ),
