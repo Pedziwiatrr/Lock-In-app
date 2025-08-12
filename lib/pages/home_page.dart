@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import '../main.dart';
 import '../models/activity.dart';
 import '../models/goal.dart';
@@ -38,10 +39,11 @@ class _HomePageState extends State<HomePage> {
   List<ActivityLog> activityLogs = [];
   List<Goal> goals = [];
   Activity? selectedActivity;
-  Stopwatch stopwatch = Stopwatch();
   Duration elapsed = Duration.zero;
-  Timer? _timer;
+  bool isRunning = false;
   DateTime selectedDate = DateTime.now();
+  StreamSubscription<Map<String, dynamic>?>? _streamSubscription;
+
   static const int maxLogs = 3000;
   static const int maxManualTimeMinutes = 1000;
   static const int maxManualCompletions = 50;
@@ -55,29 +57,41 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadData();
+
+    final service = FlutterBackgroundService();
+    service.isRunning().then((value) {
+      if (mounted) setState(() => isRunning = value);
+    });
+
+    _streamSubscription = service.on('update').listen((event) {
+      if (mounted) {
+        setState(() {
+          elapsed = Duration(seconds: event?['elapsed'] ?? 0);
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
-    stopwatch.stop();
+    _streamSubscription?.cancel();
     super.dispose();
   }
 
   Future<void> _loadData() async {
-    print('[DEBUG] _loadData start');
     final prefs = await SharedPreferences.getInstance();
     _hasRatedApp = prefs.getBool('hasRatedApp') ?? false;
 
     final result = await _loadDataFromPrefs(widget.launchCount == 1 ? 1 : 0);
-    print('[DEBUG] _loadData result: activities=${result['activities'].length}, logs=${result['logs'].length}, goals=${result['goals'].length}');
     setState(() {
       activities = result['activities'] as List<Activity>;
       activityLogs = result['logs'] as List<ActivityLog>;
       goals = result['goals'] as List<Goal>;
+      if (activities.isNotEmpty) {
+        selectedActivity = activities.first;
+      }
     });
     _updatePreviousQuestsState();
-    print('[DEBUG] _loadData setState: activities=${activities.length}');
   }
 
   Set<String> _getAllCompletedQuestLevelIds() {
@@ -168,39 +182,28 @@ class _HomePageState extends State<HomePage> {
   }
 
   static Future<Map<String, dynamic>> _loadDataFromPrefs(int shouldLoadDefaultData) async {
-    print('[DEBUG] _loadDataFromPrefs start');
     final prefs = await SharedPreferences.getInstance();
     List<Activity> activities = [];
     List<ActivityLog> logs = [];
     List<Goal> goals = [];
 
     final activitiesJson = prefs.getString('activities');
-    print('[DEBUG] activitiesJson: $activitiesJson');
     if (activitiesJson == null || activitiesJson.isEmpty || activitiesJson == '[]' || shouldLoadDefaultData == 1) {
       activities = [
         TimedActivity(name: 'Focus'),
         CheckableActivity(name: 'Drink water'),
       ];
-      print('[DEBUG] Default activities created: ${activities.length}');
       await prefs.setString('activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
     } else {
       try {
         final decoded = jsonDecode(activitiesJson);
         if (decoded is! List) {
-          print('[DEBUG] Invalid activities JSON format: not a list');
           activities = [];
         } else {
           final List<dynamic> activitiesList = decoded;
-          print('[DEBUG] Decoded activitiesList: ${activitiesList.length}');
           activities = activitiesList.where((json) {
-            if (json is! Map<String, dynamic>) {
-              print('[DEBUG] Invalid activity JSON: $json');
-              return false;
-            }
-            if (!json.containsKey('type') || !json.containsKey('name')) {
-              print('[DEBUG] Missing required fields in activity JSON: $json');
-              return false;
-            }
+            if (json is! Map<String, dynamic>) return false;
+            if (!json.containsKey('type') || !json.containsKey('name')) return false;
             return true;
           }).map((json) {
             try {
@@ -208,41 +211,32 @@ class _HomePageState extends State<HomePage> {
                   ? TimedActivity.fromJson(json)
                   : CheckableActivity.fromJson(json);
             } catch (e) {
-              print('[DEBUG] Error parsing activity: $e, JSON: $json');
               return null;
             }
           }).whereType<Activity>().take(maxActivities).toList();
-          print('[DEBUG] Parsed activities: ${activities.length}');
         }
       } catch (e) {
-        print('[DEBUG] Error parsing activities: $e');
         activities = [];
         await prefs.setString('activities', jsonEncode([]));
       }
     }
 
     final logsJson = prefs.getString('activityLogs');
-    print('[DEBUG] logsJson: $logsJson');
     if (logsJson != null && logsJson.isNotEmpty) {
       try {
         final List<dynamic> logsList = jsonDecode(logsJson);
         logs = logsList.map((json) => ActivityLog.fromJson(json)).take(maxLogs).toList();
-        print('[DEBUG] Parsed logs: ${logs.length}');
       } catch (e) {
-        print('[DEBUG] Error parsing logs: $e');
         logs = [];
       }
     }
 
     final goalsJson = prefs.getString('goals');
-    print('[DEBUG] goalsJson: $goalsJson');
     if (goalsJson != null && goalsJson.isNotEmpty) {
       try {
         final List<dynamic> goalsList = jsonDecode(goalsJson);
         goals = goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
-        print('[DEBUG] Parsed goals: ${goals.length}');
       } catch (e) {
-        print('[DEBUG] Error parsing goals: $e');
         goals = [];
       }
     }
@@ -297,68 +291,61 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _resetData() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('activities');
-    await prefs.remove('activityLogs');
-    await prefs.remove('goals');
-    await prefs.remove('launchCount');
-    await prefs.remove('hasRatedApp');
-
+    await prefs.clear();
     setState(() {
       activities = [];
       activityLogs = [];
       goals = [];
       selectedActivity = null;
       elapsed = Duration.zero;
-      stopwatch.reset();
-      _timer?.cancel();
+      isRunning = false;
     });
-
     await _loadData();
   }
 
-  void startTimer() {
-    if (selectedActivity == null || selectedActivity is! TimedActivity) return;
-    stopwatch.start();
-    _tick();
-  }
-
-  void stopTimer() {
-    if (!stopwatch.isRunning) return;
+  void _startTimer() {
+    if (selectedActivity == null || selectedActivity is! TimedActivity || isRunning) return;
+    FlutterBackgroundService().startService();
     setState(() {
-      stopwatch.stop();
-      elapsed = stopwatch.elapsed;
+      isRunning = true;
     });
-    _timer?.cancel();
   }
 
-  void resetTimer() {
-    if (selectedActivity == null || stopwatch.elapsed == Duration.zero) return;
-    if (stopwatch.isRunning) {
-      stopwatch.stop();
-      _timer?.cancel();
-    }
+  void _stopAndSaveTimer() {
+    FlutterBackgroundService().invoke('stopService');
+    if (selectedActivity == null || elapsed == Duration.zero) {
+      _resetTimerState();
+      return;
+    };
     if (activityLogs.length >= maxLogs) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
       );
+      _resetTimerState();
       return;
     }
     final log = ActivityLog(
       activityName: selectedActivity!.name,
       date: DateTime.now(),
-      duration: stopwatch.elapsed,
+      duration: elapsed,
       isCheckable: false,
     );
     setState(() {
       activityLogs.add(log);
       final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is TimedActivity) {
-        activity.totalTime += stopwatch.elapsed;
+        activity.totalTime += elapsed;
       }
-      elapsed = Duration.zero;
-      stopwatch.reset();
     });
+    _resetTimerState();
     _saveData();
+  }
+
+  void _resetTimerState() {
+    setState(() {
+      elapsed = Duration.zero;
+      isRunning = false;
+    });
   }
 
   void checkActivity() {
@@ -392,15 +379,6 @@ class _HomePageState extends State<HomePage> {
         duration <= Duration.zero ||
         duration > Duration(minutes: maxManualTimeMinutes) ||
         activityLogs.length >= maxLogs) {
-      if (duration > Duration(minutes: maxManualTimeMinutes)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Manual time cannot exceed 1000 minutes.')),
-        );
-      } else if (activityLogs.length >= maxLogs) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
-        );
-      }
       return;
     }
     final log = ActivityLog(
@@ -420,28 +398,31 @@ class _HomePageState extends State<HomePage> {
   }
 
   void subtractManualTime(Duration duration) {
-    if (selectedActivity == null || selectedActivity is! TimedActivity || duration <= Duration.zero) {
-      return;
-    }
-    final dateStart = selectedDate.subtract(const Duration(days: 1));
-    final dateEnd = selectedDate.add(const Duration(days: 1));
+    if (selectedActivity == null || selectedActivity is! TimedActivity || duration <= Duration.zero) return;
+
     final relevantLogs = activityLogs
         .where((log) =>
-    log.activityName == selectedActivity!.name &&
-        log.date.isAfter(dateStart) &&
-        log.date.isBefore(dateEnd) &&
-        !log.isCheckable)
+    log.activityName == selectedActivity!.name && !log.isCheckable)
         .toList();
+
     if (relevantLogs.isEmpty) return;
+
+    relevantLogs.sort((a, b) => b.date.compareTo(a.date));
+    Duration remainingDurationToSubtract = duration;
+
     setState(() {
-      relevantLogs.sort((a, b) => b.date.compareTo(a.date));
-      final logToRemove = relevantLogs.first;
-      activityLogs.remove(logToRemove);
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
-      if (activity is TimedActivity) {
-        activity.totalTime -= logToRemove.duration;
-        if (activity.totalTime < Duration.zero) {
-          activity.totalTime = Duration.zero;
+      for (final log in relevantLogs) {
+        if (remainingDurationToSubtract <= Duration.zero) break;
+
+        final durationToSubtract = log.duration > remainingDurationToSubtract ? remainingDurationToSubtract : log.duration;
+        final activity = activities.firstWhere((a) => a.name == selectedActivity!.name) as TimedActivity;
+
+        activity.totalTime -= durationToSubtract;
+        log.duration -= durationToSubtract;
+        remainingDurationToSubtract -= durationToSubtract;
+
+        if (log.duration <= Duration.zero) {
+          activityLogs.remove(log);
         }
       }
     });
@@ -454,15 +435,6 @@ class _HomePageState extends State<HomePage> {
         count <= 0 ||
         count > maxManualCompletions ||
         activityLogs.length + count > maxLogs) {
-      if (count > maxManualCompletions) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Manual completions cannot exceed 50.')),
-        );
-      } else if (activityLogs.length + count > maxLogs) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
-        );
-      }
       return;
     }
     setState(() {
@@ -484,46 +456,25 @@ class _HomePageState extends State<HomePage> {
   }
 
   void subtractManualCompletion(int count) {
-    if (selectedActivity == null || selectedActivity is! CheckableActivity || count <= 0) {
-      return;
-    }
-    final dateStart = selectedDate.subtract(const Duration(days: 1));
-    final dateEnd = selectedDate.add(const Duration(days: 1));
+    if (selectedActivity == null || selectedActivity is! CheckableActivity || count <= 0) return;
+
     final relevantLogs = activityLogs
         .where((log) =>
-    log.activityName == selectedActivity!.name &&
-        log.date.isAfter(dateStart) &&
-        log.date.isBefore(dateEnd) &&
-        log.isCheckable)
+    log.activityName == selectedActivity!.name && log.isCheckable)
         .toList();
     if (relevantLogs.isEmpty) return;
+
     setState(() {
       relevantLogs.sort((a, b) => b.date.compareTo(a.date));
       for (int i = 0; i < min(count, relevantLogs.length); i++) {
         activityLogs.remove(relevantLogs[i]);
         final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
         if (activity is CheckableActivity) {
-          activity.completionCount -= 1;
-          if (activity.completionCount < 0) {
-            activity.completionCount = 0;
-          }
+          activity.completionCount = max(0, activity.completionCount - 1);
         }
       }
     });
     _saveData();
-  }
-
-  void _tick() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (stopwatch.isRunning) {
-        setState(() {
-          elapsed = stopwatch.elapsed;
-        });
-      } else {
-        timer.cancel();
-      }
-    });
   }
 
   void updateActivities() {
@@ -531,11 +482,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   void selectActivity(Activity? activity) {
-    if (stopwatch.isRunning) return;
+    if (isRunning) return;
     setState(() {
       selectedActivity = activity;
       elapsed = Duration.zero;
-      stopwatch.reset();
     });
   }
 
@@ -576,18 +526,17 @@ class _HomePageState extends State<HomePage> {
               selectedActivity: selectedActivity,
               selectedDate: selectedDate,
               elapsed: elapsed,
-              isRunning: stopwatch.isRunning,
+              isRunning: isRunning,
               onSelectActivity: selectActivity,
               onSelectDate: selectDate,
-              onStartTimer: startTimer,
-              onStopTimer: stopTimer,
-              onResetTimer: resetTimer,
+              onStartTimer: _startTimer,
+              onStopTimer: _stopAndSaveTimer,
+              onResetTimer: _resetTimerState,
               onCheckActivity: checkActivity,
               onAddManualTime: addManualTime,
               onSubtractManualTime: subtractManualTime,
               onAddManualCompletion: addManualCompletion,
               onSubtractManualCompletion: subtractManualCompletion,
-              launchCount: widget.launchCount,
             ),
             GoalsPage(
               goals: goals,
