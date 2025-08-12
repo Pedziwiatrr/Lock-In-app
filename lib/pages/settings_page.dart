@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/privacy_policy_screen.dart';
 
@@ -22,11 +23,27 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late bool _isDarkMode;
+  bool _isTimerNotificationEnabled = true;
+  bool _isGoalReminderEnabled = true;
 
   @override
   void initState() {
     super.initState();
     _isDarkMode = widget.isDarkMode;
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isTimerNotificationEnabled = prefs.getBool('timerNotificationEnabled') ?? true;
+      _isGoalReminderEnabled = prefs.getBool('goalReminderEnabled') ?? true;
+    });
+  }
+
+  Future<void> _saveSetting(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
   }
 
   void _showConsentForm() {
@@ -60,12 +77,10 @@ class _SettingsPageState extends State<SettingsPage> {
     ConsentForm.loadConsentForm(
           (ConsentForm consentForm) {
         consentForm.show((formError) {
-          if (formError != null) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Consent form error: ${formError.message}')),
-              );
-            }
+          if (formError != null && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Consent form error: ${formError.message}')),
+            );
           }
         });
       },
@@ -93,9 +108,11 @@ class _SettingsPageState extends State<SettingsPage> {
             onPressed: () {
               widget.onResetData();
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Data has been reset.')),
-              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Data has been reset.')),
+                );
+              }
             },
             child: const Text('Reset', style: TextStyle(color: Colors.red)),
           ),
@@ -139,9 +156,9 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      body: ListView(
+        padding: const EdgeInsets.all(8),
+        children: [
           ListTile(
             title: const Text('Dark Mode'),
             trailing: Switch(
@@ -153,32 +170,65 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const Divider(),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('Notifications', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          ),
+          ListTile(
+            title: const Text('Live Timer Notification'),
+            subtitle: const Text('Show ongoing notification when timer is running'),
+            trailing: Switch(
+              value: _isTimerNotificationEnabled,
+              onChanged: (value) {
+                setState(() => _isTimerNotificationEnabled = value);
+                _saveSetting('timerNotificationEnabled', value);
+              },
+            ),
+          ),
+          ListTile(
+            title: const Text('Goal Reminders'),
+            subtitle: const Text('Receive daily reminders about your goals'),
+            trailing: Switch(
+              value: _isGoalReminderEnabled,
+              onChanged: (value) {
+                setState(() => _isGoalReminderEnabled = value);
+                _saveSetting('goalReminderEnabled', value);
+              },
+            ),
+          ),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('Data & Privacy', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          ),
           ListTile(
             title: const Text('Ad Preferences'),
-            subtitle: const Text('Manage your consent settings.'),
+            subtitle: const Text('Manage your consent settings'),
             trailing: ElevatedButton(
               onPressed: _showConsentForm,
               child: const Text('Change'),
             ),
           ),
-          const Divider(),
           ListTile(
             title: const Text('Privacy Policy'),
-            subtitle: const Text('View our privacy policy.'),
+            subtitle: const Text('View our privacy policy'),
             trailing: const Icon(Icons.privacy_tip, color: Colors.blue),
             onTap: _launchPrivacyPolicy,
           ),
           const Divider(),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('Support', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          ),
           ListTile(
             title: const Text('Contact Us'),
-            subtitle: const Text('Reach out to support.'),
+            subtitle: const Text('Reach out for support'),
             trailing: const Icon(Icons.email, color: Colors.blue),
             onTap: () => _launchEmail('Contact LockIn Tracker Support'),
           ),
-          const Divider(),
           ListTile(
             title: const Text('Report a Bug'),
-            subtitle: const Text('Let us know about issues.'),
+            subtitle: const Text('Let us know about any issues'),
             trailing: const Icon(Icons.bug_report, color: Colors.orange),
             onTap: () => _launchEmail(
               'Bug Report',
@@ -188,11 +238,11 @@ class _SettingsPageState extends State<SettingsPage> {
           const Divider(),
           ListTile(
             title: const Text('Reset Data'),
-            subtitle: const Text('Delete all activities, logs, goals, and progress.'),
+            subtitle: const Text('Delete all activities, logs, and goals'),
             trailing: const Icon(Icons.delete_forever, color: Colors.red),
             onTap: _confirmResetData,
           ),
-        ]),
+        ],
       ),
     );
   }
