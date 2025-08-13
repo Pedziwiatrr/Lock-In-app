@@ -3,7 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter_background_service/flutter_background_service.dart';
 import '../main.dart';
 import '../models/activity.dart';
 import '../models/goal.dart';
@@ -16,6 +15,7 @@ import '../pages/history_page.dart';
 import '../pages/settings_page.dart';
 import '../pages/progress_page.dart';
 import '../utils/format_utils.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 
 class HomePage extends StatefulWidget {
   final void Function(bool) onThemeChanged;
@@ -43,7 +43,7 @@ class _HomePageState extends State<HomePage> {
   Duration elapsed = Duration.zero;
   bool isRunning = false;
   DateTime selectedDate = DateTime.now();
-  StreamSubscription<Map<String, dynamic>?>? _tickSubscription;
+  StreamSubscription? _tickSubscription;
 
   static const int maxLogs = 3000;
   static const int maxManualTimeMinutes = 1000;
@@ -334,9 +334,11 @@ class _HomePageState extends State<HomePage> {
       _resetTimerState();
       return;
     }
+    final now = DateTime.now();
+    final logDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, now.hour, now.minute, now.second);
     final log = ActivityLog(
       activityName: selectedActivity!.name,
-      date: DateTime.now(),
+      date: logDate,
       duration: elapsed,
       isCheckable: false,
     );
@@ -367,9 +369,11 @@ class _HomePageState extends State<HomePage> {
       }
       return;
     }
+    final now = DateTime.now();
+    final logDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, now.hour, now.minute, now.second);
     final log = ActivityLog(
       activityName: selectedActivity!.name,
-      date: DateTime.now(),
+      date: logDate,
       duration: Duration.zero,
       isCheckable: true,
     );
@@ -391,9 +395,11 @@ class _HomePageState extends State<HomePage> {
         activityLogs.length >= maxLogs) {
       return;
     }
+    final now = DateTime.now();
+    final logDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, now.hour, now.minute, now.second);
     final log = ActivityLog(
       activityName: selectedActivity!.name,
-      date: DateTime.now(),
+      date: logDate,
       duration: duration,
       isCheckable: false,
     );
@@ -410,9 +416,14 @@ class _HomePageState extends State<HomePage> {
   void subtractManualTime(Duration duration) {
     if (selectedActivity == null || selectedActivity is! TimedActivity || duration <= Duration.zero) return;
 
+    final dateStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final dateEnd = dateStart.add(const Duration(days: 1));
     final relevantLogs = activityLogs
         .where((log) =>
-    log.activityName == selectedActivity!.name && !log.isCheckable)
+    log.activityName == selectedActivity!.name &&
+        !log.isCheckable &&
+        log.date.isAfter(dateStart) &&
+        log.date.isBefore(dateEnd))
         .toList();
 
     if (relevantLogs.isEmpty) return;
@@ -447,11 +458,13 @@ class _HomePageState extends State<HomePage> {
         activityLogs.length + count > maxLogs) {
       return;
     }
+    final now = DateTime.now();
+    final logDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, now.hour, now.minute, now.second);
     setState(() {
       for (int i = 0; i < count; i++) {
         final log = ActivityLog(
           activityName: selectedActivity!.name,
-          date: DateTime.now(),
+          date: logDate,
           duration: Duration.zero,
           isCheckable: true,
         );
@@ -468,9 +481,14 @@ class _HomePageState extends State<HomePage> {
   void subtractManualCompletion(int count) {
     if (selectedActivity == null || selectedActivity is! CheckableActivity || count <= 0) return;
 
+    final dateStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final dateEnd = dateStart.add(const Duration(days: 1));
     final relevantLogs = activityLogs
         .where((log) =>
-    log.activityName == selectedActivity!.name && log.isCheckable)
+    log.activityName == selectedActivity!.name &&
+        log.isCheckable &&
+        log.date.isAfter(dateStart) &&
+        log.date.isBefore(dateEnd))
         .toList();
     if (relevantLogs.isEmpty) return;
 
@@ -500,8 +518,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   void selectDate(DateTime date) {
+    if(isRunning) return;
     setState(() {
       selectedDate = date;
+      elapsed = Duration.zero;
     });
   }
 

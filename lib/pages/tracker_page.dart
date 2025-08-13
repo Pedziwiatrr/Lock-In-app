@@ -288,7 +288,7 @@ class _TrackerPageState extends State<TrackerPage> {
     final dateEnd = dateStart.add(const Duration(days: 1));
 
     final dateCompletions = widget.selectedActivity != null && widget.selectedActivity is CheckableActivity
-        ? widget.activityLogs.where((log) => log.activityName == widget.selectedActivity!.name && log.date.isAfter(dateStart) && log.date.isBefore(dateEnd) && log.isCheckable).length
+        ? dateActivities[widget.selectedActivity!.name]!['completions'] as int
         : 0;
 
     final filteredDateActivities = dateActivities.entries.where((entry) => (entry.value['isTimed'] as bool) ? (entry.value['totalDuration'] as Duration > Duration.zero) : (entry.value['completions'] as int > 0)).toList();
@@ -308,6 +308,16 @@ class _TrackerPageState extends State<TrackerPage> {
           (goal.endDate == null || goal.endDate!.isAfter(dateStart));
     }).toList();
 
+    Widget mainDisplay;
+    if (widget.selectedActivity is TimedActivity) {
+      final totalForDay = dateActivities[widget.selectedActivity!.name]?['totalDuration'] ?? Duration.zero;
+      mainDisplay = Center(child: Text(formatDuration(isToday ? widget.elapsed : totalForDay), style: const TextStyle(fontSize: 60)));
+    } else if (widget.selectedActivity is CheckableActivity) {
+      mainDisplay = Center(child: Text('$dateCompletions time(s)', style: const TextStyle(fontSize: 60)));
+    } else {
+      mainDisplay = const Center(child: Text('00:00:00', style: TextStyle(fontSize: 60, color: Colors.grey)));
+    }
+
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -322,13 +332,17 @@ class _TrackerPageState extends State<TrackerPage> {
                     hint: const Text('Choose activity'),
                     isExpanded: true,
                     items: widget.activities.map((a) => DropdownMenuItem(value: a, child: Text(a.name))).toList(),
-                    onChanged: (activity) => widget.onSelectActivity(activity),
+                    onChanged: widget.onSelectActivity,
                   ),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: () async {
-                    final pickedDate = await showDatePicker(context: context, initialDate: widget.selectedDate, firstDate: DateTime(2000), lastDate: DateTime.now());
+                    final pickedDate = await showDatePicker(
+                        context: context,
+                        initialDate: widget.selectedDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime.now());
                     if (pickedDate != null) widget.onSelectDate(pickedDate);
                   },
                   child: Text('${widget.selectedDate.day.toString().padLeft(2, '0')}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.year}'),
@@ -336,50 +350,58 @@ class _TrackerPageState extends State<TrackerPage> {
               ],
             ),
             const SizedBox(height: 20),
-            if (widget.selectedActivity is TimedActivity)
-              Center(child: Text(formatDuration(widget.elapsed), style: const TextStyle(fontSize: 60)))
-            else if (widget.selectedActivity is CheckableActivity)
-              Center(child: Text('$dateCompletions time(s)', style: const TextStyle(fontSize: 60))),
+            mainDisplay,
             const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (widget.selectedActivity is TimedActivity) ...[
-                  ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.isRunning || !isToday)
-                        ? null
-                        : () { _adManager.incrementStoperUsage().then((_) => widget.onStartTimer()); },
-                    child: const Text('Start'),
-                  ),
-                  const SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: widget.isRunning ? widget.onStopTimer : null,
-                    child: const Text('Stop'),
-                  ),
-                  const SizedBox(width: 10),
-                  ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero || !isToday)
-                        ? null
-                        : _handleFinish,
-                    child: const Text('Finish'),
-                  ),
-                ] else if (widget.selectedActivity is CheckableActivity)
-                  ElevatedButton(onPressed: (widget.selectedActivity == null || !isToday) ? null : _handleCheckAndAd, child: const Text('Check', style: TextStyle(fontSize: 20))),
-              ],
-            ),
+            if (isToday)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (widget.selectedActivity is TimedActivity) ...[
+                    ElevatedButton(
+                      onPressed: (widget.selectedActivity == null || widget.isRunning) ? null : widget.onStartTimer,
+                      child: const Text('Start'),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: widget.isRunning ? widget.onStopTimer : null,
+                      child: const Text('Stop'),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero) ? null : _handleFinish,
+                      child: const Text('Finish'),
+                    ),
+                  ] else if (widget.selectedActivity is CheckableActivity)
+                    ElevatedButton(
+                        onPressed: (widget.selectedActivity == null) ? null : _handleCheckAndAd,
+                        child: const Text('Check', style: TextStyle(fontSize: 20))),
+                ],
+              ),
             const SizedBox(height: 10),
             if (widget.selectedActivity != null)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || widget.isRunning || !isToday) ? null : () => showInputDialog(widget.selectedActivity is TimedActivity ? 'Add Time' : 'Add Completions', widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions', widget.selectedActivity is TimedActivity, (intVal) => _handleAddManual(intVal)),
+                    onPressed: () => showInputDialog(
+                        widget.selectedActivity is TimedActivity ? 'Add Time' : 'Add Completions',
+                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
+                        widget.selectedActivity is TimedActivity,
+                            (intVal) => _handleAddManual(intVal)),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                     child: const Text('+', style: TextStyle(fontSize: 30)),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || (widget.selectedActivity is TimedActivity && !canSubtractTime) || (widget.selectedActivity is CheckableActivity && !canSubtractCompletion) || !isToday) ? null : () => showInputDialog(widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions', widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions', widget.selectedActivity is TimedActivity, (intVal) => _handleSubtractManual(intVal)),
+                    onPressed: (
+                        (widget.selectedActivity is TimedActivity && !canSubtractTime) ||
+                            (widget.selectedActivity is CheckableActivity && !canSubtractCompletion))
+                        ? null
+                        : () => showInputDialog(
+                        widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions',
+                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
+                        widget.selectedActivity is TimedActivity,
+                            (intVal) => _handleSubtractManual(intVal)),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                     child: const Text('-', style: TextStyle(fontSize: 30)),
                   ),
