@@ -93,10 +93,6 @@ class _TrackerPageState extends State<TrackerPage> {
   }
 
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
-    final now = DateTime.now();
-    final isToday = widget.selectedDate.year == now.year &&
-        widget.selectedDate.month == now.month &&
-        widget.selectedDate.day == now.day;
     final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
     final dateEnd = dateStart.add(const Duration(days: 1));
     final Map<String, Map<String, dynamic>> dateActivities = {};
@@ -118,14 +114,6 @@ class _TrackerPageState extends State<TrackerPage> {
       } else if (dateActivities[activityName]!['isTimed']) {
         dateActivities[activityName]!['totalDuration'] = (dateActivities[activityName]!['totalDuration'] as Duration) + log.duration;
       }
-    }
-
-    if (widget.selectedActivity != null &&
-        widget.selectedActivity is TimedActivity &&
-        isToday) {
-      final activityName = widget.selectedActivity!.name;
-      dateActivities[activityName]!['totalDuration'] =
-          (dateActivities[activityName]!['totalDuration'] as Duration) + widget.elapsed;
     }
 
     return dateActivities;
@@ -305,11 +293,6 @@ class _TrackerPageState extends State<TrackerPage> {
           (goal.endDate == null || goal.endDate!.isAfter(dateStart));
     }).toList();
 
-    Duration totalTimeForDay = Duration.zero;
-    if (widget.selectedActivity is TimedActivity) {
-      totalTimeForDay = dateActivities[widget.selectedActivity!.name]?['totalDuration'] ?? Duration.zero;
-    }
-
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -339,7 +322,7 @@ class _TrackerPageState extends State<TrackerPage> {
             ),
             const SizedBox(height: 20),
             if (widget.selectedActivity is TimedActivity)
-              Center(child: Text(formatDuration(totalTimeForDay), style: const TextStyle(fontSize: 60)))
+              Center(child: Text(formatDuration(widget.elapsed), style: const TextStyle(fontSize: 60)))
             else if (widget.selectedActivity is CheckableActivity)
               Center(child: Text('$dateCompletions time(s)', style: const TextStyle(fontSize: 60))),
             const SizedBox(height: 20),
