@@ -20,7 +20,7 @@ class TrackerPage extends StatefulWidget {
   final void Function(DateTime) onSelectDate;
   final VoidCallback onStartTimer;
   final VoidCallback onStopTimer;
-  final VoidCallback onResetTimer;
+  final VoidCallback onFinishTimer;
   final VoidCallback onCheckActivity;
   final void Function(Duration) onAddManualTime;
   final void Function(Duration) onSubtractManualTime;
@@ -40,7 +40,7 @@ class TrackerPage extends StatefulWidget {
     required this.onSelectDate,
     required this.onStartTimer,
     required this.onStopTimer,
-    required this.onResetTimer,
+    required this.onFinishTimer,
     required this.onCheckActivity,
     required this.onAddManualTime,
     required this.onSubtractManualTime,
@@ -122,8 +122,7 @@ class _TrackerPageState extends State<TrackerPage> {
 
     if (widget.selectedActivity != null &&
         widget.selectedActivity is TimedActivity &&
-        isToday &&
-        widget.isRunning) {
+        isToday) {
       final activityName = widget.selectedActivity!.name;
       dateActivities[activityName]!['totalDuration'] =
           (dateActivities[activityName]!['totalDuration'] as Duration) + widget.elapsed;
@@ -256,14 +255,16 @@ class _TrackerPageState extends State<TrackerPage> {
 
   void _handleFinish() {
     final timeToLog = widget.elapsed;
-    widget.onStopTimer();
+    if (timeToLog == Duration.zero) return;
 
     if (widget.selectedActivity is TimedActivity && _adManager.shouldShowAd(timeToLog)) {
       _adManager.showRewardedAd(
-        onUserEarnedReward: widget.onResetTimer,
-        onAdDismissed: widget.onResetTimer,
-        onAdFailedToShow: widget.onResetTimer,
+        onUserEarnedReward: widget.onFinishTimer,
+        onAdDismissed: widget.onFinishTimer,
+        onAdFailedToShow: widget.onFinishTimer,
       );
+    } else {
+      widget.onFinishTimer();
     }
   }
 
@@ -304,9 +305,10 @@ class _TrackerPageState extends State<TrackerPage> {
           (goal.endDate == null || goal.endDate!.isAfter(dateStart));
     }).toList();
 
-    final totalTimeForDay = (widget.selectedActivity is TimedActivity)
-        ? (dateActivities[widget.selectedActivity!.name]?['totalDuration'] ?? Duration.zero)
-        : Duration.zero;
+    Duration totalTimeForDay = Duration.zero;
+    if (widget.selectedActivity is TimedActivity) {
+      totalTimeForDay = dateActivities[widget.selectedActivity!.name]?['totalDuration'] ?? Duration.zero;
+    }
 
     return SingleChildScrollView(
       child: Padding(
@@ -358,7 +360,7 @@ class _TrackerPageState extends State<TrackerPage> {
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: (widget.selectedActivity == null || (!widget.isRunning && widget.elapsed == Duration.zero) || !isToday)
+                    onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero || !isToday)
                         ? null
                         : _handleFinish,
                     child: const Text('Finish'),
@@ -411,7 +413,7 @@ class _TrackerPageState extends State<TrackerPage> {
                 final goalPeriodEnd = goal.goalType == GoalType.daily ? dateEnd : goal.goalType == GoalType.weekly ? weekEnd : monthEnd;
 
                 final loggedTimeInPeriod = widget.activityLogs.where((log) => log.activityName == activity.name && !log.isCheckable && log.date.isAfter(goalPeriodStart) && log.date.isBefore(goalPeriodEnd)).fold(Duration.zero, (sum, log) => sum + log.duration);
-                final totalTime = loggedTimeInPeriod + ((widget.isRunning && widget.selectedActivity?.name == activity.name && isToday) ? widget.elapsed : Duration.zero);
+                final totalTime = loggedTimeInPeriod + ((widget.selectedActivity?.name == activity.name && isToday) ? widget.elapsed : Duration.zero);
 
                 final completionsInPeriod = widget.activityLogs.where((log) => log.activityName == activity.name && log.isCheckable && log.date.isAfter(goalPeriodStart) && log.date.isBefore(goalPeriodEnd)).length;
 
@@ -422,7 +424,7 @@ class _TrackerPageState extends State<TrackerPage> {
                   remainingText = (goal.goalDuration - totalTime).isNegative ? 'Goal completed!' : 'Remaining: ${formatDuration(goal.goalDuration - totalTime)}';
                 } else {
                   percent = goal.goalDuration.inMinutes == 0 ? 0.0 : (completionsInPeriod / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
-                  remainingText = completionsInPeriod >= goal.goalDuration.inMinutes ? 'Goal completed!' : 'Remaining: ${completionsInPeriod - goal.goalDuration.inMinutes} completion(s)';
+                  remainingText = completionsInPeriod >= goal.goalDuration.inMinutes ? 'Goal completed!' : 'Remaining: ${goal.goalDuration.inMinutes - completionsInPeriod} completion(s)';
                 }
 
                 return ListTile(

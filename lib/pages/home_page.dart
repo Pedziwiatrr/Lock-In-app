@@ -15,6 +15,7 @@ import '../pages/stats_page.dart';
 import '../pages/history_page.dart';
 import '../pages/settings_page.dart';
 import '../pages/progress_page.dart';
+import '../utils/format_utils.dart';
 
 class HomePage extends StatefulWidget {
   final void Function(bool) onThemeChanged;
@@ -42,7 +43,7 @@ class _HomePageState extends State<HomePage> {
   Duration elapsed = Duration.zero;
   bool isRunning = false;
   DateTime selectedDate = DateTime.now();
-  StreamSubscription<Map<String, dynamic>?>? _streamSubscription;
+  StreamSubscription<Map<String, dynamic>?>? _tickSubscription;
 
   static const int maxLogs = 3000;
   static const int maxManualTimeMinutes = 1000;
@@ -57,24 +58,24 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadData();
+    _configureTimerListener();
+  }
 
+  void _configureTimerListener() {
     final service = FlutterBackgroundService();
-    service.isRunning().then((value) {
-      if (mounted) setState(() => isRunning = value);
-    });
-
-    _streamSubscription = service.on('update').listen((event) {
-      if (mounted) {
-        setState(() {
-          elapsed = Duration(seconds: event?['elapsed'] ?? 0);
-        });
-      }
+    _tickSubscription = service.on('tick').listen((event) {
+      if (!mounted || !isRunning) return;
+      setState(() {
+        elapsed += const Duration(seconds: 1);
+      });
+      String formattedDuration = formatDuration(elapsed);
+      service.invoke('updateNotification', {'formattedDuration': formattedDuration});
     });
   }
 
   @override
   void dispose() {
-    _streamSubscription?.cancel();
+    _tickSubscription?.cancel();
     super.dispose();
   }
 
@@ -302,6 +303,7 @@ class _HomePageState extends State<HomePage> {
       isRunning = false;
     });
     await _loadData();
+    await _saveData();
   }
 
   void _startTimer() {
@@ -312,7 +314,14 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _stopAndSaveTimer() {
+  void _stopTimer() {
+    FlutterBackgroundService().invoke('stopService');
+    setState(() {
+      isRunning = false;
+    });
+  }
+
+  void _finishTimerAndSave() {
     FlutterBackgroundService().invoke('stopService');
     if (selectedActivity == null || elapsed == Duration.zero) {
       _resetTimerState();
@@ -531,8 +540,8 @@ class _HomePageState extends State<HomePage> {
               onSelectActivity: selectActivity,
               onSelectDate: selectDate,
               onStartTimer: _startTimer,
-              onStopTimer: _stopAndSaveTimer,
-              onResetTimer: _resetTimerState,
+              onStopTimer: _stopTimer,
+              onFinishTimer: _finishTimerAndSave,
               onCheckActivity: checkActivity,
               onAddManualTime: addManualTime,
               onSubtractManualTime: subtractManualTime,

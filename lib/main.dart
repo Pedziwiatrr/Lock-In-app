@@ -63,36 +63,26 @@ Future<void> initializeService() async {
 }
 
 @pragma('vm:entry-point')
-void onStart(ServiceInstance service) async {
+void onStart(ServiceInstance service) {
   DartPluginRegistrant.ensureInitialized();
   final notificationService = NotificationService();
   Timer? timer;
 
-  if (service is AndroidServiceInstance) {
-    service.on('setAsForeground').listen((event) {
-      service.setAsForegroundService();
-    });
-
-    service.on('setAsBackground').listen((event) {
-      service.setAsBackgroundService();
-    });
-  }
-
   service.on('stopService').listen((event) {
     timer?.cancel();
+    timer = null;
     notificationService.cancelTimerNotification();
     service.stopSelf();
   });
 
-  Duration elapsed = Duration.zero;
-  timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-    elapsed += const Duration(seconds: 1);
-    String formattedDuration =
-        '${elapsed.inMinutes.remainder(60).toString().padLeft(2, '0')}:${elapsed.inSeconds.remainder(60).toString().padLeft(2, '0')}';
+  service.on('updateNotification').listen((event) {
+    if (event != null && event['formattedDuration'] != null) {
+      notificationService.showTimerNotification(event['formattedDuration']);
+    }
+  });
 
-    notificationService.showTimerNotification(formattedDuration);
-
-    service.invoke('update', {'elapsed': elapsed.inSeconds});
+  timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    service.invoke('tick');
   });
 }
 
@@ -133,6 +123,7 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
     await prefs.remove('activityLogs');
     await prefs.remove('goals');
     await prefs.remove('launchCount');
+    setState(() {});
   }
 
   @override
