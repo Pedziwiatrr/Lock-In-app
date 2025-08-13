@@ -93,6 +93,10 @@ class _TrackerPageState extends State<TrackerPage> {
   }
 
   Map<String, Map<String, dynamic>> getActivitiesForSelectedDate() {
+    final now = DateTime.now();
+    final isToday = widget.selectedDate.year == now.year &&
+        widget.selectedDate.month == now.month &&
+        widget.selectedDate.day == now.day;
     final dateStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
     final dateEnd = dateStart.add(const Duration(days: 1));
     final Map<String, Map<String, dynamic>> dateActivities = {};
@@ -113,6 +117,17 @@ class _TrackerPageState extends State<TrackerPage> {
         dateActivities[activityName]!['completions'] += 1;
       } else if (dateActivities[activityName]!['isTimed']) {
         dateActivities[activityName]!['totalDuration'] = (dateActivities[activityName]!['totalDuration'] as Duration) + log.duration;
+      }
+    }
+
+    if (isToday &&
+        widget.elapsed > Duration.zero &&
+        widget.selectedActivity != null &&
+        widget.selectedActivity is TimedActivity) {
+      final activityName = widget.selectedActivity!.name;
+      if (dateActivities.containsKey(activityName)) {
+        dateActivities[activityName]!['totalDuration'] =
+            (dateActivities[activityName]!['totalDuration'] as Duration) + widget.elapsed;
       }
     }
 
