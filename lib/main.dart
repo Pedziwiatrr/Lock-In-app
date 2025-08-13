@@ -4,7 +4,6 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'pages/home_page.dart';
 import 'utils/notification_service.dart';
 import 'dart:convert';
@@ -15,6 +14,7 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<Scaffol
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  MobileAds.instance.initialize();
 
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('Europe/Warsaw'));
@@ -119,10 +119,7 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
 
   Future<void> _resetData() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('activities');
-    await prefs.remove('activityLogs');
-    await prefs.remove('goals');
-    await prefs.remove('launchCount');
+    await prefs.clear();
     setState(() {});
   }
 
