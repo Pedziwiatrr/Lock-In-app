@@ -44,6 +44,7 @@ class _HomePageState extends State<HomePage> {
   bool isRunning = false;
   DateTime selectedDate = DateTime.now();
   StreamSubscription? _tickSubscription;
+  DateTime? _timerStartDate;
 
   static const int maxLogs = 3000;
   static const int maxManualTimeMinutes = 1000;
@@ -64,11 +65,58 @@ class _HomePageState extends State<HomePage> {
   void _configureTimerListener() {
     final service = FlutterBackgroundService();
     _tickSubscription = service.on('tick').listen((event) {
-      if (!mounted || !isRunning) return;
+      if (!mounted) return;
+
+      final now = DateTime.now();
+      final timerStart = _timerStartDate;
+
+      if (isRunning && timerStart != null && (now.day != timerStart.day || now.month != timerStart.month || now.year != timerStart.year)) {
+        final timeToLog = elapsed;
+        final activityToLog = selectedActivity;
+
+        _stopTimer();
+
+        if (activityToLog != null && timeToLog > Duration.zero) {
+          final log = ActivityLog(
+            activityName: activityToLog.name,
+            date: timerStart,
+            duration: timeToLog,
+            isCheckable: false,
+          );
+
+          setState(() {
+            activityLogs.add(log);
+            final activityIndex = activities.indexWhere((a) => a.name == activityToLog.name);
+            if (activityIndex != -1) {
+              final activity = activities[activityIndex];
+              if (activity is TimedActivity) {
+                activity.totalTime += timeToLog;
+              }
+            }
+          });
+          _saveData();
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              scaffoldMessengerKey.currentState?.showSnackBar(
+                const SnackBar(content: Text('Timer session saved automatically at midnight.')),
+              );
+            }
+          });
+        }
+
+        setState(() {
+          selectedDate = now;
+        });
+        return;
+      }
+
+      if (!isRunning) return;
+
       setState(() {
         elapsed += const Duration(seconds: 1);
       });
-      String formattedDuration = formatDuration(elapsed);
+      final formattedDuration = formatDuration(elapsed);
       service.invoke('updateNotification', {'formattedDuration': formattedDuration});
     });
   }
@@ -311,6 +359,7 @@ class _HomePageState extends State<HomePage> {
     FlutterBackgroundService().startService();
     setState(() {
       isRunning = true;
+      _timerStartDate = selectedDate;
     });
   }
 
@@ -318,6 +367,7 @@ class _HomePageState extends State<HomePage> {
     FlutterBackgroundService().invoke('stopService');
     setState(() {
       isRunning = false;
+      _timerStartDate = null;
     });
   }
 
@@ -357,6 +407,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       elapsed = Duration.zero;
       isRunning = false;
+      _timerStartDate = null;
     });
   }
 
