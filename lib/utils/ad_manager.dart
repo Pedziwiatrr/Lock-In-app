@@ -1,16 +1,22 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io';
 
 class AdManager {
   static final AdManager _instance = AdManager._internal();
   static AdManager get instance => _instance;
 
+  static const int _maxRetries = 3;
+
   RewardedAd? _rewardedAd;
+  int _rewardedAdRetryAttempt = 0;
+
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
+  int _bannerAdRetryAttempt = 0;
+
   int _stoperUsageCount = 0;
   bool _lastAdShown = false;
   int _checkUsageCount = 0;
@@ -48,13 +54,20 @@ class AdManager {
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
-          print('[DEBUG] [AD] Rewarded ad loaded.');
+          print('[DEBUG] [AD] Rewarded ad loaded successfully.');
           _rewardedAd = ad;
+          _rewardedAdRetryAttempt = 0;
         },
         onAdFailedToLoad: (error) {
-          print('[DEBUG] [AD] Rewarded ad loading error: $error');
+          _rewardedAdRetryAttempt++;
+          if (_rewardedAdRetryAttempt > _maxRetries) {
+            print('[DEBUG] [AD] Rewarded ad failed to load after $_maxRetries attempts. Stopping retries. Error: $error');
+            return;
+          }
+          final delay = Duration(seconds: 30 * pow(2, _rewardedAdRetryAttempt - 1).toInt());
+          print('[DEBUG] [AD] Rewarded ad loading error. Attempt $_rewardedAdRetryAttempt. Retrying in ${delay.inSeconds} seconds. Error: $error');
           _rewardedAd = null;
-          Future.delayed(const Duration(seconds: 30), loadRewardedAd);
+          Future.delayed(delay, loadRewardedAd);
         },
       ),
     );
@@ -70,16 +83,24 @@ class AdManager {
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
-          print('[DEBUG] [AD] Banner ad loaded.');
+          print('[DEBUG] [AD] Banner ad loaded successfully.');
           _isAdLoaded = true;
+          _bannerAdRetryAttempt = 0;
           onAdLoaded(true);
         },
         onAdFailedToLoad: (ad, error) {
-          print('[DEBUG] [AD] Banner ad loading error: $error');
           ad.dispose();
           _isAdLoaded = false;
           onAdLoaded(false);
-          Future.delayed(const Duration(seconds: 30), () => loadBannerAd(onAdLoaded: onAdLoaded));
+
+          _bannerAdRetryAttempt++;
+          if (_bannerAdRetryAttempt > _maxRetries) {
+            print('[DEBUG] [AD] Banner ad failed to load after $_maxRetries attempts. Stopping retries. Error: $error');
+            return;
+          }
+          final delay = Duration(seconds: 30 * pow(2, _bannerAdRetryAttempt - 1).toInt());
+          print('[DEBUG] [AD] Banner ad loading error. Attempt $_bannerAdRetryAttempt. Retrying in ${delay.inSeconds} seconds. Error: $error');
+          Future.delayed(delay, () => loadBannerAd(onAdLoaded: onAdLoaded));
         },
         onAdOpened: (ad) => print('[DEBUG] [AD] Banner ad opened'),
         onAdClosed: (ad) => print('[DEBUG] [AD] Banner ad closed'),
@@ -199,7 +220,7 @@ class AdManager {
   }) {
     print('[DEBUG] [AD] Attempting to show rewarded ad.');
     if (_rewardedAd == null) {
-      print('[DEBUG] [AD] Rewarded ad is not ready to be shown.');
+      print('[DEBUG] [AD] Rewarded ad is not ready. Attempting to load a new one.');
       onAdFailedToShow();
       loadRewardedAd();
       return;
