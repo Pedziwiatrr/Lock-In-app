@@ -22,7 +22,6 @@ class HistoryDataProvider {
 
   Future<List<Map<String, dynamic>>> getGoalStatusesForPeriod(
       DateTime start, DateTime end, String? selectedActivity) async {
-    print('[DEBUG] getGoalStatusesForPeriod: start=$start, end=$end, selectedActivity=$selectedActivity, goals=${goals.length}, logs=${activityLogs.length}');
     try {
       final result = await compute(_computeGoalStatusesForPeriod, {
         'goals': goals,
@@ -32,13 +31,10 @@ class HistoryDataProvider {
         'end': end,
         'selectedActivity': selectedActivity,
       }).timeout(const Duration(seconds: 10), onTimeout: () {
-        print('[DEBUG] getGoalStatusesForPeriod: Timed out');
         return [];
       });
-      print('[DEBUG] getGoalStatusesForPeriod: Completed with ${result.length} statuses');
       return result;
     } catch (e) {
-      print('[DEBUG] getGoalStatusesForPeriod: Error: $e');
       return [];
     }
   }
@@ -51,7 +47,6 @@ class HistoryDataProvider {
     final end = params['end'] as DateTime;
     final selectedActivity = params['selectedActivity'] as String?;
 
-    print('[DEBUG] _computeGoalStatusesForPeriod: Processing ${goals.length} goals, ${activityLogs.length} logs');
     final List<Map<String, dynamic>> statuses = [];
 
     for (var goal in goals.where((g) =>
@@ -95,7 +90,6 @@ class HistoryDataProvider {
           break;
       }
     }
-    print('[DEBUG] _computeGoalStatusesForPeriod: Returning ${statuses.length} statuses');
     return statuses;
   }
 
@@ -125,7 +119,6 @@ class HistoryDataProvider {
   }
 
   Future<int> getCurrentStreak(String? selectedActivity) async {
-    print('[DEBUG] getCurrentStreak: Starting, selectedActivity=$selectedActivity');
     try {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
@@ -148,10 +141,8 @@ class HistoryDataProvider {
         currentStreak++;
         currentDate = currentDate.subtract(const Duration(days: 1));
       }
-      print('[DEBUG] getCurrentStreak: Returning streak=$currentStreak');
       return currentStreak;
     } catch (e) {
-      print('[DEBUG] getCurrentStreak: Error: $e');
       return 0;
     }
   }
@@ -202,7 +193,6 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
   @override
   void initState() {
     super.initState();
-    print('[DEBUG] StatsPage initState: launchCount=${widget.launchCount}, goals=${widget.goals.length}, logs=${widget.activityLogs.length}, activities=${widget.activities.length}');
     _fetchGoalData();
   }
 
@@ -216,7 +206,6 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
 
   @override
   void dispose() {
-    print('[DEBUG] StatsPage: Disposing');
     super.dispose();
   }
 
@@ -227,7 +216,6 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
   }
 
   Future<GoalStatsData> _getCombinedGoalData() async {
-    print('[DEBUG] _getCombinedGoalData: Starting for selectedActivity=$selectedActivity');
     try {
       final historyProvider = HistoryDataProvider(
         goals: widget.goals,
@@ -293,11 +281,9 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
         longestStreakStart: longestStreakStart,
       );
 
-      print('[DEBUG] _getCombinedGoalData: Completed successfully.');
       return result;
 
     } catch (e) {
-      print('[DEBUG] _getCombinedGoalData: Error: $e');
       return GoalStatsData(successful: 0, ongoing: 0, currentStreak: 0, longestStreak: 0);
     }
   }
@@ -308,41 +294,41 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
     List<double> totals = [];
     int numBars = 0;
     DateTime startDate;
+    DateTime endDate;
 
     switch (selectedPeriod) {
       case StatsPeriod.day:
         numBars = 1;
         startDate = today;
+        endDate = today.add(const Duration(days: 1));
         totals = List.filled(numBars, 0.0);
         break;
       case StatsPeriod.week:
         numBars = 7;
         startDate = today.subtract(Duration(days: now.weekday - 1));
+        endDate = startDate.add(const Duration(days: 7));
         totals = List.filled(numBars, 0.0);
         break;
       case StatsPeriod.month:
         numBars = 4;
         startDate = DateTime(now.year, now.month, 1);
+        endDate = DateTime(now.year, now.month + 1, 1);
         totals = List.filled(numBars, 0.0);
         break;
       case StatsPeriod.total:
         numBars = 12;
         startDate = DateTime(now.year, now.month - 11, 1);
+        endDate = DateTime(now.year, now.month + 1, 1);
         totals = List.filled(numBars, 0.0);
         break;
     }
 
-    print('[DEBUG] getTimedChartData: period=$selectedPeriod, startDate=$startDate, numBars=$numBars');
     for (var log in widget.activityLogs.where((log) => !log.isCheckable && (selectedActivity == null || log.activityName == selectedActivity))) {
       final logDay = DateTime(log.date.year, log.date.month, log.date.day);
-      if (logDay.isAtSameMomentAs(startDate) || logDay.isAfter(startDate)) {
+      if ((logDay.isAtSameMomentAs(startDate) || logDay.isAfter(startDate)) && logDay.isBefore(endDate)) {
         int index;
         if (selectedPeriod == StatsPeriod.day) {
-          if (logDay.isAtSameMomentAs(today)) {
-            index = 0;
-          } else {
-            continue;
-          }
+          index = 0;
         } else if (selectedPeriod == StatsPeriod.week) {
           index = logDay.difference(startDate).inDays;
         } else if (selectedPeriod == StatsPeriod.month) {
@@ -351,7 +337,7 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
           index = (logDay.year - startDate.year) * 12 + logDay.month - startDate.month;
         }
         if (index >= 0 && index < numBars) {
-          totals[index] += log.duration.inMinutes.toDouble();
+          totals[index] += (log.duration.inSeconds / 60.0);
         }
       }
     }
@@ -371,7 +357,6 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
         ],
       );
     }).toList();
-    print('[DEBUG] getTimedChartData: Generated ${result.length} bars');
     return result;
   }
 
@@ -381,41 +366,41 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
     List<double> totals = [];
     int numBars;
     DateTime startDate;
+    DateTime endDate;
 
     switch (selectedPeriod) {
       case StatsPeriod.day:
         numBars = 1;
         startDate = today;
+        endDate = today.add(const Duration(days: 1));
         totals = List.filled(numBars, 0.0);
         break;
       case StatsPeriod.week:
         numBars = 7;
         startDate = today.subtract(Duration(days: now.weekday - 1));
+        endDate = startDate.add(const Duration(days: 7));
         totals = List.filled(numBars, 0.0);
         break;
       case StatsPeriod.month:
         numBars = 4;
         startDate = DateTime(now.year, now.month, 1);
+        endDate = DateTime(now.year, now.month + 1, 1);
         totals = List.filled(numBars, 0.0);
         break;
       case StatsPeriod.total:
         numBars = 12;
         startDate = DateTime(now.year, now.month - 11, 1);
+        endDate = DateTime(now.year, now.month + 1, 1);
         totals = List.filled(numBars, 0.0);
         break;
     }
 
-    print('[DEBUG] getCheckableChartData: period=$selectedPeriod, startDate=$startDate, numBars=$numBars');
     for (var log in widget.activityLogs.where((log) => log.isCheckable && (selectedActivity == null || log.activityName == selectedActivity))) {
       final logDay = DateTime(log.date.year, log.date.month, log.date.day);
-      if (logDay.isAtSameMomentAs(startDate) || logDay.isAfter(startDate)) {
+      if ((logDay.isAtSameMomentAs(startDate) || logDay.isAfter(startDate)) && logDay.isBefore(endDate)) {
         int index;
         if (selectedPeriod == StatsPeriod.day) {
-          if (logDay.isAtSameMomentAs(today)) {
-            index = 0;
-          } else {
-            continue;
-          }
+          index = 0;
         } else if (selectedPeriod == StatsPeriod.week) {
           index = logDay.difference(startDate).inDays;
         } else if (selectedPeriod == StatsPeriod.month) {
@@ -444,7 +429,6 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
         ],
       );
     }).toList();
-    print('[DEBUG] getCheckableChartData: Generated ${result.length} bars');
     return result;
   }
 
@@ -470,25 +454,34 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
   Map<String, dynamic> filteredActivities() {
     DateTime now = DateTime.now();
     DateTime from;
+    DateTime to;
 
     switch (selectedPeriod) {
       case StatsPeriod.day:
         from = DateTime(now.year, now.month, now.day);
+        to = from.add(const Duration(days: 1));
         break;
       case StatsPeriod.week:
         from = now.subtract(Duration(days: now.weekday - 1));
+        from = DateTime(from.year, from.month, from.day);
+        to = from.add(const Duration(days: 7));
         break;
       case StatsPeriod.month:
         from = DateTime(now.year, now.month, 1);
+        to = DateTime(now.year, now.month + 1, 1);
         break;
       case StatsPeriod.total:
-        from = widget.activityLogs.isNotEmpty
-            ? widget.activityLogs
-            .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
-            .reduce((a, b) => a.isBefore(b) ? a : b)
-            : DateTime(2000);
+        from = DateTime(2000);
+        to = DateTime(now.year, now.month, now.day + 1);
         break;
     }
+
+    if (selectedPeriod == StatsPeriod.total && widget.activityLogs.isNotEmpty) {
+      from = widget.activityLogs
+          .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
+          .reduce((a, b) => a.isBefore(b) ? a : b);
+    }
+
 
     Map<String, Duration> timeTotals = {};
     Map<String, int> completionTotals = {};
@@ -499,7 +492,7 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
     }
 
     for (var log in widget.activityLogs) {
-      if (log.date.isAfter(from) || log.date.isAtSameMomentAs(from)) {
+      if ((log.date.isAfter(from) || log.date.isAtSameMomentAs(from)) && log.date.isBefore(to)) {
         if (log.isCheckable) {
           completionTotals[log.activityName] = (completionTotals[log.activityName] ?? 0) + 1;
         } else {
@@ -520,7 +513,6 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
         .fold(0, (sum, a) => sum + (completionTotals[a.name] ?? 0))
         : completionTotals[selectedActivity] ?? 0;
 
-    print('[DEBUG] filteredActivities: timeTotals=$timeTotals, completionTotals=$completionTotals');
     return {
       'timeTotals': timeTotals,
       'completionTotals': completionTotals,
@@ -546,7 +538,6 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
     final checkableChartData = getCheckableChartData();
     final monthLabels = getMonthLabels();
 
-    print('[DEBUG] StatsPage build: selectedPeriod=$selectedPeriod, selectedActivity=$selectedActivity');
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -666,7 +657,7 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
                       showTitles: true,
                       reservedSize: 40,
                       getTitlesWidget: (value, meta) => Text(
-                        '${value.toInt()}',
+                        value.toStringAsFixed(0),
                         style: const TextStyle(fontSize: 10),
                       ),
                     ),
@@ -715,7 +706,7 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
                 barTouchData: BarTouchData(
                   touchTooltipData: BarTouchTooltipData(
                     getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
-                      '${rod.toY.toInt()} min',
+                      '${rod.toY.toStringAsFixed(1)} min',
                       const TextStyle(fontSize: 12, color: Colors.white),
                     ),
                   ),
@@ -811,12 +802,10 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
           FutureBuilder<GoalStatsData>(
             future: _goalStatsFuture,
             builder: (context, snapshot) {
-              print('[DEBUG] FutureBuilder goalStatus: state=${snapshot.connectionState}, error=${snapshot.error}');
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError) {
-                print('[DEBUG] FutureBuilder goalStatus: Error: ${snapshot.error}');
                 return const Text('Error loading goal data.');
               }
               final goalStatusData = snapshot.data ?? GoalStatsData(successful: 0, ongoing: 0, currentStreak: 0, longestStreak: 0);
