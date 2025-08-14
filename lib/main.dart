@@ -44,11 +44,11 @@ Future<void> main() async {
   await completer.future;
 
   MobileAds.instance.initialize();
+  await NotificationService().init();
+  await initializeService();
 
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('Europe/Warsaw'));
-  await NotificationService().init();
-  await initializeService();
 
   final prefs = await SharedPreferences.getInstance();
   int launchCount = (prefs.getInt('launchCount') ?? 0) + 1;
@@ -80,8 +80,8 @@ Future<void> initializeService() async {
       autoStart: false,
       isForegroundMode: true,
       notificationChannelId: 'timer_channel',
-      initialNotificationTitle: 'Locked In',
-      initialNotificationContent: 'Initializing...',
+      initialNotificationTitle: 'Working in the background...',
+      initialNotificationContent: "Don't get distracted!",
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
@@ -94,20 +94,13 @@ Future<void> initializeService() async {
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) {
   DartPluginRegistrant.ensureInitialized();
-  final notificationService = NotificationService();
   Timer? timer;
 
   service.on('stopService').listen((event) {
     timer?.cancel();
     timer = null;
-    notificationService.cancelTimerNotification();
+    service.invoke('clearNotification');
     service.stopSelf();
-  });
-
-  service.on('updateNotification').listen((event) {
-    if (event != null && event['formattedDuration'] != null) {
-      notificationService.showTimerNotification(event['formattedDuration']);
-    }
   });
 
   timer = Timer.periodic(const Duration(seconds: 1), (timer) {
