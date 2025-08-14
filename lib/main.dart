@@ -77,7 +77,7 @@ Future<void> initializeService() async {
   await service.configure(
     androidConfiguration: AndroidConfiguration(
       onStart: onStart,
-      autoStart: false,
+      autoStart: true,
       isForegroundMode: true,
       notificationChannelId: 'timer_channel',
       initialNotificationTitle: 'Working in the background...',
@@ -85,7 +85,7 @@ Future<void> initializeService() async {
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
-      autoStart: false,
+      autoStart: true,
       onForeground: onStart,
     ),
   );
@@ -96,15 +96,17 @@ void onStart(ServiceInstance service) {
   DartPluginRegistrant.ensureInitialized();
   Timer? timer;
 
-  service.on('stopService').listen((event) {
+  service.on('startTimer').listen((event) {
+    if (timer?.isActive ?? false) return;
+    timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      service.invoke('tick');
+    });
+  });
+
+  service.on('stopTimer').listen((event) {
     timer?.cancel();
     timer = null;
     service.invoke('clearNotification');
-    service.stopSelf();
-  });
-
-  timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-    service.invoke('tick');
   });
 }
 
