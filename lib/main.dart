@@ -14,6 +14,35 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<Scaffol
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  final completer = Completer<void>();
+  final params = ConsentRequestParameters();
+
+  ConsentInformation.instance.requestConsentInfoUpdate(
+    params,
+        () async {
+      if (await ConsentInformation.instance.isConsentFormAvailable()) {
+        ConsentForm.loadConsentForm(
+              (ConsentForm consentForm) {
+            consentForm.show((FormError? formError) {
+              completer.complete();
+            });
+          },
+              (FormError? error) {
+            completer.complete();
+          },
+        );
+      } else {
+        completer.complete();
+      }
+    },
+        (FormError? error) {
+      completer.complete();
+    },
+  );
+
+  await completer.future;
+
   MobileAds.instance.initialize();
 
   tz.initializeTimeZones();
