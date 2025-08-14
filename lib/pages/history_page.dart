@@ -121,9 +121,7 @@ class _HistoryPageState extends State<HistoryPage> {
         break;
       case HistoryPeriod.allTime:
         minDate = logs.isNotEmpty
-            ? logs
-            .map((log) => DateTime(log.date.year, log.date.month, log.date.day))
-            .reduce((a, b) => a.isBefore(b) ? a : b)
+            ? logs.map((log) => DateTime(log.date.year, log.date.month, log.date.day)).reduce((a, b) => a.isBefore(b) ? a : b)
             : DateTime(2000);
         break;
     }
@@ -134,79 +132,57 @@ class _HistoryPageState extends State<HistoryPage> {
     for (int i = 0; i <= daysDiff; i++) {
       final day = today.subtract(Duration(days: i));
       final dayStart = DateTime(day.year, day.month, day.day);
-      final dayEnd = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
-      final dayKey = DateTime(day.year, day.month, day.day);
-      final weekStart = day.subtract(Duration(days: day.weekday - 1));
-      final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
-      final monthStart = DateTime(day.year, day.month, 1);
-      final monthEnd = DateTime(day.year, day.month + 1, 1).subtract(const Duration(milliseconds: 1));
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      final dayKey = dayStart;
 
-      for (var goal in goals.where((g) =>
-      g.goalDuration > Duration.zero &&
-          g.startDate.isBefore(dayEnd) &&
-          (g.endDate == null || g.endDate!.isAfter(dayStart)))) {
+      final weekDay = day.weekday;
+      final weekStart = DateTime(day.year, day.month, day.day - weekDay + 1);
+      final weekEnd = weekStart.add(const Duration(days: 7));
+
+      final monthStart = DateTime(day.year, day.month, 1);
+      final monthEnd = DateTime(day.year, day.month + 1, 1);
+
+      for (var goal in goals.where((g) => g.goalDuration > Duration.zero && g.startDate.isBefore(dayEnd) && (g.endDate == null || g.endDate!.isAfter(dayStart)))) {
         if (!goalCache.containsKey(goal.activityName)) {
-          goalCache[goal.activityName] = logs
-              .where((log) => log.activityName == goal.activityName)
-              .toList();
+          goalCache[goal.activityName] = logs.where((log) => log.activityName == goal.activityName).toList();
         }
       }
 
       int completedDailyGoals = 0;
-      int totalDailyGoals = goals
-          .where((g) =>
-      g.goalDuration > Duration.zero &&
-          g.goalType == GoalType.daily &&
-          g.startDate.isBefore(dayEnd) &&
-          (g.endDate == null || g.endDate!.isAfter(dayStart)))
-          .length;
+      int totalDailyGoals = goals.where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.daily && g.startDate.isBefore(dayEnd) && (g.endDate == null || g.endDate!.isAfter(dayStart))).length;
 
       int completedWeeklyGoals = 0;
-      int totalWeeklyGoals = goals
-          .where((g) =>
-      g.goalDuration > Duration.zero &&
-          g.goalType == GoalType.weekly &&
-          g.startDate.isBefore(dayEnd) &&
-          (g.endDate == null || g.endDate!.isAfter(dayStart)))
-          .length;
+      int totalWeeklyGoals = goals.where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.weekly && g.startDate.isBefore(dayEnd) && (g.endDate == null || g.endDate!.isAfter(dayStart))).length;
 
       int completedMonthlyGoals = 0;
-      int totalMonthlyGoals = goals
-          .where((g) =>
-      g.goalDuration > Duration.zero &&
-          g.goalType == GoalType.monthly &&
-          g.startDate.isBefore(dayEnd) &&
-          (g.endDate == null || g.endDate!.isAfter(dayStart)))
-          .length;
+      int totalMonthlyGoals = goals.where((g) => g.goalDuration > Duration.zero && g.goalType == GoalType.monthly && g.startDate.isBefore(dayEnd) && (g.endDate == null || g.endDate!.isAfter(dayStart))).length;
 
-      for (var goal in goals.where((g) =>
-      g.goalDuration > Duration.zero &&
-          g.startDate.isBefore(dayEnd) &&
-          (g.endDate == null || g.endDate!.isAfter(dayStart)))) {
-        final activity = goalCache[goal.activityName]!
-            .where((log) =>
-        log.date.isAfter(goal.goalType == GoalType.daily
-            ? dayStart
-            : goal.goalType == GoalType.weekly
-            ? weekStart
-            : monthStart) &&
-            log.date.isBefore(goal.goalType == GoalType.daily
-                ? dayEnd
-                : goal.goalType == GoalType.weekly
-                ? weekEnd
-                : monthEnd))
-            .toList();
-
+      for (var goal in goals.where((g) => g.goalDuration > Duration.zero && g.startDate.isBefore(dayEnd) && (g.endDate == null || g.endDate!.isAfter(dayStart)))) {
+        DateTime periodStart, periodEnd;
+        switch (goal.goalType) {
+          case GoalType.daily:
+            periodStart = dayStart;
+            periodEnd = dayEnd;
+            break;
+          case GoalType.weekly:
+            periodStart = weekStart;
+            periodEnd = weekEnd;
+            break;
+          case GoalType.monthly:
+            periodStart = monthStart;
+            periodEnd = monthEnd;
+            break;
+        }
+        final activityLogsInPeriod = goalCache[goal.activityName]!.where((log) => !log.date.isBefore(periodStart) && log.date.isBefore(periodEnd)).toList();
         bool isCompleted = false;
-        if (activity.isNotEmpty) {
-          if (activity.any((log) => log.isCheckable)) {
-            final completions = activity.where((log) => log.isCheckable).length;
+        if (activityLogsInPeriod.isNotEmpty) {
+          if (activityLogsInPeriod.any((log) => log.isCheckable)) {
+            final completions = activityLogsInPeriod.where((log) => log.isCheckable).length;
             if (completions >= goal.goalDuration.inMinutes) {
               isCompleted = true;
             }
           } else {
-            final totalTime = activity.fold<Duration>(
-                Duration.zero, (sum, log) => sum + log.duration);
+            final totalTime = activityLogsInPeriod.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
             if (totalTime >= goal.goalDuration) {
               isCompleted = true;
             }
@@ -214,55 +190,26 @@ class _HistoryPageState extends State<HistoryPage> {
         }
 
         if (isCompleted) {
-          if (goal.goalType == GoalType.daily) {
-            completedDailyGoals++;
-          } else if (goal.goalType == GoalType.weekly) {
-            completedWeeklyGoals++;
-          } else if (goal.goalType == GoalType.monthly) {
-            completedMonthlyGoals++;
-          }
+          if (goal.goalType == GoalType.daily) completedDailyGoals++;
+          else if (goal.goalType == GoalType.weekly) completedWeeklyGoals++;
+          else if (goal.goalType == GoalType.monthly) completedMonthlyGoals++;
         }
       }
-
-      Color dailyColor = totalDailyGoals == 0
-          ? Colors.grey
-          : completedDailyGoals == totalDailyGoals
-          ? Colors.green
-          : completedDailyGoals > 0
-          ? Colors.yellow
-          : Colors.red;
-
-      Color weeklyColor = totalWeeklyGoals == 0
-          ? Colors.grey
-          : completedWeeklyGoals == totalWeeklyGoals
-          ? Colors.green
-          : completedWeeklyGoals > 0
-          ? Colors.yellow
-          : Colors.red;
-
-      Color monthlyColor = totalMonthlyGoals == 0
-          ? Colors.grey
-          : completedMonthlyGoals == totalMonthlyGoals
-          ? Colors.green
-          : completedMonthlyGoals > 0
-          ? Colors.yellow
-          : Colors.red;
 
       progress[dayKey] = {
         'completedDailyGoals': completedDailyGoals,
         'totalDailyGoals': totalDailyGoals,
-        'dailyColor': dailyColor,
+        'dailyColor': totalDailyGoals == 0 ? Colors.grey : completedDailyGoals == totalDailyGoals ? Colors.green : completedDailyGoals > 0 ? Colors.yellow : Colors.red,
         'completedWeeklyGoals': completedWeeklyGoals,
         'totalWeeklyGoals': totalWeeklyGoals,
-        'weeklyColor': weeklyColor,
+        'weeklyColor': totalWeeklyGoals == 0 ? Colors.grey : completedWeeklyGoals == totalWeeklyGoals ? Colors.green : completedWeeklyGoals > 0 ? Colors.yellow : Colors.red,
         'completedMonthlyGoals': completedMonthlyGoals,
         'totalMonthlyGoals': totalMonthlyGoals,
-        'monthlyColor': monthlyColor,
+        'monthlyColor': totalMonthlyGoals == 0 ? Colors.grey : completedMonthlyGoals == totalMonthlyGoals ? Colors.green : completedMonthlyGoals > 0 ? Colors.yellow : Colors.red,
         'duration': dayData[dayKey] ?? Duration.zero,
         'checkableCompletions': checkableCompletions[dayKey] ?? 0,
       };
     }
-
     return progress;
   }
 
