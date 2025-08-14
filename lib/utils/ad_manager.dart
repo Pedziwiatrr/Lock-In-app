@@ -5,8 +5,10 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AdManager {
-  static final AdManager _instance = AdManager._internal();
+  static AdManager _instance = AdManager._internal();
   static AdManager get instance => _instance;
+
+  static set instance(AdManager value) => _instance = value;
 
   static const int _maxRetries = 3;
 
