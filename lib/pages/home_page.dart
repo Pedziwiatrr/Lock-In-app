@@ -15,6 +15,7 @@ import '../pages/history_page.dart';
 import '../pages/settings_page.dart';
 import '../pages/progress_page.dart';
 import '../utils/format_utils.dart';
+import '../utils/notification_service.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 
 class HomePage extends StatefulWidget {
@@ -46,6 +47,8 @@ class _HomePageState extends State<HomePage> {
   StreamSubscription? _tickSubscription;
   DateTime? _timerStartDate;
 
+  final NotificationService _notificationService = NotificationService();
+
   static const int maxLogs = 3000;
   static const int maxManualTimeMinutes = 1000;
   static const int maxManualCompletions = 50;
@@ -65,12 +68,12 @@ class _HomePageState extends State<HomePage> {
   void _configureTimerListener() {
     final service = FlutterBackgroundService();
     _tickSubscription = service.on('tick').listen((event) {
-      if (!mounted) return;
+      if (!mounted || !isRunning) return;
 
       final now = DateTime.now();
       final timerStart = _timerStartDate;
 
-      if (isRunning && timerStart != null && (now.day != timerStart.day || now.month != timerStart.month || now.year != timerStart.year)) {
+      if (timerStart != null && (now.day != timerStart.day || now.month != timerStart.month || now.year != timerStart.year)) {
         final timeToLog = elapsed;
         final activityToLog = selectedActivity;
 
@@ -85,7 +88,7 @@ class _HomePageState extends State<HomePage> {
           );
 
           setState(() {
-            activityLogs.add(log);
+            activityLogs = [...activityLogs, log];
             final activityIndex = activities.indexWhere((a) => a.name == activityToLog.name);
             if (activityIndex != -1) {
               final activity = activities[activityIndex];
@@ -111,13 +114,14 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      if (!isRunning) return;
-
       setState(() {
         elapsed += const Duration(seconds: 1);
       });
-      final formattedDuration = formatDuration(elapsed);
-      service.invoke('updateNotification', {'formattedDuration': formattedDuration});
+      _notificationService.showTimerNotification(formatDuration(elapsed));
+    });
+
+    service.on('clearNotification').listen((event) {
+      _notificationService.cancelTimerNotification();
     });
   }
 
@@ -125,6 +129,55 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _tickSubscription?.cancel();
     super.dispose();
+  }
+
+  void _startTimer() {
+    if (selectedActivity == null || selectedActivity is! TimedActivity || isRunning) return;
+    FlutterBackgroundService().invoke('startTimer');
+    setState(() {
+      isRunning = true;
+      _timerStartDate = selectedDate;
+    });
+  }
+
+  void _stopTimer() {
+    FlutterBackgroundService().invoke('stopTimer');
+    setState(() {
+      isRunning = false;
+      _timerStartDate = null;
+    });
+  }
+
+  void _finishTimerAndSave() {
+    FlutterBackgroundService().invoke('stopTimer');
+    if (selectedActivity == null || elapsed == Duration.zero) {
+      _resetTimerState();
+      return;
+    }
+    if (activityLogs.length >= maxLogs) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
+      );
+      _resetTimerState();
+      return;
+    }
+    final now = DateTime.now();
+    final logDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, now.hour, now.minute, now.second);
+    final log = ActivityLog(
+      activityName: selectedActivity!.name,
+      date: logDate,
+      duration: elapsed,
+      isCheckable: false,
+    );
+    setState(() {
+      activityLogs = [...activityLogs, log];
+      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      if (activity is TimedActivity) {
+        activity.totalTime += elapsed;
+      }
+    });
+    _resetTimerState();
+    _saveData();
   }
 
   Future<void> _loadData() async {
@@ -310,19 +363,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _saveData() async {
-    if (activityLogs.length > maxLogs) {
-      activityLogs = activityLogs.sublist(activityLogs.length - maxLogs);
-    }
-    if (activities.length > maxActivities) {
-      activities = activities.sublist(0, maxActivities);
-    }
-    if (goals.length > maxGoals) {
-      goals = goals.sublist(0, maxGoals);
-    }
+    final logs = activityLogs.length > maxLogs
+        ? activityLogs.sublist(activityLogs.length - maxLogs)
+        : activityLogs;
+
     await _saveDataToPrefs({
-      'activities': activities,
-      'logs': activityLogs,
-      'goals': goals,
+      'activities': activities.take(maxActivities).toList(),
+      'logs': logs,
+      'goals': goals.take(maxGoals).toList(),
     });
 
     _checkQuestCompletions();
@@ -341,7 +389,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _resetData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
-    FlutterBackgroundService().invoke('stopService');
+    FlutterBackgroundService().invoke('stopTimer');
     setState(() {
       activities = [];
       activityLogs = [];
@@ -352,55 +400,6 @@ class _HomePageState extends State<HomePage> {
     });
     await _loadData();
     await _saveData();
-  }
-
-  void _startTimer() {
-    if (selectedActivity == null || selectedActivity is! TimedActivity || isRunning) return;
-    FlutterBackgroundService().startService();
-    setState(() {
-      isRunning = true;
-      _timerStartDate = selectedDate;
-    });
-  }
-
-  void _stopTimer() {
-    FlutterBackgroundService().invoke('stopService');
-    setState(() {
-      isRunning = false;
-      _timerStartDate = null;
-    });
-  }
-
-  void _finishTimerAndSave() {
-    FlutterBackgroundService().invoke('stopService');
-    if (selectedActivity == null || elapsed == Duration.zero) {
-      _resetTimerState();
-      return;
-    }
-    if (activityLogs.length >= maxLogs) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
-      );
-      _resetTimerState();
-      return;
-    }
-    final now = DateTime.now();
-    final logDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, now.hour, now.minute, now.second);
-    final log = ActivityLog(
-      activityName: selectedActivity!.name,
-      date: logDate,
-      duration: elapsed,
-      isCheckable: false,
-    );
-    setState(() {
-      activityLogs.add(log);
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
-      if (activity is TimedActivity) {
-        activity.totalTime += elapsed;
-      }
-    });
-    _resetTimerState();
-    _saveData();
   }
 
   void _resetTimerState() {
@@ -429,7 +428,7 @@ class _HomePageState extends State<HomePage> {
       isCheckable: true,
     );
     setState(() {
-      activityLogs.add(log);
+      activityLogs = [...activityLogs, log];
       final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is CheckableActivity) {
         activity.completionCount += 1;
@@ -455,7 +454,7 @@ class _HomePageState extends State<HomePage> {
       isCheckable: false,
     );
     setState(() {
-      activityLogs.add(log);
+      activityLogs = [...activityLogs, log];
       final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is TimedActivity) {
         activity.totalTime += duration;
@@ -469,7 +468,9 @@ class _HomePageState extends State<HomePage> {
 
     final dateStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
     final dateEnd = dateStart.add(const Duration(days: 1));
-    final relevantLogs = activityLogs
+    List<ActivityLog> logsCopy = List.from(activityLogs);
+
+    final relevantLogs = logsCopy
         .where((log) =>
     log.activityName == selectedActivity!.name &&
         !log.isCheckable &&
@@ -482,21 +483,21 @@ class _HomePageState extends State<HomePage> {
     relevantLogs.sort((a, b) => b.date.compareTo(a.date));
     Duration remainingDurationToSubtract = duration;
 
+    for (final log in relevantLogs) {
+      if (remainingDurationToSubtract <= Duration.zero) break;
+
+      final durationToSubtract = log.duration > remainingDurationToSubtract ? remainingDurationToSubtract : log.duration;
+      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name) as TimedActivity;
+
+      activity.totalTime -= durationToSubtract;
+      log.duration -= durationToSubtract;
+      remainingDurationToSubtract -= durationToSubtract;
+    }
+
+    logsCopy.removeWhere((log) => log.duration <= Duration.zero);
+
     setState(() {
-      for (final log in relevantLogs) {
-        if (remainingDurationToSubtract <= Duration.zero) break;
-
-        final durationToSubtract = log.duration > remainingDurationToSubtract ? remainingDurationToSubtract : log.duration;
-        final activity = activities.firstWhere((a) => a.name == selectedActivity!.name) as TimedActivity;
-
-        activity.totalTime -= durationToSubtract;
-        log.duration -= durationToSubtract;
-        remainingDurationToSubtract -= durationToSubtract;
-
-        if (log.duration <= Duration.zero) {
-          activityLogs.remove(log);
-        }
-      }
+      activityLogs = logsCopy;
     });
     _saveData();
   }
@@ -511,19 +512,22 @@ class _HomePageState extends State<HomePage> {
     }
     final now = DateTime.now();
     final logDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, now.hour, now.minute, now.second);
+
+    List<ActivityLog> newLogs = [];
+    for (int i = 0; i < count; i++) {
+      newLogs.add(ActivityLog(
+        activityName: selectedActivity!.name,
+        date: logDate,
+        duration: Duration.zero,
+        isCheckable: true,
+      ));
+    }
+
     setState(() {
-      for (int i = 0; i < count; i++) {
-        final log = ActivityLog(
-          activityName: selectedActivity!.name,
-          date: logDate,
-          duration: Duration.zero,
-          isCheckable: true,
-        );
-        activityLogs.add(log);
-        final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
-        if (activity is CheckableActivity) {
-          activity.completionCount += 1;
-        }
+      activityLogs = [...activityLogs, ...newLogs];
+      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      if (activity is CheckableActivity) {
+        activity.completionCount += count;
       }
     });
     _saveData();
@@ -534,23 +538,26 @@ class _HomePageState extends State<HomePage> {
 
     final dateStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
     final dateEnd = dateStart.add(const Duration(days: 1));
-    final relevantLogs = activityLogs
+
+    List<ActivityLog> logsToRemove = activityLogs
         .where((log) =>
     log.activityName == selectedActivity!.name &&
         log.isCheckable &&
         log.date.isAfter(dateStart) &&
         log.date.isBefore(dateEnd))
         .toList();
-    if (relevantLogs.isEmpty) return;
+
+    if (logsToRemove.isEmpty) return;
+
+    logsToRemove.sort((a, b) => b.date.compareTo(a.date));
+
+    final logsToActuallyRemove = logsToRemove.take(count).toSet();
 
     setState(() {
-      relevantLogs.sort((a, b) => b.date.compareTo(a.date));
-      for (int i = 0; i < min(count, relevantLogs.length); i++) {
-        activityLogs.remove(relevantLogs[i]);
-        final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
-        if (activity is CheckableActivity) {
-          activity.completionCount = max(0, activity.completionCount - 1);
-        }
+      activityLogs = activityLogs.where((log) => !logsToActuallyRemove.contains(log)).toList();
+      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      if (activity is CheckableActivity) {
+        activity.completionCount = max(0, activity.completionCount - logsToActuallyRemove.length);
       }
     });
     _saveData();
