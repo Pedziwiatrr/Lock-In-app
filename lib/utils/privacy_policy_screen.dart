@@ -7,7 +7,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
   static const String _privacyPolicyHtml = '''
     <h1>Privacy Policy for Lock-In Tracker</h1>
-    <p><strong>Last Updated: August 11, 2025</strong></p>
+    <p><strong>Last Updated: August 15, 2025</strong></p>
     
     <p>Thank you for using Lock-In Tracker. This Privacy Policy explains what information we process and why.</p>
     
@@ -19,14 +19,14 @@ class PrivacyPolicyScreen extends StatelessWidget {
     </p>
     
     <h2>2. What Information Do We Process?</h2>
-    <p>This application was designed with your privacy in mind. We divide data into two categories:</p>
+    <p>This application was designed with your privacy in mind. We divide data into three categories:</p>
     
     <h4>a) Data You Create in the App</h4>
     <p>
         This is all the information you enter directly into the application, such as:
         <ul>
             <li>The names of your Activities</li>
-            <li>your Goals</li>
+            <li>The definitions of your Goals</li>
             <li>Saved logs (dates, durations, and completions of activities)</li>
         </ul>
         <strong>Important:</strong> All of this data is stored and processed <strong>exclusively locally on your device</strong>. We, as the developers of the application, do not have access to it.
@@ -43,6 +43,16 @@ class PrivacyPolicyScreen extends StatelessWidget {
         </ul>
         You can find more information in Google's Privacy Policy: <a href="https://policies.google.com/privacy">https://policies.google.com/privacy</a>
     </p>
+
+    <h4>c) Local Notifications</h4>
+    <p>
+        The application uses local notifications to help you stay on track with your goals. This includes:
+        <ul>
+            <li>Daily reminders about your goals.</li>
+            <li>An ongoing notification to show the status of an active timer.</li>
+        </ul>
+        <strong>Important:</strong> All processing related to scheduling and displaying these notifications happens <strong>exclusively locally on your device</strong>. We do not send any data to external servers for this purpose, and we do not have access to the content of your notifications.
+    </p>
     
     <h2>3. Your Rights and Control Over Data</h2>
     <p>
@@ -51,6 +61,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
             <li>By using the "Reset Data" feature in the app's Settings.</li>
             <li>By uninstalling the application from your device.</li>
         </ol>
+    </p>
+    <p>
+        Additionally, you have full control over notifications. You can enable or disable them at any time from within the application's Settings screen or through your device's system settings.
     </p>
     
     <h2>4. Children's Policy</h2>
