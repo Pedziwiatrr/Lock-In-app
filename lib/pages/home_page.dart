@@ -343,19 +343,14 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    for (var log in logs) {
-      if (!activities.any((a) => a.name == log.activityName)) {
-        if (activities.length >= maxActivities) continue;
-        final newActivity = log.activityName == 'Workout'
-            ? CheckableActivity(name: log.activityName)
-            : TimedActivity(name: log.activityName);
-        activities.add(newActivity);
-      }
-      final activity = activities.firstWhere((a) => a.name == log.activityName);
-      if (activity is TimedActivity && !log.isCheckable) {
-        activity.totalTime += log.duration;
-      } else if (activity is CheckableActivity && log.isCheckable) {
-        activity.completionCount += 1;
+    // Recalculate totalTime and completionCount from logs to ensure data integrity
+    for (var activity in activities) {
+      if (activity is TimedActivity) {
+        activity.totalTime = logs
+            .where((log) => log.activityName == activity.name && !log.isCheckable)
+            .fold(Duration.zero, (prev, log) => prev + log.duration);
+      } else if (activity is CheckableActivity) {
+        activity.completionCount = logs.where((log) => log.activityName == activity.name && log.isCheckable).length;
       }
     }
 
@@ -374,6 +369,47 @@ class _HomePageState extends State<HomePage> {
     });
 
     _checkQuestCompletions();
+    _checkGoalCompletions();
+  }
+
+  void _checkGoalCompletions() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+
+    for (final goal in goals) {
+      if (goal.goalDuration > Duration.zero &&
+          goal.startDate.isBefore(tomorrow) &&
+          (goal.endDate == null || goal.endDate!.isAfter(today))) {
+
+        final activity = activities.firstWhere((a) => a.name == goal.activityName, orElse: () => CheckableActivity(name: ''));
+        if (activity.name.isEmpty) continue;
+
+        bool isCompletedNow = false;
+        if (activity is TimedActivity) {
+          final totalTime = activityLogs
+              .where((log) => log.activityName == goal.activityName && !log.isCheckable)
+              .fold(Duration.zero, (sum, log) => sum + log.duration);
+          if (totalTime >= goal.goalDuration) {
+            isCompletedNow = true;
+          }
+        } else if (activity is CheckableActivity) {
+          final completions = activityLogs
+              .where((log) => log.activityName == goal.activityName && log.isCheckable)
+              .length;
+          if (completions >= goal.goalDuration.inMinutes) {
+            isCompletedNow = true;
+          }
+        }
+
+        if (isCompletedNow && !_previousCompletedQuestIds.contains(goal.id)) {
+          _notificationService.scheduleGoalReminder(goal);
+          _previousCompletedQuestIds.add(goal.id);
+        } else if (!isCompletedNow) {
+          _previousCompletedQuestIds.remove(goal.id);
+        }
+      }
+    }
   }
 
   static Future<void> _saveDataToPrefs(Map<String, dynamic> data) async {
@@ -487,9 +523,10 @@ class _HomePageState extends State<HomePage> {
       if (remainingDurationToSubtract <= Duration.zero) break;
 
       final durationToSubtract = log.duration > remainingDurationToSubtract ? remainingDurationToSubtract : log.duration;
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name) as TimedActivity;
-
-      activity.totalTime -= durationToSubtract;
+      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      if(activity is TimedActivity) {
+        activity.totalTime -= durationToSubtract;
+      }
       log.duration -= durationToSubtract;
       remainingDurationToSubtract -= durationToSubtract;
     }
@@ -563,7 +600,10 @@ class _HomePageState extends State<HomePage> {
     _saveData();
   }
 
-  void updateActivities() {
+  void handleGoalChanged(List<Goal> newGoals) {
+    setState(() {
+      goals = newGoals.take(maxGoals).toList();
+    });
     _saveData();
   }
 
@@ -629,17 +669,15 @@ class _HomePageState extends State<HomePage> {
             GoalsPage(
               goals: goals,
               activities: activities,
-              onGoalChanged: (newGoals) {
-                setState(() {
-                  goals = newGoals.take(maxGoals).toList();
-                });
-                _saveData();
-              },
+              onGoalChanged: handleGoalChanged,
               launchCount: widget.launchCount,
             ),
             ActivitiesPage(
               activities: activities,
-              onUpdate: updateActivities,
+              onUpdate: () {
+                setState(() {});
+                _saveData();
+              },
               launchCount: widget.launchCount,
             ),
             ProgressPage(
@@ -655,6 +693,7 @@ class _HomePageState extends State<HomePage> {
               launchCount: widget.launchCount,
             ),
             HistoryPage(
+              activities: activities,
               activityLogs: activityLogs,
               goals: goals,
               selectedDate: selectedDate,
