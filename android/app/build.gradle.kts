@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.example.lockin"
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "com.example.lockin"
-        minSdk = 23
+        minSdkVersion(flutter.minSdkVersion)
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
