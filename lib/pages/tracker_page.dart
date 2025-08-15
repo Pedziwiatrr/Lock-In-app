@@ -226,7 +226,7 @@ class _TrackerPageState extends State<TrackerPage> {
     if (widget.isRunning) widget.onStopTimer();
     final action = widget.selectedActivity is TimedActivity
         ? () => widget.onSubtractManualTime(Duration(minutes: intVal))
-        : () => widget.onSubtractManualCompletion(intVal);
+        : () => widget.onAddManualCompletion(intVal);
 
     _adManager.incrementStoperUsage().then((_) {
       bool shouldShow = widget.selectedActivity is TimedActivity
@@ -293,7 +293,7 @@ class _TrackerPageState extends State<TrackerPage> {
     Widget mainDisplay;
     if (widget.selectedActivity is TimedActivity) {
       final totalForDay = dateActivities[widget.selectedActivity!.name]?['totalDuration'] ?? Duration.zero;
-      mainDisplay = Center(child: Text(formatDuration(isToday ? totalForDay + widget.elapsed : totalForDay), style: const TextStyle(fontSize: 60)));
+      mainDisplay = Center(child: Text(formatDuration(totalForDay), style: const TextStyle(fontSize: 60)));
     } else if (widget.selectedActivity is CheckableActivity) {
       mainDisplay = Center(child: Text('$dateCompletions time(s)', style: const TextStyle(fontSize: 60)));
     } else {
@@ -382,7 +382,7 @@ class _TrackerPageState extends State<TrackerPage> {
                 ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No activities logged for this date.'))
                 : Column(children: filteredDateActivities.map((entry) => ListTile(title: Text(entry.key), trailing: Text((entry.value['isTimed'] as bool) ? formatDuration(entry.value['totalDuration'] as Duration) : '${entry.value['completions']} time(s)', style: const TextStyle(fontSize: 18)))).toList()),
             const SizedBox(height: 20),
-            const Text('🎯 Goals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('✅ Goals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             activeGoals.isEmpty
                 ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No goals set for this date.'))
                 : ListView.builder(
