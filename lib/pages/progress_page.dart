@@ -193,14 +193,14 @@ class ProgressService {
         id: 'q8_rate',
         title: 'Supporter',
         icon: Icons.rate_review_outlined,
-        levels: [QuestLevel(description: 'Rate the app on the Google Play store - to do so just click on this text :)', xpReward: 150, target: 1)],
+        levels: [QuestLevel(description: 'Rate the app on the Google Play store. To do so just click on this text :)', xpReward: 150, target: 1)],
         getProgress: (a, l, g, lc, hasRated) => hasRated ? 1 : 0),
     Quest(
       id: 'q_repeat_1',
       title: 'Extra Effort',
       icon: Icons.repeat,
       isRepeatable: true,
-      levels: [QuestLevel(description: 'Log 2 hours in any timed activity to earn XP.', xpReward: 50, target: 2)],
+      levels: [QuestLevel(description: 'Log 2 hours in any timed activity. (Repeatable)', xpReward: 50, target: 2)],
       getProgress: (a, l, g, lc, hr) => l.fold<Duration>(Duration.zero, (p, e) => p + e.duration).inHours,
     ),
     Quest(
@@ -462,7 +462,7 @@ class _ProgressPageState extends State<ProgressPage> {
                 final quest = activeQuest.quest;
                 final nextLevel = activeQuest.nextLevel;
 
-                num progressBaseline, progressValue, progressTotal;
+                num progressValue, progressTotal;
                 double progressPercent;
                 String title;
 
@@ -477,9 +477,8 @@ class _ProgressPageState extends State<ProgressPage> {
                   progressPercent = max(0.0, progressValue / (progressTotal > 0 ? progressTotal : 1));
                 } else {
                   title = '${quest.title} ${activeQuest.currentLevelNum + 1}';
-                  progressBaseline = activeQuest.currentLevel?.target ?? 0;
-                  progressValue = activeQuest.currentProgress - progressBaseline;
-                  progressTotal = nextLevel.target - progressBaseline;
+                  progressValue = activeQuest.currentProgress;
+                  progressTotal = nextLevel.target;
                   progressPercent = max(0.0, progressValue / (progressTotal > 0 ? progressTotal : 1));
                 }
 
