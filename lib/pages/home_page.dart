@@ -50,8 +50,8 @@ class _HomePageState extends State<HomePage> {
   final NotificationService _notificationService = NotificationService();
 
   static const int maxLogs = 3000;
-  static const int maxManualTimeMinutes = 1000;
-  static const int maxManualCompletions = 50;
+  static const int maxManualTimeMinutes = 10000;
+  static const int maxManualCompletions = 10000;
   static const int maxActivities = 10;
   static const int maxGoals = 10;
 
@@ -343,7 +343,6 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    // Recalculate totalTime and completionCount from logs to ensure data integrity
     for (var activity in activities) {
       if (activity is TimedActivity) {
         activity.totalTime = logs
@@ -474,10 +473,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   void addManualTime(Duration duration) {
+    final bool cheatsEnabled = activities.any((a) => a.name == 'sv_cheats 1');
+    final int limit = cheatsEnabled ? maxManualTimeMinutes : 300;
+
     if (selectedActivity == null ||
         selectedActivity is! TimedActivity ||
         duration <= Duration.zero ||
-        duration > Duration(minutes: maxManualTimeMinutes) ||
+        duration > Duration(minutes: limit) ||
         activityLogs.length >= maxLogs) {
       return;
     }
@@ -540,10 +542,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   void addManualCompletion(int count) {
+    final bool cheatsEnabled = activities.any((a) => a.name == 'sv_cheats 1');
+    final int limit = cheatsEnabled ? maxManualCompletions : 30;
+
     if (selectedActivity == null ||
         selectedActivity is! CheckableActivity ||
         count <= 0 ||
-        count > maxManualCompletions ||
+        count > limit ||
         activityLogs.length + count > maxLogs) {
       return;
     }
