@@ -10,7 +10,8 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:ui';
 
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+GlobalKey<ScaffoldMessengerState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -79,7 +80,7 @@ Future<void> initializeService() async {
       onStart: onStart,
       autoStart: true,
       isForegroundMode: true,
-      notificationChannelId: 'timer_channel',
+      notificationChannelId: 'background_service_notif_channel',
       initialNotificationTitle: 'Working in the background...',
       initialNotificationContent: "Don't get distracted!",
       foregroundServiceNotificationId: 888,

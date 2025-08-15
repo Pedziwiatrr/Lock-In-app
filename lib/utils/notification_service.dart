@@ -11,18 +11,32 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
   FlutterLocalNotificationsPlugin();
 
-  static const AndroidNotificationChannel _goalChannel = AndroidNotificationChannel(
+  static const AndroidNotificationChannel _goalChannel =
+  AndroidNotificationChannel(
     'goal_reminders_channel',
     'Goal Reminders',
     description: 'Channel for goal achievement reminders.',
     importance: Importance.max,
   );
 
-  static const AndroidNotificationChannel _timerChannel = AndroidNotificationChannel(
-    'timer_channel',
+  static const AndroidNotificationChannel _timerChannel =
+  AndroidNotificationChannel(
+    'timer_notif_channel',
     'Active Timer',
     description: 'Notification showing the active timer.',
     importance: Importance.low,
+    playSound: false,
+    enableVibration: false,
+  );
+
+  static const AndroidNotificationChannel _serviceChannel =
+  AndroidNotificationChannel(
+    'background_service_notif_channel',
+    'Background Service',
+    description: 'Channel for the persistent background service notification.',
+    importance: Importance.high,
+    playSound: false,
+    enableVibration: false,
   );
 
   Future<void> init() async {
@@ -35,14 +49,19 @@ class NotificationService {
         .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_timerChannel);
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(_serviceChannel);
 
     const AndroidInitializationSettings initializationSettingsAndroid =
-    AndroidInitializationSettings('@mipmap/ic_launcher');
+    AndroidInitializationSettings('@drawable/ic_notification_icon');
 
     const DarwinInitializationSettings initializationSettingsIOS =
     DarwinInitializationSettings();
 
-    const InitializationSettings initializationSettings = InitializationSettings(
+    const InitializationSettings initializationSettings =
+    InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
     );
@@ -55,7 +74,8 @@ class NotificationService {
     if (!(prefs.getBool('goalReminderEnabled') ?? true)) return;
 
     final tz.TZDateTime now = tz.TZDateTime.now(tz.local);
-    final tz.TZDateTime scheduleTime = tz.TZDateTime(tz.local, now.year, now.month, now.day + 1, 20, 0);
+    final tz.TZDateTime scheduleTime =
+    tz.TZDateTime(tz.local, now.year, now.month, now.day + 1, 20, 0);
 
     final notificationDetails = NotificationDetails(
       android: AndroidNotificationDetails(
@@ -63,7 +83,8 @@ class NotificationService {
         _goalChannel.name,
         channelDescription: _goalChannel.description,
         priority: Priority.high,
-        importance: Importance.high,
+        importance: Importance.max,
+        icon: '@drawable/ic_notification_icon',
       ),
     );
 
@@ -96,6 +117,7 @@ class NotificationService {
         autoCancel: false,
         priority: Priority.low,
         importance: Importance.low,
+        icon: '@drawable/ic_notification_icon',
       ),
     );
 
