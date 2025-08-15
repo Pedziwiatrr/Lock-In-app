@@ -61,7 +61,7 @@ Future<void> main() async {
       {'type': 'TimedActivity', 'name': 'Focus', 'totalTime': 0},
       {
         'type': 'CheckableActivity',
-        'name': 'Drink water',
+        'name': 'Workout 💪',
         'completionCount': 0
       },
     ];

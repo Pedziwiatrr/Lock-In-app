@@ -293,7 +293,7 @@ class _HomePageState extends State<HomePage> {
     if (activitiesJson == null || activitiesJson.isEmpty || activitiesJson == '[]' || shouldLoadDefaultData == 1) {
       activities = [
         TimedActivity(name: 'Focus'),
-        CheckableActivity(name: 'Drink water'),
+        CheckableActivity(name: 'Workout'),
       ];
       await prefs.setString('activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
     } else {
@@ -346,7 +346,7 @@ class _HomePageState extends State<HomePage> {
     for (var log in logs) {
       if (!activities.any((a) => a.name == log.activityName)) {
         if (activities.length >= maxActivities) continue;
-        final newActivity = log.activityName == 'Drink water'
+        final newActivity = log.activityName == 'Workout'
             ? CheckableActivity(name: log.activityName)
             : TimedActivity(name: log.activityName);
         activities.add(newActivity);
