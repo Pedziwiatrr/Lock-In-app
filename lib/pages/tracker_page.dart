@@ -72,7 +72,7 @@ class _TrackerPageState extends State<TrackerPage> {
   @override
   void didUpdateWidget(TrackerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.activityLogs != oldWidget.activityLogs || widget.goals != oldWidget.goals) {
+    if (widget.activityLogs != oldWidget.activityLogs || widget.goals != oldWidget.goals || widget.selectedActivity != oldWidget.selectedActivity) {
       _updateStreak();
     }
   }
@@ -109,13 +109,16 @@ class _TrackerPageState extends State<TrackerPage> {
       };
     }
 
-    for (var log in widget.activityLogs.where((log) => log.date.isAfter(dateStart) && log.date.isBefore(dateEnd))) {
+    for (var log in widget.activityLogs.where((log) => !log.date.isBefore(dateStart) && log.date.isBefore(dateEnd))) {
       final activityName = log.activityName;
       if (!dateActivities.containsKey(activityName)) continue;
 
-      if (log.isCheckable) {
+      final activity = widget.activities.firstWhere((a) => a.name == activityName, orElse: () => CheckableActivity(name: ''));
+      if(activity.name.isEmpty) continue;
+
+      if (activity is CheckableActivity) {
         dateActivities[activityName]!['completions'] += 1;
-      } else if (dateActivities[activityName]!['isTimed']) {
+      } else if (activity is TimedActivity) {
         dateActivities[activityName]!['totalDuration'] = (dateActivities[activityName]!['totalDuration'] as Duration) + log.duration;
       }
     }
@@ -151,10 +154,7 @@ class _TrackerPageState extends State<TrackerPage> {
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
             onPressed: () {
               final value = controller.text.trim();
@@ -178,9 +178,7 @@ class _TrackerPageState extends State<TrackerPage> {
   }
 
   void _handleCheckAndAd() {
-    if (widget.isRunning) {
-      widget.onStopTimer();
-    }
+    if (widget.isRunning) widget.onStopTimer();
     _adManager.incrementCheckUsage().then((_) {
       if (widget.selectedActivity is CheckableActivity && _adManager.shouldShowCheckAd()) {
         _adManager.showRewardedAd(
@@ -195,9 +193,7 @@ class _TrackerPageState extends State<TrackerPage> {
   }
 
   void _handleAddManual(int intVal) {
-    if (widget.isRunning) {
-      widget.onStopTimer();
-    }
+    if (widget.isRunning) widget.onStopTimer();
     if (widget.selectedActivity is TimedActivity) {
       _adManager.incrementStoperUsage().then((_) {
         if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
@@ -226,9 +222,7 @@ class _TrackerPageState extends State<TrackerPage> {
   }
 
   void _handleSubtractManual(int intVal) {
-    if (widget.isRunning) {
-      widget.onStopTimer();
-    }
+    if (widget.isRunning) widget.onStopTimer();
     if (widget.selectedActivity is TimedActivity) {
       _adManager.incrementStoperUsage().then((_) {
         if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
@@ -259,7 +253,6 @@ class _TrackerPageState extends State<TrackerPage> {
   void _handleFinish() {
     final timeToLog = widget.elapsed;
     if (timeToLog == Duration.zero) return;
-
     if (widget.selectedActivity is TimedActivity && _adManager.shouldShowAd(timeToLog)) {
       _adManager.showRewardedAd(
         onUserEarnedReward: widget.onFinishTimer,
@@ -269,11 +262,6 @@ class _TrackerPageState extends State<TrackerPage> {
     } else {
       widget.onFinishTimer();
     }
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   @override
@@ -296,8 +284,8 @@ class _TrackerPageState extends State<TrackerPage> {
     bool canSubtractTime = false;
     bool canSubtractCompletion = false;
     if (widget.selectedActivity != null) {
-      final relevantLogs = widget.activityLogs.where((log) => log.activityName == widget.selectedActivity!.name && log.date.isAfter(dateStart) && log.date.isBefore(dateEnd)).toList();
-      canSubtractTime = widget.selectedActivity is TimedActivity && relevantLogs.any((log) => !log.isCheckable && log.duration > Duration.zero);
+      final relevantLogs = widget.activityLogs.where((log) => log.activityName == widget.selectedActivity!.name && !log.date.isBefore(dateStart) && log.date.isBefore(dateEnd)).toList();
+      canSubtractTime = widget.selectedActivity is TimedActivity && relevantLogs.any((log) => log.duration > Duration.zero);
       canSubtractCompletion = widget.selectedActivity is CheckableActivity && relevantLogs.any((log) => log.isCheckable);
     }
 
@@ -311,7 +299,7 @@ class _TrackerPageState extends State<TrackerPage> {
     Widget mainDisplay;
     if (widget.selectedActivity is TimedActivity) {
       final totalForDay = dateActivities[widget.selectedActivity!.name]?['totalDuration'] ?? Duration.zero;
-      mainDisplay = Center(child: Text(formatDuration(isToday ? widget.elapsed : totalForDay), style: const TextStyle(fontSize: 60)));
+      mainDisplay = Center(child: Text(formatDuration(isToday ? totalForDay + widget.elapsed : totalForDay), style: const TextStyle(fontSize: 60)));
     } else if (widget.selectedActivity is CheckableActivity) {
       mainDisplay = Center(child: Text('$dateCompletions time(s)', style: const TextStyle(fontSize: 60)));
     } else {
@@ -357,24 +345,13 @@ class _TrackerPageState extends State<TrackerPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (widget.selectedActivity is TimedActivity) ...[
-                    ElevatedButton(
-                      onPressed: (widget.selectedActivity == null || widget.isRunning) ? null : widget.onStartTimer,
-                      child: const Text('Start'),
-                    ),
+                    ElevatedButton(onPressed: (widget.selectedActivity == null || widget.isRunning) ? null : widget.onStartTimer, child: const Text('Start')),
                     const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: widget.isRunning ? widget.onStopTimer : null,
-                      child: const Text('Stop'),
-                    ),
+                    ElevatedButton(onPressed: widget.isRunning ? widget.onStopTimer : null, child: const Text('Stop')),
                     const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero) ? null : _handleFinish,
-                      child: const Text('Finish'),
-                    ),
+                    ElevatedButton(onPressed: (widget.selectedActivity == null || widget.elapsed == Duration.zero) ? null : _handleFinish, child: const Text('Finish')),
                   ] else if (widget.selectedActivity is CheckableActivity)
-                    ElevatedButton(
-                        onPressed: (widget.selectedActivity == null) ? null : _handleCheckAndAd,
-                        child: const Text('Check', style: TextStyle(fontSize: 20))),
+                    ElevatedButton(onPressed: (widget.selectedActivity == null) ? null : _handleCheckAndAd, child: const Text('Check', style: TextStyle(fontSize: 20))),
                 ],
               ),
             const SizedBox(height: 10),
@@ -393,9 +370,7 @@ class _TrackerPageState extends State<TrackerPage> {
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
-                    onPressed: (
-                        (widget.selectedActivity is TimedActivity && !canSubtractTime) ||
-                            (widget.selectedActivity is CheckableActivity && !canSubtractCompletion))
+                    onPressed: ((widget.selectedActivity is TimedActivity && !canSubtractTime) || (widget.selectedActivity is CheckableActivity && !canSubtractCompletion))
                         ? null
                         : () => showInputDialog(
                         widget.selectedActivity is TimedActivity ? 'Subtract Time' : 'Subtract Completions',
@@ -422,48 +397,84 @@ class _TrackerPageState extends State<TrackerPage> {
               itemCount: activeGoals.length,
               itemBuilder: (context, index) {
                 final goal = activeGoals[index];
-                final activity = widget.activities.firstWhere((act) => act.name == goal.activityName);
+                final activity = widget.activities.firstWhere((act) => act.name == goal.activityName, orElse: () => CheckableActivity(name: ''));
+                if(activity.name.isEmpty) return const SizedBox.shrink();
 
                 final monthStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, 1);
-                final monthEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month + 1, 0);
-                final weekStart = dateStart.subtract(Duration(days: widget.selectedDate.weekday - 1));
-                final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+                final monthEnd = DateTime(widget.selectedDate.year, widget.selectedDate.month + 1, 0).add(const Duration(days: 1));
+
+                final dayStart = DateTime(widget.selectedDate.year, widget.selectedDate.month, widget.selectedDate.day);
+                final weekStart = dayStart.subtract(Duration(days: widget.selectedDate.weekday - 1));
+                final weekEnd = weekStart.add(const Duration(days: 7));
 
                 final goalPeriodStart = goal.goalType == GoalType.daily ? dateStart : goal.goalType == GoalType.weekly ? weekStart : monthStart;
                 final goalPeriodEnd = goal.goalType == GoalType.daily ? dateEnd : goal.goalType == GoalType.weekly ? weekEnd : monthEnd;
 
-                final loggedTimeInPeriod = widget.activityLogs.where((log) => log.activityName == activity.name && !log.isCheckable && log.date.isAfter(goalPeriodStart) && log.date.isBefore(goalPeriodEnd)).fold(Duration.zero, (sum, log) => sum + log.duration);
-                final totalTime = loggedTimeInPeriod + ((widget.selectedActivity?.name == activity.name && isToday) ? widget.elapsed : Duration.zero);
-
-                final completionsInPeriod = widget.activityLogs.where((log) => log.activityName == activity.name && log.isCheckable && log.date.isAfter(goalPeriodStart) && log.date.isBefore(goalPeriodEnd)).length;
-
                 double percent = 0.0;
-                String remainingText = '';
+                String progressText;
+                String timeLeftText = '';
+
+                if (goal.goalType != GoalType.daily) {
+                  final now = DateTime.now();
+                  final endOfPeriod = goal.goalType == GoalType.weekly ? weekEnd : monthEnd;
+                  final timeLeft = endOfPeriod.difference(now);
+
+                  if (timeLeft.isNegative) {
+                    timeLeftText = 'Period ended';
+                  } else if (timeLeft.inHours < 48) {
+                    timeLeftText = '${timeLeft.inHours} hours left';
+                  } else {
+                    timeLeftText = '${timeLeft.inDays} days left';
+                  }
+                }
+
                 if (activity is TimedActivity) {
+                  final loggedTimeInPeriod = widget.activityLogs
+                      .where((log) => log.activityName == activity.name && !log.date.isBefore(goalPeriodStart) && log.date.isBefore(goalPeriodEnd))
+                      .fold(Duration.zero, (sum, log) => sum + log.duration);
+                  final totalTime = loggedTimeInPeriod + ((widget.selectedActivity?.name == activity.name && isToday) ? widget.elapsed : Duration.zero);
+
                   percent = goal.goalDuration.inSeconds == 0 ? 0.0 : (totalTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0);
-                  remainingText = (goal.goalDuration - totalTime).isNegative ? 'Goal completed!' : 'Remaining: ${formatDuration(goal.goalDuration - totalTime)}';
+                  progressText = '${formatDuration(totalTime)} / ${formatDuration(goal.goalDuration)}';
                 } else {
+                  final completionsInPeriod = widget.activityLogs
+                      .where((log) => log.activityName == activity.name && log.isCheckable && !log.date.isBefore(goalPeriodStart) && log.date.isBefore(goalPeriodEnd))
+                      .length;
+
                   percent = goal.goalDuration.inMinutes == 0 ? 0.0 : (completionsInPeriod / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
-                  remainingText = completionsInPeriod >= goal.goalDuration.inMinutes ? 'Goal completed!' : 'Remaining: ${goal.goalDuration.inMinutes - completionsInPeriod} completion(s)';
+                  progressText = '$completionsInPeriod / ${goal.goalDuration.inMinutes} time(s)';
                 }
 
                 return ListTile(
-                  title: Text(activity.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  title: Text('${activity.name} (${goal.goalType.toString().split('.').last})'),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      LinearProgressIndicator(value: percent),
                       const SizedBox(height: 4),
-                      Text(remainingText),
-                      Text(goal.goalType == GoalType.daily ? 'Daily' : goal.goalType == GoalType.weekly ? 'Weekly' : 'Monthly'),
+                      LinearProgressIndicator(
+                        value: percent,
+                        minHeight: 10,
+                        borderRadius: BorderRadius.circular(5),
+                        backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                        valueColor: AlwaysStoppedAnimation<Color>(percent >= 1.0 ? Colors.green : Theme.of(context).colorScheme.primary),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(progressText, style: const TextStyle(fontSize: 12)),
+                          if (timeLeftText.isNotEmpty)
+                            Text(timeLeftText, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.secondary)),
+                          Text('${(percent * 100).toStringAsFixed(0)}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      )
                     ],
                   ),
-                  trailing: Text('${(percent * 100).toStringAsFixed(0)}%'),
                 );
               },
             ),
             const SizedBox(height: 20),
-            Text(_currentStreak == null ? '🔥 Current Streak: ... 🔥' : '🔥 Current Streak: $_currentStreak days 🔥', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(_currentStreak == null ? '🔥 Current Streak: ...' : '🔥 Current Streak: $_currentStreak days 🔥', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 80),
           ],
         ),
