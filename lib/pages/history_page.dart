@@ -229,6 +229,12 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     }
 
+    final weekStart = dayStart.subtract(Duration(days: day.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 7));
+    final monthStart = DateTime(day.year, day.month, 1);
+    final monthEnd = DateTime(day.year, day.month + 1, 0).add(const Duration(days: 1));
+    final activeGoals = widget.goals.where((g) => g.goalDuration > Duration.zero && g.startDate.isBefore(dayEnd) && (g.endDate == null || g.endDate!.isAfter(dayStart))).toList();
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -250,6 +256,69 @@ class _HistoryPageState extends State<HistoryPage> {
                         : '${entry.value['completions']} time(s)'),
                   );
                 }).toList(),
+              const SizedBox(height: 16),
+              const Text('Goal Progress', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              if(activeGoals.isEmpty)
+                const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No goals were active on this day.'))
+              else
+                ...activeGoals.map((goal) {
+                  final activity = widget.activities.firstWhere((a) => a.name == goal.activityName, orElse: () => CheckableActivity(name: ''));
+                  if(activity.name.isEmpty) return const SizedBox.shrink();
+
+                  final periodStart = goal.goalType == GoalType.daily ? dayStart : (goal.goalType == GoalType.weekly ? weekStart : monthStart);
+                  final periodEnd = goal.goalType == GoalType.daily ? dayEnd : (goal.goalType == GoalType.weekly ? weekEnd : monthEnd);
+
+                  double percent = 0.0;
+                  String progressText;
+                  Color progressColor;
+
+                  if (activity is TimedActivity) {
+                    final totalTime = widget.activityLogs.where((log) => log.activityName == activity.name && !log.date.isBefore(periodStart) && log.date.isBefore(periodEnd)).fold(Duration.zero, (sum, log) => sum + log.duration);
+                    percent = goal.goalDuration.inSeconds == 0 ? 0.0 : (totalTime.inSeconds / goal.goalDuration.inSeconds).clamp(0.0, 1.0);
+                    progressText = '${formatDuration(totalTime)} / ${formatDuration(goal.goalDuration)}';
+                  } else {
+                    final completions = widget.activityLogs.where((log) => log.activityName == activity.name && log.isCheckable && !log.date.isBefore(periodStart) && log.date.isBefore(periodEnd)).length;
+                    percent = goal.goalDuration.inMinutes == 0 ? 0.0 : (completions / goal.goalDuration.inMinutes).clamp(0.0, 1.0);
+                    progressText = '$completions / ${goal.goalDuration.inMinutes} time(s)';
+                  }
+
+                  if (percent >= 1.0) {
+                    progressColor = Colors.green;
+                  } else if (percent > 0) {
+                    progressColor = Colors.yellow;
+                  } else {
+                    progressColor = Colors.red;
+                  }
+
+                  return ListTile(
+                    title: Row(
+                      children: [
+                        Container(width: 10, height: 10, decoration: BoxDecoration(shape: BoxShape.circle, color: progressColor)),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text('${goal.activityName} (${goal.goalType.toString().split('.').last})')),
+                      ],
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: percent,
+                          backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                          valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(progressText, style: const TextStyle(fontSize: 12)),
+                            Text('${(percent * 100).toStringAsFixed(0)}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
             ],
           ),
         ),
