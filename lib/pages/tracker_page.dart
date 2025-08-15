@@ -53,8 +53,8 @@ class TrackerPage extends StatefulWidget {
 }
 
 class _TrackerPageState extends State<TrackerPage> {
-  static const int maxManualTimeMinutes = 1000;
-  static const int maxManualCompletions = 100;
+  static const int maxManualTimeMinutes = 10000;
+  static const int maxManualCompletions = 10000;
   final AdManager _adManager = AdManager.instance;
   int? _currentStreak;
 
@@ -138,6 +138,14 @@ class _TrackerPageState extends State<TrackerPage> {
   }
 
   void showInputDialog(String title, String hint, bool isTimed, Function(int) onSave) {
+    final bool cheatsEnabled = widget.activities.any((a) => a.name == 'sv_cheats 1');
+
+    final int timeLimit = cheatsEnabled ? maxManualTimeMinutes : 300;
+    final int completionLimit = cheatsEnabled ? maxManualCompletions : 30;
+
+    final int currentLimit = isTimed ? timeLimit : completionLimit;
+    final String unit = isTimed ? "minutes" : "completions";
+
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -149,7 +157,7 @@ class _TrackerPageState extends State<TrackerPage> {
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
             hintText: hint,
-            helperText: isTimed ? 'Max $maxManualTimeMinutes minutes' : 'Max $maxManualCompletions completions',
+            helperText: 'Max $currentLimit $unit',
           ),
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         ),
@@ -159,13 +167,13 @@ class _TrackerPageState extends State<TrackerPage> {
             onPressed: () {
               final value = controller.text.trim();
               final intVal = int.tryParse(value);
-              if (value.isNotEmpty && intVal != null && intVal > 0 && intVal <= (isTimed ? maxManualTimeMinutes : maxManualCompletions)) {
+              if (value.isNotEmpty && intVal != null && intVal > 0 && intVal <= currentLimit) {
                 Navigator.pop(context);
                 onSave(intVal);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Enter a number between 1 and ${isTimed ? maxManualTimeMinutes : maxManualCompletions}.'),
+                    content: Text('Enter a number between 1 and $currentLimit.'),
                   ),
                 );
               }
@@ -183,7 +191,7 @@ class _TrackerPageState extends State<TrackerPage> {
       if (widget.selectedActivity is CheckableActivity && _adManager.shouldShowCheckAd()) {
         _adManager.showRewardedAd(
           onUserEarnedReward: widget.onCheckActivity,
-          onAdDismissed: widget.onCheckActivity,
+          onAdDismissed: () {},
           onAdFailedToShow: widget.onCheckActivity,
         );
       } else {
@@ -194,60 +202,46 @@ class _TrackerPageState extends State<TrackerPage> {
 
   void _handleAddManual(int intVal) {
     if (widget.isRunning) widget.onStopTimer();
-    if (widget.selectedActivity is TimedActivity) {
-      _adManager.incrementStoperUsage().then((_) {
-        if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
-          _adManager.showRewardedAd(
-            onUserEarnedReward: () => widget.onAddManualTime(Duration(minutes: intVal)),
-            onAdDismissed: () => widget.onAddManualTime(Duration(minutes: intVal)),
-            onAdFailedToShow: () => widget.onAddManualTime(Duration(minutes: intVal)),
-          );
-        } else {
-          widget.onAddManualTime(Duration(minutes: intVal));
-        }
-      });
-    } else if (widget.selectedActivity is CheckableActivity) {
-      _adManager.incrementCheckUsage().then((_) {
-        if (_adManager.shouldShowCheckAd()) {
-          _adManager.showRewardedAd(
-            onUserEarnedReward: () => widget.onAddManualCompletion(intVal),
-            onAdDismissed: () => widget.onAddManualCompletion(intVal),
-            onAdFailedToShow: () => widget.onAddManualCompletion(intVal),
-          );
-        } else {
-          widget.onAddManualCompletion(intVal);
-        }
-      });
-    }
+    final action = widget.selectedActivity is TimedActivity
+        ? () => widget.onAddManualTime(Duration(minutes: intVal))
+        : () => widget.onAddManualCompletion(intVal);
+
+    _adManager.incrementStoperUsage().then((_) {
+      bool shouldShow = widget.selectedActivity is TimedActivity
+          ? _adManager.shouldShowAd(Duration(minutes: intVal))
+          : _adManager.shouldShowCheckAd();
+      if (shouldShow) {
+        _adManager.showRewardedAd(
+          onUserEarnedReward: action,
+          onAdDismissed: () {},
+          onAdFailedToShow: action,
+        );
+      } else {
+        action();
+      }
+    });
   }
 
   void _handleSubtractManual(int intVal) {
     if (widget.isRunning) widget.onStopTimer();
-    if (widget.selectedActivity is TimedActivity) {
-      _adManager.incrementStoperUsage().then((_) {
-        if (_adManager.shouldShowAd(Duration(minutes: intVal))) {
-          _adManager.showRewardedAd(
-            onUserEarnedReward: () => widget.onSubtractManualTime(Duration(minutes: intVal)),
-            onAdDismissed: () => widget.onSubtractManualTime(Duration(minutes: intVal)),
-            onAdFailedToShow: () => widget.onSubtractManualTime(Duration(minutes: intVal)),
-          );
-        } else {
-          widget.onSubtractManualTime(Duration(minutes: intVal));
-        }
-      });
-    } else if (widget.selectedActivity is CheckableActivity) {
-      _adManager.incrementCheckUsage().then((_) {
-        if (_adManager.shouldShowCheckAd()) {
-          _adManager.showRewardedAd(
-            onUserEarnedReward: () => widget.onSubtractManualCompletion(intVal),
-            onAdDismissed: () => widget.onSubtractManualCompletion(intVal),
-            onAdFailedToShow: () => widget.onSubtractManualCompletion(intVal),
-          );
-        } else {
-          widget.onSubtractManualCompletion(intVal);
-        }
-      });
-    }
+    final action = widget.selectedActivity is TimedActivity
+        ? () => widget.onSubtractManualTime(Duration(minutes: intVal))
+        : () => widget.onSubtractManualCompletion(intVal);
+
+    _adManager.incrementStoperUsage().then((_) {
+      bool shouldShow = widget.selectedActivity is TimedActivity
+          ? _adManager.shouldShowAd(Duration(minutes: intVal))
+          : _adManager.shouldShowCheckAd();
+      if (shouldShow) {
+        _adManager.showRewardedAd(
+          onUserEarnedReward: action,
+          onAdDismissed: () {},
+          onAdFailedToShow: action,
+        );
+      } else {
+        action();
+      }
+    });
   }
 
   void _handleFinish() {
@@ -256,7 +250,7 @@ class _TrackerPageState extends State<TrackerPage> {
     if (widget.selectedActivity is TimedActivity && _adManager.shouldShowAd(timeToLog)) {
       _adManager.showRewardedAd(
         onUserEarnedReward: widget.onFinishTimer,
-        onAdDismissed: widget.onFinishTimer,
+        onAdDismissed: () {},
         onAdFailedToShow: widget.onFinishTimer,
       );
     } else {
@@ -303,7 +297,7 @@ class _TrackerPageState extends State<TrackerPage> {
     } else if (widget.selectedActivity is CheckableActivity) {
       mainDisplay = Center(child: Text('$dateCompletions time(s)', style: const TextStyle(fontSize: 60)));
     } else {
-      mainDisplay = const Center(child: Text('00:00:00', style: TextStyle(fontSize: 60, color: Colors.grey)));
+      mainDisplay = const Center(child: Text('00:00:00', style: const TextStyle(fontSize: 60, color: Colors.grey)));
     }
 
     return SingleChildScrollView(
@@ -388,7 +382,7 @@ class _TrackerPageState extends State<TrackerPage> {
                 ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No activities logged for this date.'))
                 : Column(children: filteredDateActivities.map((entry) => ListTile(title: Text(entry.key), trailing: Text((entry.value['isTimed'] as bool) ? formatDuration(entry.value['totalDuration'] as Duration) : '${entry.value['completions']} time(s)', style: const TextStyle(fontSize: 18)))).toList()),
             const SizedBox(height: 20),
-            const Text('🎯 Goals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('✅ Goals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             activeGoals.isEmpty
                 ? const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No goals set for this date.'))
                 : ListView.builder(
