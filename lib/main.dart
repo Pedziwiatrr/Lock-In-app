@@ -24,10 +24,15 @@ Future<void> main() async {
         () async {
       if (await ConsentInformation.instance.isConsentFormAvailable()) {
         ConsentForm.loadConsentForm(
-              (ConsentForm consentForm) {
-            consentForm.show((FormError? formError) {
+              (ConsentForm consentForm) async {
+            var status = await ConsentInformation.instance.getConsentStatus();
+            if (status == ConsentStatus.required) {
+              consentForm.show((FormError? formError) {
+                completer.complete();
+              });
+            } else {
               completer.complete();
-            });
+            }
           },
               (FormError? error) {
             completer.complete();
