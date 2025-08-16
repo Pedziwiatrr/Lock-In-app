@@ -34,7 +34,7 @@ class NotificationService {
     'background_service_notif_channel',
     'Background Service',
     description: 'Channel for the persistent background service notification.',
-    importance: Importance.high,
+    importance: Importance.min,
     playSound: false,
     enableVibration: false,
   );
@@ -84,7 +84,7 @@ class NotificationService {
         channelDescription: _goalChannel.description,
         priority: Priority.high,
         importance: Importance.max,
-        icon: '@drawable/ic_notification_icon',
+        largeIcon: const DrawableResourceAndroidBitmap('@drawable/ic_notification_icon'),
       ),
     );
 
@@ -125,6 +125,34 @@ class NotificationService {
       0,
       'Locked In for $formattedDuration',
       'Keep up the good work!',
+      notificationDetails,
+    );
+  }
+
+  Future<void> showOrUpdateServiceNotification({
+    required String title,
+    required String content,
+  }) async {
+    final notificationDetails = NotificationDetails(
+      android: AndroidNotificationDetails(
+        _serviceChannel.id,
+        _serviceChannel.name,
+        channelDescription: _serviceChannel.description,
+        importance: Importance.min,
+        priority: Priority.min,
+        ongoing: true,
+        autoCancel: false,
+        playSound: false,
+        enableVibration: false,
+        silent: true,
+        largeIcon: const DrawableResourceAndroidBitmap('@drawable/ic_bg_notification_icon'),
+      ),
+    );
+
+    await _notificationsPlugin.show(
+      888,
+      title,
+      content,
       notificationDetails,
     );
   }

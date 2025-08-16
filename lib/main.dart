@@ -81,8 +81,8 @@ Future<void> initializeService() async {
       autoStart: true,
       isForegroundMode: true,
       notificationChannelId: 'background_service_notif_channel',
-      initialNotificationTitle: 'Working in the background...',
-      initialNotificationContent: "Don't get distracted!",
+      initialNotificationTitle: '',
+      initialNotificationContent: '',
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
@@ -97,6 +97,11 @@ void onStart(ServiceInstance service) {
   DartPluginRegistrant.ensureInitialized();
   Timer? timer;
 
+  NotificationService().showOrUpdateServiceNotification(
+    title: 'Working in the background...',
+    content: "Don't get distracted!",
+  );
+
   service.on('startTimer').listen((event) {
     if (timer?.isActive ?? false) return;
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -107,6 +112,10 @@ void onStart(ServiceInstance service) {
   service.on('stopTimer').listen((event) {
     timer?.cancel();
     timer = null;
+    NotificationService().showOrUpdateServiceNotification(
+      title: 'Working in the background...',
+      content: "Don't get distracted!",
+    );
     service.invoke('clearNotification');
   });
 }
