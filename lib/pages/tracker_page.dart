@@ -297,8 +297,17 @@ class _TrackerPageState extends State<TrackerPage> {
     } else if (widget.selectedActivity is CheckableActivity) {
       mainDisplay = Center(child: Text('$dateCompletions time(s)', style: const TextStyle(fontSize: 60)));
     } else {
-      mainDisplay = const Center(child: Text('00:00:00', style: const TextStyle(fontSize: 60, color: Colors.grey)));
+      mainDisplay = const Center(child: Text('00:00:00', style: TextStyle(fontSize: 60, color: Colors.grey)));
     }
+
+    final Map<String, Activity> uniqueActivitiesMap = {
+      for (var a in widget.activities) a.name: a,
+    };
+    final List<Activity> uniqueActivitiesForDropdown = uniqueActivitiesMap.values.toList();
+    final Activity? selectedActivityForDropdown = widget.selectedActivity != null
+        ? uniqueActivitiesMap[widget.selectedActivity!.name]
+        : null;
+
 
     return SingleChildScrollView(
       child: Padding(
@@ -310,10 +319,10 @@ class _TrackerPageState extends State<TrackerPage> {
               children: [
                 Expanded(
                   child: DropdownButton<Activity>(
-                    value: widget.selectedActivity,
+                    value: selectedActivityForDropdown,
                     hint: const Text('Choose activity'),
                     isExpanded: true,
-                    items: widget.activities.map((a) => DropdownMenuItem(value: a, child: Text(a.name))).toList(),
+                    items: uniqueActivitiesForDropdown.map((a) => DropdownMenuItem(value: a, child: Text(a.name))).toList(),
                     onChanged: widget.onSelectActivity,
                   ),
                 ),
