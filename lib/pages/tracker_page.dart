@@ -226,7 +226,7 @@ class _TrackerPageState extends State<TrackerPage> {
     if (widget.isRunning) widget.onStopTimer();
     final action = widget.selectedActivity is TimedActivity
         ? () => widget.onSubtractManualTime(Duration(minutes: intVal))
-        : () => widget.onAddManualCompletion(intVal);
+        : () => widget.onSubtractManualCompletion(intVal);
 
     _adManager.incrementStoperUsage().then((_) {
       bool shouldShow = widget.selectedActivity is TimedActivity
