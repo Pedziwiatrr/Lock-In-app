@@ -365,7 +365,7 @@ class _GoalsPageState extends State<GoalsPage> {
           if (showGoals) ...[
             const SizedBox(height: 16),
             const Text(
-              'Goals 🔥',
+              'Goals',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
