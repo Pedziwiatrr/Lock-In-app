@@ -292,8 +292,7 @@ class _TrackerPageState extends State<TrackerPage> {
 
     Widget mainDisplay;
     if (widget.selectedActivity is TimedActivity) {
-      final totalForDay = dateActivities[widget.selectedActivity!.name]?['totalDuration'] ?? Duration.zero;
-      mainDisplay = Center(child: Text(formatDuration(totalForDay), style: const TextStyle(fontSize: 60)));
+      mainDisplay = Center(child: Text(formatDuration(widget.elapsed), style: const TextStyle(fontSize: 60)));
     } else if (widget.selectedActivity is CheckableActivity) {
       mainDisplay = Center(child: Text('$dateCompletions time(s)', style: const TextStyle(fontSize: 60)));
     } else {
