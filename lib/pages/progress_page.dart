@@ -337,7 +337,7 @@ class _ProgressPageState extends State<ProgressPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('hasRatedApp', true);
 
-    const url = 'https://play.google.com/store/apps/details?id=com.example.lockin';
+    const url = 'https://play.google.com/store/apps/details?id=io.github.pedziwiatrr.lockin';
     final uri = Uri.parse(url);
 
     if (await canLaunchUrl(uri)) {
