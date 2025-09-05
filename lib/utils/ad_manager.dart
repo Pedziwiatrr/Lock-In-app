@@ -1,8 +1,16 @@
 import 'dart:io';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+class _AdUnitIds {
+  static const String rewardedAndroid = 'ca-app-pub-3940256099942544/5224354917';
+  static const String rewardedIos = 'ca-app-pub-3940256099942544/1712485313';
+  static const String bannerAndroid = 'ca-app-pub-3940256099942544/6300978111';
+  static const String bannerIos = 'ca-app-pub-3940256099942544/2934735716';
+}
 
 class AdManager {
   static AdManager _instance = AdManager._internal();
@@ -43,31 +51,33 @@ class AdManager {
   }
 
   Future<void> _logAdRequestInfo(String adType) async {
-    final status = await ConsentInformation.instance.getConsentStatus();
-    print('[DEBUG] [AD] Requesting $adType. Current UMP Consent Status: $status. The SDK will automatically handle personalization.');
+    if (!kReleaseMode) {
+      final status = await ConsentInformation.instance.getConsentStatus();
+      print('[AD] Requesting $adType. Current UMP Consent Status: $status.');
+    }
   }
 
   void loadRewardedAd() {
     _logAdRequestInfo("rewarded ad");
     RewardedAd.load(
       adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/5224354917'
-          : 'ca-app-pub-3940256099942544/1712485313',
+          ? _AdUnitIds.rewardedAndroid
+          : _AdUnitIds.rewardedIos,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
-          print('[DEBUG] [AD] Rewarded ad loaded successfully.');
+          if (!kReleaseMode) print('[AD] Rewarded ad loaded successfully.');
           _rewardedAd = ad;
           _rewardedAdRetryAttempt = 0;
         },
         onAdFailedToLoad: (error) {
           _rewardedAdRetryAttempt++;
           if (_rewardedAdRetryAttempt > _maxRetries) {
-            print('[DEBUG] [AD] Rewarded ad failed to load after $_maxRetries attempts. Stopping retries. Error: $error');
+            if (!kReleaseMode) print('[AD] Rewarded ad failed to load after $_maxRetries attempts. Stopping retries. Error: $error');
             return;
           }
           final delay = Duration(seconds: 30 * pow(2, _rewardedAdRetryAttempt - 1).toInt());
-          print('[DEBUG] [AD] Rewarded ad loading error. Attempt $_rewardedAdRetryAttempt. Retrying in ${delay.inSeconds} seconds. Error: $error');
+          if (!kReleaseMode) print('[AD] Rewarded ad loading error. Attempt $_rewardedAdRetryAttempt. Retrying in ${delay.inSeconds} seconds. Error: $error');
           _rewardedAd = null;
           Future.delayed(delay, loadRewardedAd);
         },
@@ -79,13 +89,13 @@ class AdManager {
     _logAdRequestInfo("banner ad");
     _bannerAd = BannerAd(
       adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/6300978111'
-          : 'ca-app-pub-3940256099942544/2934735716',
+          ? _AdUnitIds.bannerAndroid
+          : _AdUnitIds.bannerIos,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
-          print('[DEBUG] [AD] Banner ad loaded successfully.');
+          if (!kReleaseMode) print('[AD] Banner ad loaded successfully.');
           _isAdLoaded = true;
           _bannerAdRetryAttempt = 0;
           onAdLoaded(true);
@@ -97,15 +107,19 @@ class AdManager {
 
           _bannerAdRetryAttempt++;
           if (_bannerAdRetryAttempt > _maxRetries) {
-            print('[DEBUG] [AD] Banner ad failed to load after $_maxRetries attempts. Stopping retries. Error: $error');
+            if (!kReleaseMode) print('[AD] Banner ad failed to load after $_maxRetries attempts. Stopping retries. Error: $error');
             return;
           }
           final delay = Duration(seconds: 30 * pow(2, _bannerAdRetryAttempt - 1).toInt());
-          print('[DEBUG] [AD] Banner ad loading error. Attempt $_bannerAdRetryAttempt. Retrying in ${delay.inSeconds} seconds. Error: $error');
+          if (!kReleaseMode) print('[AD] Banner ad loading error. Attempt $_bannerAdRetryAttempt. Retrying in ${delay.inSeconds} seconds. Error: $error');
           Future.delayed(delay, () => loadBannerAd(onAdLoaded: onAdLoaded));
         },
-        onAdOpened: (ad) => print('[DEBUG] [AD] Banner ad opened'),
-        onAdClosed: (ad) => print('[DEBUG] [AD] Banner ad closed'),
+        onAdOpened: (ad) {
+          if (!kReleaseMode) print('[AD] Banner ad opened');
+        },
+        onAdClosed: (ad) {
+          if (!kReleaseMode) print('[AD] Banner ad closed');
+        },
       ),
     );
     _bannerAd!.load();
@@ -145,73 +159,57 @@ class AdManager {
 
   bool shouldShowAd(Duration duration) {
     if (duration.inSeconds <= 5) {
-      print('[DEBUG] [AD] Ad not shown: duration too short');
+      if (!kReleaseMode) print('[AD] Ad not shown: duration too short');
       return false;
     }
     if (_stoperUsageCount < 3) {
-      print('[DEBUG] [AD] Ad not shown: grace time');
+      if (!kReleaseMode) print('[AD] Ad not shown: grace time');
       return false;
     }
     if (_lastAdShown) {
-      print('[DEBUG] [AD] Ad not shown: ad shown last time');
+      if (!kReleaseMode) print('[AD] Ad not shown: ad shown last time');
       _lastAdShown = false;
       return false;
     }
     final random = Random().nextDouble() < 0.5;
     _lastAdShown = random;
-    if (random) {
-      print('[DEBUG] [AD] Ad shown');
-    } else {
-      print('[DEBUG] [AD] Ad not shown: random');
-    }
+    if (!kReleaseMode) print('[AD] Ad decision: ${random ? "show" : "skip (random)"}');
     return random;
   }
 
   bool shouldShowCheckAd() {
     if (_checkUsageCount < 5) {
-      print('[DEBUG] [AD] Ad not shown: check usage');
+      if (!kReleaseMode) print('[AD] Ad not shown: check usage');
       return false;
     }
     if (_lastCheckAdShown) {
-      print('[DEBUG] [AD] Ad not shown: ad shown last time');
+      if (!kReleaseMode) print('[AD] Ad not shown: ad shown last time');
       _lastCheckAdShown = false;
       return false;
     }
     final random = Random().nextDouble() < 0.25;
     _lastCheckAdShown = random;
-    if (random) {
-      print('[DEBUG] [AD] Ad shown');
-    } else {
-      print('[DEBUG] [AD] Ad not shown: random');
-    }
+    if (!kReleaseMode) print('[AD] Ad check decision: ${random ? "show" : "skip (random)"}');
     return random;
   }
 
   bool shouldShowGoalAd() {
     if (_goalAddCount <= 1) {
-      print('[DEBUG] [AD] Ad not shown: first goal');
+      if (!kReleaseMode) print('[AD] Ad not shown: first goal');
       return false;
     }
     final random = Random().nextDouble() < 0.5;
-    if (random) {
-      print('[DEBUG] [AD] Ad shown for goal add');
-    } else {
-      print('[DEBUG] [AD] Ad not shown for goal add: random');
-    }
+    if (!kReleaseMode) print('[AD] Ad goal decision: ${random ? "show" : "skip (random)"}');
     return random;
   }
 
   bool shouldShowActivityChangeAd() {
     if (_activityChangeCount <= 2) {
-      print('[DEBUG] [AD] Ad not shown: first two activity changes');
+      if (!kReleaseMode) print('[AD] Ad not shown: first two activity changes');
       return false;
     }
     final random = Random().nextDouble() < 0.5;
-    if (random) {
-      print('[DEBUG] [AD] Ad shown for activity change');
-    } else {
-      print('[DEBUG] [AD] Ad not shown for activity change: random');
-    }
+    if (!kReleaseMode) print('[AD] Ad activity change decision: ${random ? "show" : "skip (random)"}');
     return random;
   }
 
@@ -220,26 +218,25 @@ class AdManager {
     required VoidCallback onAdDismissed,
     required VoidCallback onAdFailedToShow,
   }) {
-    print('[DEBUG] [AD] Attempting to show rewarded ad.');
     if (_rewardedAd == null) {
-      print('[DEBUG] [AD] Rewarded ad is not ready. Attempting to load a new one.');
+      if (!kReleaseMode) print('[AD] Rewarded ad is not ready. Attempting to load a new one.');
       onAdFailedToShow();
       loadRewardedAd();
       return;
     }
     _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (ad) {
-        print('[DEBUG] [AD] Rewarded ad shown.');
+        if (!kReleaseMode) print('[AD] Rewarded ad shown.');
       },
       onAdDismissedFullScreenContent: (ad) {
-        print('[DEBUG] [AD] Rewarded ad dismissed.');
+        if (!kReleaseMode) print('[AD] Rewarded ad dismissed.');
         ad.dispose();
         _rewardedAd = null;
         loadRewardedAd();
         onAdDismissed();
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
-        print('[DEBUG] [AD] Rewarded ad failed to show, error=$error');
+        if (!kReleaseMode) print('[AD] Rewarded ad failed to show, error=$error');
         ad.dispose();
         _rewardedAd = null;
         loadRewardedAd();
@@ -248,7 +245,7 @@ class AdManager {
     );
     _rewardedAd!.show(
       onUserEarnedReward: (ad, reward) {
-        print('[DEBUG] [AD] User earned reward, amount=${reward.amount}, type=${reward.type}');
+        if (!kReleaseMode) print('[AD] User earned reward, amount=${reward.amount}, type=${reward.type}');
         onUserEarnedReward();
       },
     );
@@ -256,7 +253,7 @@ class AdManager {
   }
 
   Future<void> dispose() async {
-    print('[DEBUG] [AD] Disposing AdManager');
+    if (!kReleaseMode) print('[AD] Disposing AdManager');
     _rewardedAd?.dispose();
     _rewardedAd = null;
     _bannerAd?.dispose();
