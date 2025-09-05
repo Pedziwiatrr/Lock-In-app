@@ -5,12 +5,12 @@ plugins {
 }
 
 android {
-    namespace = "com.pedziwiatr.lockin"
+    namespace = "io.github.pedziwiatrr.lockin"
     compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
-        applicationId = "com.pedziwiatr.lockin"
+        applicationId = "io.github.pedziwiatrr.lockin"
         minSdkVersion(flutter.minSdkVersion)
         targetSdk = 35
         versionCode = 1
