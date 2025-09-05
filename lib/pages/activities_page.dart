@@ -29,9 +29,9 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   @override
   void initState() {
     super.initState();
-    print('ActivitiesPage initState: launchCount = ${widget.launchCount}');
+    //print('ActivitiesPage initState: launchCount = ${widget.launchCount}');
     if (widget.launchCount > 1) {
-      print('ActivitiesPage: Attempting to load banner ad');
+      //print('ActivitiesPage: Attempting to load banner ad');
       _adManager.loadBannerAd(onAdLoaded: (isLoaded) {
         if (mounted) {
           setState(() {
@@ -40,7 +40,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
         }
       });
     } else {
-      print('ActivitiesPage: Skipping ad load due to launchCount <= 1');
+      //print('ActivitiesPage: Skipping ad load due to launchCount <= 1');
     }
   }
 
@@ -114,7 +114,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                         ? TimedActivity(name: name)
                         : CheckableActivity(name: name));
                   });
-                  print('Added activity: $name (${_isTimedActivity ? 'Timed' : 'Checkable'})');
+                  //print('Added activity: $name (${_isTimedActivity ? 'Timed' : 'Checkable'})');
                   widget.onUpdate();
                   Navigator.pop(context);
                 } else if (name.length > maxNameLength) {
@@ -169,28 +169,28 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                   !widget.activities.any((a) => a.name == name)) {
                 _adManager.incrementActivityChangeCount().then((_) {
                   if (_adManager.shouldShowActivityChangeAd()) {
-                    print("Attempting to show rewarded ad for activity rename");
+                    //print("Attempting to show rewarded ad for activity rename");
                     _adManager.showRewardedAd(
                       onUserEarnedReward: () {
                         setState(() {
                           widget.activities[index].name = name;
                         });
-                        print('Renamed activity to: $name');
+                        //print('Renamed activity to: $name');
                         widget.onUpdate();
                         Navigator.pop(context);
                       },
                       onAdDismissed: () {
-                        print("Ad dismissed, activity not renamed");
+                        //print("Ad dismissed, activity not renamed");
                       },
                       onAdFailedToShow: () {
-                        print("Ad failed to show, activity not renamed");
+                        //print("Ad failed to show, activity not renamed");
                       },
                     );
                   } else {
                     setState(() {
                       widget.activities[index].name = name;
                     });
-                    print('Renamed activity to: $name');
+                    //print('Renamed activity to: $name');
                     widget.onUpdate();
                     Navigator.pop(context);
                   }
@@ -221,27 +221,27 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     final name = widget.activities[index].name;
     _adManager.incrementActivityChangeCount().then((_) {
       if (_adManager.shouldShowActivityChangeAd()) {
-        print("Attempting to show rewarded ad for activity deletion");
+        //print("Attempting to show rewarded ad for activity deletion");
         _adManager.showRewardedAd(
           onUserEarnedReward: () {
             setState(() {
               widget.activities.removeAt(index);
             });
-            print('Deleted activity: $name');
+            //print('Deleted activity: $name');
             widget.onUpdate();
           },
           onAdDismissed: () {
-            print("Ad dismissed, activity not deleted");
+            //print("Ad dismissed, activity not deleted");
           },
           onAdFailedToShow: () {
-            print("Ad failed to show, activity not deleted");
+            //print("Ad failed to show, activity not deleted");
           },
         );
       } else {
         setState(() {
           widget.activities.removeAt(index);
         });
-        print('Deleted activity: $name');
+        //print('Deleted activity: $name');
         widget.onUpdate();
       }
     });
@@ -255,13 +255,13 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
       final activity = widget.activities.removeAt(oldIndex);
       widget.activities.insert(newIndex, activity);
     });
-    print('Reordered activities');
+    //print('Reordered activities');
     widget.onUpdate();
   }
 
   @override
   void dispose() {
-    print('ActivitiesPage: Disposing');
+    //print('ActivitiesPage: Disposing');
     super.dispose();
   }
 
