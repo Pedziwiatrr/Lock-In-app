@@ -29,10 +29,14 @@ class _GoalsPageState extends State<GoalsPage> {
   static const int maxGoalMinutes = 10000;
   final AdManager _adManager = AdManager.instance;
 
+  final Map<String, TextEditingController> _goalValueControllers = {};
+  final Map<String, TextEditingController> _startDateControllers = {};
+  final Map<String, TextEditingController> _endDateControllers = {};
+
   @override
   void initState() {
     super.initState();
-    _syncEditableGoals();
+    _syncStateAndControllers();
   }
 
   @override
@@ -40,24 +44,72 @@ class _GoalsPageState extends State<GoalsPage> {
     super.didUpdateWidget(oldWidget);
     if (widget.goals != oldWidget.goals || widget.activities != oldWidget.activities) {
       setState(() {
-        _syncEditableGoals();
+        _syncStateAndControllers();
       });
     }
   }
 
-  void _syncEditableGoals() {
+  @override
+  void dispose() {
+    _goalValueControllers.values.forEach((c) => c.dispose());
+    _startDateControllers.values.forEach((c) => c.dispose());
+    _endDateControllers.values.forEach((c) => c.dispose());
+    super.dispose();
+  }
+
+  void _syncStateAndControllers() {
     final now = DateTime.now();
+    final activityNames = widget.activities.map((a) => a.name).toSet();
+
     editableGoals = widget.activities.map((activity) {
-      return widget.goals.firstWhere(
+      final existingGoal = editableGoals.firstWhere(
             (g) => g.activityName == activity.name,
+        orElse: () => Goal(activityName: '', goalType: GoalType.daily, startDate: now, goalDuration: Duration.zero),
+      );
+
+      return widget.goals.firstWhere(
+            (g) => g.activityName == activity.name && g.goalType == (existingGoal.activityName.isNotEmpty ? existingGoal.goalType : GoalType.daily),
         orElse: () => Goal(
           activityName: activity.name,
           goalDuration: Duration.zero,
           startDate: now,
-          goalType: GoalType.daily,
+          goalType: existingGoal.activityName.isNotEmpty ? existingGoal.goalType : GoalType.daily,
         ),
       );
     }).toList();
+
+    _goalValueControllers.removeWhere((key, value) {
+      if (!activityNames.contains(key)) {
+        value.dispose();
+        return true;
+      }
+      return false;
+    });
+    _startDateControllers.removeWhere((key, value) {
+      if (!activityNames.contains(key)) {
+        value.dispose();
+        return true;
+      }
+      return false;
+    });
+    _endDateControllers.removeWhere((key, value) {
+      if (!activityNames.contains(key)) {
+        value.dispose();
+        return true;
+      }
+      return false;
+    });
+
+    for (var goal in editableGoals) {
+      _goalValueControllers.putIfAbsent(goal.activityName, () => TextEditingController()).text =
+      goal.goalDuration.inMinutes > 0 ? goal.goalDuration.inMinutes.toString() : '';
+
+      _startDateControllers.putIfAbsent(goal.activityName, () => TextEditingController()).text =
+      '${goal.startDate.day.toString().padLeft(2, '0')}-${goal.startDate.month.toString().padLeft(2, '0')}-${goal.startDate.year}';
+
+      _endDateControllers.putIfAbsent(goal.activityName, () => TextEditingController()).text =
+      goal.endDate != null ? '${goal.endDate!.day.toString().padLeft(2, '0')}-${goal.endDate!.month.toString().padLeft(2, '0')}-${goal.endDate!.year}' : '';
+    }
   }
 
   void updateGoal(
@@ -189,33 +241,6 @@ class _GoalsPageState extends State<GoalsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final currentActivityNames = widget.activities.map((a) => a.name).toSet();
-    if (editableGoals.any((g) => !currentActivityNames.contains(g.activityName))) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if(mounted) {
-          setState(() {
-            editableGoals.removeWhere((g) => !currentActivityNames.contains(g.activityName));
-          });
-        }
-      });
-    }
-    for (var activity in widget.activities) {
-      if (!editableGoals.any((g) => g.activityName == activity.name)) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if(mounted) {
-            setState(() {
-              editableGoals.add(Goal(
-                activityName: activity.name,
-                goalDuration: Duration.zero,
-                goalType: GoalType.daily,
-                startDate: DateTime.now(),
-              ));
-            });
-          }
-        });
-      }
-    }
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -227,24 +252,16 @@ class _GoalsPageState extends State<GoalsPage> {
             itemCount: widget.activities.length,
             itemBuilder: (context, index) {
               final activity = widget.activities[index];
+
+              if (!_goalValueControllers.containsKey(activity.name)) {
+                return const SizedBox.shrink();
+              }
               final goal = editableGoals.firstWhere(
                     (g) => g.activityName == activity.name,
-                orElse: () => Goal(
-                  activityName: activity.name,
-                  goalDuration: Duration.zero,
-                  goalType: GoalType.daily,
-                  startDate: DateTime.now(),
-                ),
               );
-              final controller = TextEditingController(text: goal.goalDuration.inMinutes > 0 ? goal.goalDuration.inMinutes.toString() : '');
-              final startDateController = TextEditingController(
-                text: '${goal.startDate.day.toString().padLeft(2, '0')}-${goal.startDate.month.toString().padLeft(2, '0')}-${goal.startDate.year}',
-              );
-              final endDateController = TextEditingController(
-                text: goal.endDate != null
-                    ? '${goal.endDate!.day.toString().padLeft(2, '0')}-${goal.endDate!.month.toString().padLeft(2, '0')}-${goal.endDate!.year}'
-                    : '',
-              );
+              final controller = _goalValueControllers[activity.name]!;
+              final startDateController = _startDateControllers[activity.name]!;
+              final endDateController = _endDateControllers[activity.name]!;
 
               return ListTile(
                 title: Text(
@@ -292,6 +309,9 @@ class _GoalsPageState extends State<GoalsPage> {
                                 );
                                 if (index != -1) {
                                   editableGoals[index] = newGoalData;
+                                  _goalValueControllers[activity.name]!.text = newGoalData.goalDuration.inMinutes > 0 ? newGoalData.goalDuration.inMinutes.toString() : '';
+                                  _startDateControllers[activity.name]!.text = '${newGoalData.startDate.day.toString().padLeft(2, '0')}-${newGoalData.startDate.month.toString().padLeft(2, '0')}-${newGoalData.startDate.year}';
+                                  _endDateControllers[activity.name]!.text = newGoalData.endDate != null ? '${newGoalData.endDate!.day.toString().padLeft(2, '0')}-${newGoalData.endDate!.month.toString().padLeft(2, '0')}-${newGoalData.endDate!.year}' : '';
                                 }
                               });
                             }
