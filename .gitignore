@@ -54,3 +54,6 @@ build/
 # Symbolication and obfuscation
 app.*.symbols
 app.*.map.json
+
+# key.properties file
+/android/key.properties
