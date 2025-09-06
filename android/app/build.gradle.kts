@@ -5,12 +5,12 @@ plugins {
 }
 
 android {
-    namespace = "com.example.lockin"
+    namespace = "io.github.pedziwiatrr.lockin"
     compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
-        applicationId = "com.example.lockin"
+        applicationId = "io.github.pedziwiatrr.lockin"
         minSdkVersion(flutter.minSdkVersion)
         targetSdk = 35
         versionCode = 1
@@ -30,7 +30,6 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
