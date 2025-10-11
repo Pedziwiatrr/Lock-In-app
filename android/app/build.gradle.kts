@@ -18,9 +18,9 @@ android {
     defaultConfig {
         applicationId = "io.github.pedziwiatrr.lockin"
         minSdkVersion(flutter.minSdkVersion)
-        targetSdk = 35
-        versionCode = 4
-        versionName = "1.0"
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
         multiDexEnabled = true
     }
 

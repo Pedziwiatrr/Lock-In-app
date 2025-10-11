@@ -53,7 +53,7 @@ class AdManager {
   Future<void> _logAdRequestInfo(String adType) async {
     if (!kReleaseMode) {
       final status = await ConsentInformation.instance.getConsentStatus();
-      print('[AD] Requesting $adType. Current UMP Consent Status: $status.');
+      //print('[AD] Requesting $adType. Current UMP Consent Status: $status.');
     }
   }
 
