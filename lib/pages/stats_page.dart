@@ -20,8 +20,8 @@ class HistoryDataProvider {
     required this.activities,
   });
 
-  Future<List<Map<String, dynamic>>> getGoalStatusesForPeriod(
-      DateTime start, DateTime end, String? selectedActivity) async {
+  Future<List<Map<String, dynamic>>> getGoalStatusesForPeriod(DateTime start,
+      DateTime end, String? selectedActivity) async {
     try {
       final result = await compute(_computeGoalStatusesForPeriod, {
         'goals': goals,
@@ -39,7 +39,8 @@ class HistoryDataProvider {
     }
   }
 
-  static List<Map<String, dynamic>> _computeGoalStatusesForPeriod(Map<String, dynamic> params) {
+  static List<Map<String, dynamic>> _computeGoalStatusesForPeriod(
+      Map<String, dynamic> params) {
     final goals = params['goals'] as List<Goal>;
     final activityLogs = params['activityLogs'] as List<ActivityLog>;
     final activities = params['activities'] as List<Activity>;
@@ -57,22 +58,28 @@ class HistoryDataProvider {
         case GoalType.daily:
           iterDate = DateTime(start.year, start.month, start.day);
           while (iterDate.isBefore(end.add(const Duration(days: 1)))) {
-            if (goal.startDate.isAfter(iterDate) || (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
+            if (goal.startDate.isAfter(iterDate) ||
+                (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
               iterDate = iterDate.add(const Duration(days: 1));
               continue;
             }
-            statuses.add(_calculateStatusForPeriod(goal, activityLogs, activities, iterDate, iterDate.add(const Duration(days: 1))));
+            statuses.add(_calculateStatusForPeriod(
+                goal, activityLogs, activities, iterDate,
+                iterDate.add(const Duration(days: 1))));
             iterDate = iterDate.add(const Duration(days: 1));
           }
           break;
         case GoalType.weekly:
           iterDate = start.subtract(Duration(days: start.weekday - 1));
           while (iterDate.isBefore(end.add(const Duration(days: 1)))) {
-            if (goal.startDate.isAfter(iterDate.add(const Duration(days: 7))) || (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
+            if (goal.startDate.isAfter(iterDate.add(const Duration(days: 7))) ||
+                (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
               iterDate = iterDate.add(const Duration(days: 7));
               continue;
             }
-            statuses.add(_calculateStatusForPeriod(goal, activityLogs, activities, iterDate, iterDate.add(const Duration(days: 7))));
+            statuses.add(_calculateStatusForPeriod(
+                goal, activityLogs, activities, iterDate,
+                iterDate.add(const Duration(days: 7))));
             iterDate = iterDate.add(const Duration(days: 7));
           }
           break;
@@ -80,11 +87,13 @@ class HistoryDataProvider {
           iterDate = DateTime(start.year, start.month, 1);
           while (iterDate.isBefore(end.add(const Duration(days: 1)))) {
             final nextMonth = DateTime(iterDate.year, iterDate.month + 1, 1);
-            if (goal.startDate.isAfter(nextMonth) || (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
+            if (goal.startDate.isAfter(nextMonth) ||
+                (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
               iterDate = nextMonth;
               continue;
             }
-            statuses.add(_calculateStatusForPeriod(goal, activityLogs, activities, iterDate, nextMonth));
+            statuses.add(_calculateStatusForPeriod(
+                goal, activityLogs, activities, iterDate, nextMonth));
             iterDate = nextMonth;
           }
           break;
@@ -93,27 +102,35 @@ class HistoryDataProvider {
     return statuses;
   }
 
-  static Map<String, dynamic> _calculateStatusForPeriod(Goal goal, List<ActivityLog> allLogs, List<Activity> activities, DateTime periodStart, DateTime periodEnd) {
+  static Map<String, dynamic> _calculateStatusForPeriod(Goal goal,
+      List<ActivityLog> allLogs, List<Activity> activities,
+      DateTime periodStart, DateTime periodEnd) {
     final activityLogsFiltered = allLogs.where((log) =>
     log.activityName == goal.activityName &&
         !log.date.isBefore(periodStart) &&
         log.date.isBefore(periodEnd)).toList();
 
-    bool isCheckable = activities.any((a) => a.name == goal.activityName && a is CheckableActivity);
+    bool isCheckable = activities.any((a) =>
+    a.name == goal.activityName && a is CheckableActivity);
 
     bool isSuccessful = false;
     if (isCheckable) {
-      final completions = activityLogsFiltered.where((log) => log.isCheckable).length;
+      final completions = activityLogsFiltered
+          .where((log) => log.isCheckable)
+          .length;
       isSuccessful = completions >= goal.goalDuration.inMinutes;
     } else {
-      final totalTime = activityLogsFiltered.fold<Duration>(Duration.zero, (sum, log) => sum + log.duration);
+      final totalTime = activityLogsFiltered.fold<Duration>(
+          Duration.zero, (sum, log) => sum + log.duration);
       isSuccessful = totalTime >= goal.goalDuration;
     }
 
     bool isPeriodEnded = periodEnd.isBefore(DateTime.now());
     return {
       'goal': goal,
-      'status': isSuccessful ? 'successful' : (isPeriodEnded ? 'failed' : 'ongoing'),
+      'status': isSuccessful ? 'successful' : (isPeriodEnded
+          ? 'failed'
+          : 'ongoing'),
       'date': periodStart,
     };
   }
@@ -122,22 +139,64 @@ class HistoryDataProvider {
     try {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
+
       final firstLogDate = activityLogs.isNotEmpty
-          ? activityLogs.map((e) => e.date).reduce((a, b) => a.isBefore(b) ? a : b)
+          ? activityLogs.map((e) =>
+          DateTime(e.date.year, e.date.month, e.date.day)).reduce((a, b) =>
+      a.isBefore(b) ? a : b)
           : today;
 
-      final allDailyStatuses = await getGoalStatusesForPeriod(firstLogDate, now, selectedActivity);
+      final allDailyStatuses = await getGoalStatusesForPeriod(
+          firstLogDate, now, selectedActivity)
+          .then((statuses) =>
+          statuses
+              .where((s) => (s['goal'] as Goal).goalType == GoalType.daily)
+              .toList());
 
-      final dailyStatusesByDate = <DateTime, bool>{};
-      for (var status in allDailyStatuses.where((s) => (s['goal'] as Goal).goalType == GoalType.daily)) {
+      final dailyStatusesGrouped = <DateTime, List<Map<String, dynamic>>>{};
+      for (var status in allDailyStatuses) {
         final date = status['date'] as DateTime;
-        final isSuccess = status['status'] == 'successful';
-        dailyStatusesByDate[date] = dailyStatusesByDate.containsKey(date) ? dailyStatusesByDate[date]! && isSuccess : isSuccess;
+        dailyStatusesGrouped.putIfAbsent(date, () => []).add(status);
+      }
+
+      final allDailyGoals = goals
+          .where((g) => g.goalType == GoalType.daily)
+          .toList();
+      final dailyStatusByDay = <DateTime, bool>{};
+
+      DateTime iterDate = firstLogDate.isBefore(today) ? firstLogDate : today;
+
+      while (iterDate.isAtSameMomentAs(today) || iterDate.isBefore(today)) {
+        final dayStart = iterDate;
+        final dayEnd = dayStart.add(const Duration(days: 1));
+
+        final activeGoalsForDay = allDailyGoals.where((g) =>
+        g.goalDuration > Duration.zero &&
+            (g.startDate.isBefore(dayEnd) ||
+                g.startDate.isAtSameMomentAs(dayStart)) &&
+            (g.endDate == null || g.endDate!.isAfter(dayStart))
+        ).toList();
+
+        if (activeGoalsForDay.isEmpty) {
+          dailyStatusByDay[dayStart] = true;
+        } else {
+          final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
+          final successfulCount = statusesForDay
+              .where((s) => s['status'] == 'successful')
+              .length;
+
+          dailyStatusByDay[dayStart] =
+              successfulCount == activeGoalsForDay.length;
+        }
+
+        iterDate = iterDate.add(const Duration(days: 1));
       }
 
       int currentStreak = 0;
       DateTime currentDate = today;
-      while (dailyStatusesByDate[currentDate] == true) {
+
+      while (dailyStatusByDay.containsKey(currentDate) &&
+          dailyStatusByDay[currentDate] == true) {
         currentStreak++;
         currentDate = currentDate.subtract(const Duration(days: 1));
       }
@@ -225,22 +284,51 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
 
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
+
       final firstLogDate = widget.activityLogs.isNotEmpty
-          ? widget.activityLogs.map((e) => e.date).reduce((a, b) => a.isBefore(b) ? a : b)
+          ? widget.activityLogs.map((e) => DateTime(e.date.year, e.date.month, e.date.day)).reduce((a, b) => a.isBefore(b) ? a : b)
           : today;
 
       final allStatuses = await historyProvider.getGoalStatusesForPeriod(firstLogDate, now, selectedActivity);
 
-      final dailyStatusesByDate = <DateTime, bool>{};
-      for(var status in allStatuses.where((s) => (s['goal'] as Goal).goalType == GoalType.daily)) {
+      final allDailyStatuses = allStatuses.where((s) => (s['goal'] as Goal).goalType == GoalType.daily).toList();
+      final dailyStatusesGrouped = <DateTime, List<Map<String, dynamic>>>{};
+      for (var status in allDailyStatuses) {
         final date = status['date'] as DateTime;
-        final isSuccess = status['status'] == 'successful';
-        dailyStatusesByDate[date] = dailyStatusesByDate.containsKey(date) ? dailyStatusesByDate[date]! && isSuccess : isSuccess;
+        dailyStatusesGrouped.putIfAbsent(date, () => []).add(status);
+      }
+
+      final allDailyGoals = widget.goals.where((g) => g.goalType == GoalType.daily).toList();
+      final dailyStatusByDay = <DateTime, bool>{};
+
+      DateTime iterDate = firstLogDate.isBefore(today) ? firstLogDate : today;
+
+      while (iterDate.isAtSameMomentAs(today) || iterDate.isBefore(today)) {
+        final dayStart = iterDate;
+        final dayEnd = dayStart.add(const Duration(days: 1));
+
+        final activeGoalsForDay = allDailyGoals.where((g) =>
+        g.goalDuration > Duration.zero &&
+            (g.startDate.isBefore(dayEnd) || g.startDate.isAtSameMomentAs(dayStart)) &&
+            (g.endDate == null || g.endDate!.isAfter(dayStart))
+        ).toList();
+
+        if (activeGoalsForDay.isEmpty) {
+          dailyStatusByDay[dayStart] = true;
+        } else {
+          final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
+          final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
+
+          dailyStatusByDay[dayStart] = successfulCount == activeGoalsForDay.length;
+        }
+
+        iterDate = iterDate.add(const Duration(days: 1));
       }
 
       int currentStreak = 0;
       DateTime currentDate = today;
-      while(dailyStatusesByDate[currentDate] == true) {
+
+      while(dailyStatusByDay.containsKey(currentDate) && dailyStatusByDay[currentDate] == true) {
         currentStreak++;
         currentDate = currentDate.subtract(const Duration(days: 1));
       }
@@ -250,16 +338,16 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
       int tempStreak = 0;
       DateTime? tempStreakStart;
 
-      final sortedDates = dailyStatusesByDate.keys.toList()..sort((a,b) => b.compareTo(a));
+      final sortedDates = dailyStatusByDay.keys.toList()..sort((a,b) => b.compareTo(a));
 
       for (var date in sortedDates) {
-        if (dailyStatusesByDate[date] == true) {
+        if (dailyStatusByDay[date] == true) {
           tempStreak++;
           tempStreakStart ??= date;
         } else {
           if (tempStreak > longestStreak) {
             longestStreak = tempStreak;
-            longestStreakStart = tempStreakStart?.subtract(Duration(days: tempStreak -1));
+            longestStreakStart = tempStreakStart?.subtract(Duration(days: tempStreak - 1));
           }
           tempStreak = 0;
           tempStreakStart = null;

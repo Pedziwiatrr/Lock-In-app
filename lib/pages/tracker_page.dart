@@ -476,7 +476,7 @@ class _TrackerPageState extends State<TrackerPage> {
               },
             ),
             const SizedBox(height: 20),
-            Text(_currentStreak == null ? '🔥 Current Streak: ...' : '🔥 Current Streak: $_currentStreak days 🔥', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(_currentStreak == null || _currentStreak == 0 ? '' : '🔥 Current Streak: $_currentStreak days 🔥', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 80),
           ],
         ),
