@@ -172,21 +172,22 @@ class HistoryDataProvider {
 
         final activeGoalsForDay = allDailyGoals.where((g) =>
         g.goalDuration > Duration.zero &&
-            (g.startDate.isBefore(dayEnd) ||
-                g.startDate.isAtSameMomentAs(dayStart)) &&
+            (g.startDate.isBefore(dayEnd) || g.startDate.isAtSameMomentAs(dayStart)) &&
             (g.endDate == null || g.endDate!.isAfter(dayStart))
         ).toList();
 
         if (activeGoalsForDay.isEmpty) {
-          dailyStatusByDay[dayStart] = true;
+          final logsForDay = activityLogs.where((log) =>
+          log.date.isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
+              log.date.isBefore(dayEnd)
+          ).toList();
+
+          dailyStatusByDay[dayStart] = logsForDay.isNotEmpty;
         } else {
           final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
-          final successfulCount = statusesForDay
-              .where((s) => s['status'] == 'successful')
-              .length;
+          final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
 
-          dailyStatusByDay[dayStart] =
-              successfulCount == activeGoalsForDay.length;
+          dailyStatusByDay[dayStart] = successfulCount == activeGoalsForDay.length;
         }
 
         iterDate = iterDate.add(const Duration(days: 1));
@@ -314,7 +315,12 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
         ).toList();
 
         if (activeGoalsForDay.isEmpty) {
-          dailyStatusByDay[dayStart] = true;
+          final logsForDay = widget.activityLogs.where((log) =>
+          log.date.isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
+              log.date.isBefore(dayEnd)
+          ).toList();
+
+          dailyStatusByDay[dayStart] = logsForDay.isNotEmpty;
         } else {
           final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
           final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
