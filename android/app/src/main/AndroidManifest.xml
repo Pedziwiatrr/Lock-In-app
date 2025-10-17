@@ -1,8 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
@@ -31,11 +32,9 @@
 
         <service
             android:name="id.flutter.flutter_background_service.BackgroundService"
-            android:foregroundServiceType="mediaPlayback" />
-
-        <meta-data
-            android:name="flutterEmbedding"
-            android:value="2" />
+            android:foregroundServiceType="specialUse" /> <meta-data
+        android:name="flutterEmbedding"
+        android:value="2" />
         <meta-data
             android:name="com.google.android.gms.ads.INTEGRATION_MANAGER"
             android:value="webview"/>
