@@ -73,6 +73,9 @@ class _HomePageState extends State<HomePage> {
       final now = DateTime.now();
       final timerStart = _timerStartDate;
 
+      final int elapsedTimeInSeconds = (event?['elapsedTime'] as int?) ?? elapsed.inSeconds + 1;
+      final newElapsed = Duration(seconds: elapsedTimeInSeconds);
+
       if (timerStart != null && (now.day != timerStart.day || now.month != timerStart.month || now.year != timerStart.year)) {
         final timeToLog = elapsed;
         final activityToLog = selectedActivity;
@@ -115,13 +118,8 @@ class _HomePageState extends State<HomePage> {
       }
 
       setState(() {
-        elapsed += const Duration(seconds: 1);
+        elapsed = newElapsed;
       });
-      _notificationService.showTimerNotification(formatDuration(elapsed));
-    });
-
-    service.on('clearNotification').listen((event) {
-      _notificationService.cancelTimerNotification();
     });
   }
 

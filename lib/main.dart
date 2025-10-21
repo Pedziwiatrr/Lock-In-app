@@ -14,7 +14,6 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 GlobalKey<ScaffoldMessengerState>();
 
 Future<void> initAdsAndConsent() async {
-  final completer = Completer<void>();
   final params = ConsentRequestParameters();
 
   ConsentInformation.instance.requestConsentInfoUpdate(
@@ -26,27 +25,24 @@ Future<void> initAdsAndConsent() async {
             var status = await ConsentInformation.instance.getConsentStatus();
             if (status == ConsentStatus.required) {
               consentForm.show((FormError? formError) {
-                completer.complete();
+                MobileAds.instance.initialize();
               });
             } else {
-              completer.complete();
+              MobileAds.instance.initialize();
             }
           },
               (FormError? error) {
-            completer.complete();
+            MobileAds.instance.initialize();
           },
         );
       } else {
-        completer.complete();
+        MobileAds.instance.initialize();
       }
     },
         (FormError? error) {
-      completer.complete();
+      MobileAds.instance.initialize();
     },
   );
-
-  await completer.future;
-  MobileAds.instance.initialize();
 }
 
 Future<void> main() async {
@@ -90,8 +86,6 @@ Future<void> initializeService() async {
       autoStart: true,
       isForegroundMode: true,
       notificationChannelId: 'background_service_notif_channel',
-      initialNotificationTitle: '',
-      initialNotificationContent: '',
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
@@ -105,27 +99,48 @@ Future<void> initializeService() async {
 void onStart(ServiceInstance service) {
   DartPluginRegistrant.ensureInitialized();
   Timer? timer;
+  Duration _elapsed = Duration.zero;
+
 
   NotificationService().showOrUpdateServiceNotification(
-    title: 'Working in the background...',
-    content: "Don't get distracted!",
+    title: 'LockIn Tracker',
+    content: "Working in the background, don't get distracted!",
   );
+
 
   service.on('startTimer').listen((event) {
     if (timer?.isActive ?? false) return;
+
+    _elapsed = Duration.zero;
+
+    NotificationService().showOrUpdateServiceNotification(
+      title: 'Locked In',
+      content: 'Locked in for: 00:00:00\nKeep up the good work!',
+    );
+
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      service.invoke('tick');
+      _elapsed += const Duration(seconds: 1);
+
+      final String formattedTime = _elapsed.toString().split('.').first.padLeft(8, "0");
+
+      NotificationService().showOrUpdateServiceNotification(
+        title: 'Locked In',
+        content: 'Locked in for: $formattedTime\nKeep up the good work!',
+      );
+
+      service.invoke('tick', {'elapsedTime': _elapsed.inSeconds});
     });
   });
 
   service.on('stopTimer').listen((event) {
     timer?.cancel();
     timer = null;
+    _elapsed = Duration.zero;
+
     NotificationService().showOrUpdateServiceNotification(
-      title: 'Working in the background...',
-      content: "Don't get distracted!",
+      title: 'LockIn Tracker',
+      content: "Working in the background...",
     );
-    service.invoke('clearNotification');
   });
 }
 
