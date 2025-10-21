@@ -170,33 +170,33 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const Divider(),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text('Notifications', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-          ),
-          ListTile(
-            title: const Text('Live Timer Notification'),
-            subtitle: const Text('Show ongoing notification when timer is running'),
-            trailing: Switch(
-              value: _isTimerNotificationEnabled,
-              onChanged: (value) {
-                setState(() => _isTimerNotificationEnabled = value);
-                _saveSetting('timerNotificationEnabled', value);
-              },
-            ),
-          ),
-          ListTile(
-            title: const Text('Goal Reminders'),
-            subtitle: const Text('Receive daily reminders about your goals'),
-            trailing: Switch(
-              value: _isGoalReminderEnabled,
-              onChanged: (value) {
-                setState(() => _isGoalReminderEnabled = value);
-                _saveSetting('goalReminderEnabled', value);
-              },
-            ),
-          ),
-          const Divider(),
+          // const Padding(
+          //   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          //   child: Text('Notifications', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          // ),
+          // ListTile(
+          //   title: const Text('Live Timer Notification'),
+          //   subtitle: const Text('Show ongoing notification when timer is running'),
+          //   trailing: Switch(
+          //     value: _isTimerNotificationEnabled,
+          //     onChanged: (value) {
+          //       setState(() => _isTimerNotificationEnabled = value);
+          //       _saveSetting('timerNotificationEnabled', value);
+          //     },
+          //   ),
+          // ),
+          // ListTile(
+          //   title: const Text('Goal Reminders'),
+          //   subtitle: const Text('Receive daily reminders about your goals'),
+          //   trailing: Switch(
+          //     value: _isGoalReminderEnabled,
+          //     onChanged: (value) {
+          //       setState(() => _isGoalReminderEnabled = value);
+          //       _saveSetting('goalReminderEnabled', value);
+          //     },
+          //   ),
+          // ),
+          // const Divider(),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text('Data & Privacy', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
