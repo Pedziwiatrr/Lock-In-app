@@ -86,7 +86,6 @@ Future<void> initializeService() async {
       autoStart: true,
       isForegroundMode: true,
       notificationChannelId: 'background_service_notif_channel',
-      // Usunięto initialNotificationTitle i initialNotificationContent
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
@@ -102,7 +101,7 @@ void onStart(ServiceInstance service) {
   Timer? timer;
   Duration _elapsed = Duration.zero;
 
-  // Ustaw domyślne powiadomienie serwisu (ID 888) natychmiast po starcie
+
   NotificationService().showOrUpdateServiceNotification(
     title: 'LockIn Tracker',
     content: "Working in the background, don't get distracted!",
@@ -114,7 +113,6 @@ void onStart(ServiceInstance service) {
 
     _elapsed = Duration.zero;
 
-    // Ustaw początkowy komunikat timera (ID 888)
     NotificationService().showOrUpdateServiceNotification(
       title: 'Locked In',
       content: 'Locked in for: 00:00:00\nKeep up the good work!',
@@ -139,7 +137,6 @@ void onStart(ServiceInstance service) {
     timer = null;
     _elapsed = Duration.zero;
 
-    // Przywróć domyślne powiadomienie serwisu (ID 888)
     NotificationService().showOrUpdateServiceNotification(
       title: 'LockIn Tracker',
       content: "Working in the background...",
