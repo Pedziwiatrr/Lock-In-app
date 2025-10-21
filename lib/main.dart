@@ -86,8 +86,7 @@ Future<void> initializeService() async {
       autoStart: true,
       isForegroundMode: true,
       notificationChannelId: 'background_service_notif_channel',
-      initialNotificationTitle: 'Working in the background...',
-      initialNotificationContent: "Don't get distracted!",
+      // Usunięto initialNotificationTitle i initialNotificationContent
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
@@ -101,33 +100,50 @@ Future<void> initializeService() async {
 void onStart(ServiceInstance service) {
   DartPluginRegistrant.ensureInitialized();
   Timer? timer;
+  Duration _elapsed = Duration.zero;
+
+  // Ustaw domyślne powiadomienie serwisu (ID 888) natychmiast po starcie
+  NotificationService().showOrUpdateServiceNotification(
+    title: 'LockIn Tracker',
+    content: "Working in the background, don't get distracted!",
+  );
 
 
   service.on('startTimer').listen((event) {
     if (timer?.isActive ?? false) return;
 
-    service.invoke('updateNotification', {
-      'title': 'Timer Active',
-      'content': '00:00:00',
-      'id': 0,
-    });
+    _elapsed = Duration.zero;
+
+    // Ustaw początkowy komunikat timera (ID 888)
+    NotificationService().showOrUpdateServiceNotification(
+      title: 'Locked In',
+      content: 'Locked in for: 00:00:00\nKeep up the good work!',
+    );
 
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      service.invoke('tick');
+      _elapsed += const Duration(seconds: 1);
+
+      final String formattedTime = _elapsed.toString().split('.').first.padLeft(8, "0");
+
+      NotificationService().showOrUpdateServiceNotification(
+        title: 'Locked In',
+        content: 'Locked in for: $formattedTime\nKeep up the good work!',
+      );
+
+      service.invoke('tick', {'elapsedTime': _elapsed.inSeconds});
     });
   });
 
   service.on('stopTimer').listen((event) {
     timer?.cancel();
     timer = null;
+    _elapsed = Duration.zero;
 
-    service.invoke('clearNotification');
-  });
-
-  service.on('updateNotification').listen((event) {
-    if (event != null && event['id'] == 0 && event['content'] is String) {
-      NotificationService().showTimerNotification(event['content'] as String);
-    }
+    // Przywróć domyślne powiadomienie serwisu (ID 888)
+    NotificationService().showOrUpdateServiceNotification(
+      title: 'LockIn Tracker',
+      content: "Working in the background...",
+    );
   });
 }
 

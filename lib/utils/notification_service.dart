@@ -19,16 +19,6 @@ class NotificationService {
     importance: Importance.max,
   );
 
-  static const AndroidNotificationChannel _timerChannel =
-  AndroidNotificationChannel(
-    'timer_notif_channel',
-    'Active Timer',
-    description: 'Notification showing the active timer.',
-    importance: Importance.low,
-    playSound: false,
-    enableVibration: false,
-  );
-
   static const AndroidNotificationChannel _serviceChannel =
   AndroidNotificationChannel(
     'background_service_notif_channel',
@@ -45,10 +35,6 @@ class NotificationService {
         .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_goalChannel);
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_timerChannel);
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>()
@@ -101,34 +87,6 @@ class NotificationService {
     );
   }
 
-  Future<void> showTimerNotification(String formattedDuration) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!(prefs.getBool('timerNotificationEnabled') ?? true)) {
-      await cancelTimerNotification();
-      return;
-    }
-
-    final notificationDetails = NotificationDetails(
-      android: AndroidNotificationDetails(
-        _timerChannel.id,
-        _timerChannel.name,
-        channelDescription: _timerChannel.description,
-        ongoing: true,
-        autoCancel: false,
-        priority: Priority.low,
-        importance: Importance.low,
-        icon: '@drawable/ic_notification_icon',
-      ),
-    );
-
-    await _notificationsPlugin.show(
-      0,
-      'Locked In for $formattedDuration',
-      'Keep up the good work!',
-      notificationDetails,
-    );
-  }
-
   Future<void> showOrUpdateServiceNotification({
     required String title,
     required String content,
@@ -145,7 +103,13 @@ class NotificationService {
         playSound: false,
         enableVibration: false,
         silent: true,
-        largeIcon: const DrawableResourceAndroidBitmap('@drawable/ic_bg_notification_icon'),
+        largeIcon: const DrawableResourceAndroidBitmap('@drawable/ic_notification_icon'),
+        styleInformation: BigTextStyleInformation(
+          content,
+          htmlFormatContent: false,
+          summaryText: title,
+          htmlFormatSummaryText: false,
+        ),
       ),
     );
 
@@ -155,9 +119,5 @@ class NotificationService {
       content,
       notificationDetails,
     );
-  }
-
-  Future<void> cancelTimerNotification() async {
-    await _notificationsPlugin.cancel(0);
   }
 }
