@@ -14,7 +14,6 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 GlobalKey<ScaffoldMessengerState>();
 
 Future<void> initAdsAndConsent() async {
-  final completer = Completer<void>();
   final params = ConsentRequestParameters();
 
   ConsentInformation.instance.requestConsentInfoUpdate(
@@ -26,27 +25,24 @@ Future<void> initAdsAndConsent() async {
             var status = await ConsentInformation.instance.getConsentStatus();
             if (status == ConsentStatus.required) {
               consentForm.show((FormError? formError) {
-                completer.complete();
+                MobileAds.instance.initialize();
               });
             } else {
-              completer.complete();
+              MobileAds.instance.initialize();
             }
           },
               (FormError? error) {
-            completer.complete();
+            MobileAds.instance.initialize();
           },
         );
       } else {
-        completer.complete();
+        MobileAds.instance.initialize();
       }
     },
         (FormError? error) {
-      completer.complete();
+      MobileAds.instance.initialize();
     },
   );
-
-  await completer.future;
-  MobileAds.instance.initialize();
 }
 
 Future<void> main() async {
@@ -90,8 +86,8 @@ Future<void> initializeService() async {
       autoStart: true,
       isForegroundMode: true,
       notificationChannelId: 'background_service_notif_channel',
-      initialNotificationTitle: '',
-      initialNotificationContent: '',
+      initialNotificationTitle: 'Working in the background...',
+      initialNotificationContent: "Don't get distracted!",
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
@@ -106,13 +102,16 @@ void onStart(ServiceInstance service) {
   DartPluginRegistrant.ensureInitialized();
   Timer? timer;
 
-  NotificationService().showOrUpdateServiceNotification(
-    title: 'Working in the background...',
-    content: "Don't get distracted!",
-  );
 
   service.on('startTimer').listen((event) {
     if (timer?.isActive ?? false) return;
+
+    service.invoke('updateNotification', {
+      'title': 'Timer Active',
+      'content': '00:00:00',
+      'id': 0,
+    });
+
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       service.invoke('tick');
     });
@@ -121,11 +120,14 @@ void onStart(ServiceInstance service) {
   service.on('stopTimer').listen((event) {
     timer?.cancel();
     timer = null;
-    NotificationService().showOrUpdateServiceNotification(
-      title: 'Working in the background...',
-      content: "Don't get distracted!",
-    );
+
     service.invoke('clearNotification');
+  });
+
+  service.on('updateNotification').listen((event) {
+    if (event != null && event['id'] == 0 && event['content'] is String) {
+      NotificationService().showTimerNotification(event['content'] as String);
+    }
   });
 }
 
