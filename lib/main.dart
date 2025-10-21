@@ -13,9 +13,7 @@ import 'dart:ui';
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 GlobalKey<ScaffoldMessengerState>();
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
+Future<void> initAdsAndConsent() async {
   final completer = Completer<void>();
   final params = ConsentRequestParameters();
 
@@ -48,8 +46,14 @@ Future<void> main() async {
   );
 
   await completer.future;
-
   MobileAds.instance.initialize();
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  initAdsAndConsent();
+
   await NotificationService().init();
   await initializeService();
 
