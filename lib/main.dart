@@ -100,6 +100,7 @@ void onStart(ServiceInstance service) {
   DartPluginRegistrant.ensureInitialized();
   Timer? timer;
   Duration _elapsed = Duration.zero;
+  bool _isRunning = false;
 
 
   NotificationService().showOrUpdateServiceNotification(
@@ -107,15 +108,23 @@ void onStart(ServiceInstance service) {
     content: "Don't get distracted!",
   );
 
+  service.on('getServiceState').listen((event) {
+    service.invoke('serviceState', {
+      'elapsedTime': _elapsed.inSeconds,
+      'isRunning': _isRunning,
+    });
+  });
 
   service.on('startTimer').listen((event) {
     if (timer?.isActive ?? false) return;
 
-    _elapsed = Duration.zero;
+    final int previousElapsedSeconds = (event?['previousElapsed'] as int?) ?? 0;
+    _elapsed = Duration(seconds: previousElapsedSeconds);
+    _isRunning = true;
 
     NotificationService().showOrUpdateServiceNotification(
       title: 'Locked In',
-      content: 'Locked in for: 00:00:00\nKeep up the good work!',
+      content: 'Locked in for: ${_elapsed.toString().split('.').first.padLeft(8, "0")}\nKeep up the good work!',
     );
 
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -135,11 +144,11 @@ void onStart(ServiceInstance service) {
   service.on('stopTimer').listen((event) {
     timer?.cancel();
     timer = null;
-    _elapsed = Duration.zero;
+    _isRunning = false;
 
     NotificationService().showOrUpdateServiceNotification(
-      title: 'LockIn Tracker',
-      content: "Working in the background...",
+      title: 'Working in the background',
+      content: "Don't get distracted!",
     );
   });
 }
