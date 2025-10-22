@@ -45,6 +45,7 @@ class _HomePageState extends State<HomePage> {
   bool isRunning = false;
   DateTime selectedDate = DateTime.now();
   StreamSubscription? _tickSubscription;
+  StreamSubscription? _serviceStateSubscription;
   DateTime? _timerStartDate;
 
   final NotificationService _notificationService = NotificationService();
@@ -61,12 +62,31 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadData();
     _configureTimerListener();
+    _loadData();
   }
 
   void _configureTimerListener() {
     final service = FlutterBackgroundService();
+
+    _serviceStateSubscription = service.on('serviceState').listen((event) {
+      if (!mounted) return;
+      final int elapsedTimeInSeconds = event?['elapsedTime'] as int? ?? 0;
+      final bool isCurrentlyRunning = event?['isRunning'] as bool? ?? false;
+
+      if (isCurrentlyRunning != isRunning || Duration(seconds: elapsedTimeInSeconds) != elapsed) {
+        setState(() {
+          isRunning = isCurrentlyRunning;
+          elapsed = Duration(seconds: elapsedTimeInSeconds);
+          if (isRunning && _timerStartDate == null) {
+            _timerStartDate = selectedDate;
+          } else if (!isRunning) {
+            _timerStartDate = null;
+          }
+        });
+      }
+    });
+
     _tickSubscription = service.on('tick').listen((event) {
       if (!mounted || !isRunning) return;
 
@@ -126,12 +146,13 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _tickSubscription?.cancel();
+    _serviceStateSubscription?.cancel();
     super.dispose();
   }
 
   void _startTimer() {
     if (selectedActivity == null || selectedActivity is! TimedActivity || isRunning) return;
-    FlutterBackgroundService().invoke('startTimer');
+    FlutterBackgroundService().invoke('startTimer', {'previousElapsed': elapsed.inSeconds});
     setState(() {
       isRunning = true;
       _timerStartDate = selectedDate;
@@ -191,6 +212,41 @@ class _HomePageState extends State<HomePage> {
         selectedActivity = activities.first;
       }
     });
+
+    final service = FlutterBackgroundService();
+    final isServiceRunning = await service.isRunning();
+
+    if (isServiceRunning) {
+      final completer = Completer<Map<String, dynamic>?>();
+
+      final subscription = service.on('serviceState').listen((event) {
+        if (!completer.isCompleted) {
+          completer.complete(event);
+        }
+      });
+
+      service.invoke('getServiceState');
+
+      final backgroundState = await completer.future.timeout(const Duration(seconds: 2), onTimeout: () => null);
+
+      subscription.cancel();
+
+      if (backgroundState != null) {
+        final int elapsedTimeInSeconds = backgroundState['elapsedTime'] as int? ?? 0;
+        final bool isCurrentlyRunning = backgroundState['isRunning'] as bool? ?? false;
+
+        if (isCurrentlyRunning || elapsedTimeInSeconds > 0) {
+          setState(() {
+            isRunning = isCurrentlyRunning;
+            elapsed = Duration(seconds: elapsedTimeInSeconds);
+            if (isRunning) {
+              _timerStartDate = selectedDate;
+            }
+          });
+        }
+      }
+    }
+
     _updatePreviousQuestsState();
   }
 
