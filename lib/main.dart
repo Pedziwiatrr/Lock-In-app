@@ -103,8 +103,8 @@ void onStart(ServiceInstance service) {
 
 
   NotificationService().showOrUpdateServiceNotification(
-    title: 'LockIn Tracker',
-    content: "Working in the background, don't get distracted!",
+    title: 'Working in the background',
+    content: "Don't get distracted!",
   );
 
 
