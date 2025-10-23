@@ -587,7 +587,7 @@ class _HomePageState extends State<HomePage> {
       remainingDurationToSubtract -= durationToSubtract;
     }
 
-    logsCopy.removeWhere((log) => log.duration <= Duration.zero);
+    logsCopy.removeWhere((log) => !log.isCheckable && log.duration <= Duration.zero);
 
     setState(() {
       activityLogs = logsCopy;
