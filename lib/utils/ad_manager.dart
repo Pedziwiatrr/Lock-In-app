@@ -21,7 +21,7 @@ class AdManager {
 
   static const int _maxRetries = 3;
 
-  RewardedAd? _rewardedAd;
+  RewardedInterstitialAd? _rewardedAd;
   int _rewardedAdRetryAttempt = 0;
 
   BannerAd? _bannerAd;
@@ -60,12 +60,12 @@ class AdManager {
 
   void loadRewardedAd() {
     _logAdRequestInfo("rewarded ad");
-    RewardedAd.load(
+    RewardedInterstitialAd.load(
       adUnitId: Platform.isAndroid
-          ? _AdUnitIds.rewardedAndroid
-          : _AdUnitIds.rewardedIos,
+          ? _AdUnitIds.rewardedInterstitialAndroid
+          : _AdUnitIds.rewardedInterstitialAndroid,
       request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
+      rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           if (!kReleaseMode) print('[AD] Rewarded ad loaded successfully.');
           _rewardedAd = ad;
@@ -172,7 +172,7 @@ class AdManager {
       _lastAdShown = false;
       return false;
     }
-    final random = Random().nextDouble() < 0.4;
+    final random = Random().nextDouble() < 0.5;
     _lastAdShown = random;
     if (!kReleaseMode) print('[AD] Ad decision: ${random ? "show" : "skip (random)"}');
     return random;
