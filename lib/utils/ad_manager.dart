@@ -6,6 +6,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _AdUnitIds {
+  static const String rewardedInterstitialAndroid = 'ca-app-pub-3191540141651884/9594852827';
   static const String rewardedAndroid = 'ca-app-pub-3191540141651884/4684314330';
   static const String rewardedIos = 'ca-app-pub-3940256099942544/1712485313';
   static const String bannerAndroid = 'ca-app-pub-3191540141651884/8431987657';
