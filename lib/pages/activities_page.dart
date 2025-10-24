@@ -110,14 +110,47 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                 if (name.isNotEmpty &&
                     name.length <= maxNameLength &&
                     !widget.activities.any((a) => a.name == name)) {
-                  setState(() {
-                    widget.activities.add(_isTimedActivity
-                        ? TimedActivity(name: name)
-                        : CheckableActivity(name: name));
+
+
+                  _adManager.incrementGoalAddCount().then((_) {
+                    if (_adManager.shouldShowGoalAd()) {
+                      //print("Attempting to show rewarded ad for adding activity");
+                      _adManager.showRewardedAd(
+                        onUserEarnedReward: () {
+                          setState(() {
+                            widget.activities.add(_isTimedActivity
+                                ? TimedActivity(name: name)
+                                : CheckableActivity(name: name));
+                          });
+                          //print('Added activity: $name (${_isTimedActivity ? 'Timed' : 'Checkable'})');
+                          widget.onUpdate();
+                          Navigator.pop(context);
+                        },
+                        onAdDismissed: () {
+                          //print("Ad dismissed, activity not added");
+                        },
+                        onAdFailedToShow: () {
+                          setState(() {
+                            widget.activities.add(_isTimedActivity
+                                ? TimedActivity(name: name)
+                                : CheckableActivity(name: name));
+                          });
+                          //print('Added activity: $name (${_isTimedActivity ? 'Timed' : 'Checkable'})');
+                          widget.onUpdate();
+                          Navigator.pop(context);
+                        },
+                      );
+                    } else {
+                      setState(() {
+                        widget.activities.add(_isTimedActivity
+                            ? TimedActivity(name: name)
+                            : CheckableActivity(name: name));
+                      });
+                      //print('Added activity: $name (${_isTimedActivity ? 'Timed' : 'Checkable'})');
+                      widget.onUpdate();
+                      Navigator.pop(context);
+                    }
                   });
-                  //print('Added activity: $name (${_isTimedActivity ? 'Timed' : 'Checkable'})');
-                  widget.onUpdate();
-                  Navigator.pop(context);
                 } else if (name.length > maxNameLength) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
