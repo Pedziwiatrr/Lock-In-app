@@ -34,7 +34,7 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   HistoryPeriod selectedPeriod = HistoryPeriod.allTime;
   final AdManager _adManager = AdManager.instance;
-  bool _isAdLoaded = false;
+  //bool _isAdLoaded = false;
   final _pageSize = 30;
   final ScrollController _scrollController = ScrollController();
   List<DateTime> _visibleDays = [];
@@ -44,11 +44,13 @@ class _HistoryPageState extends State<HistoryPage> {
   @override
   void initState() {
     super.initState();
+    /*
     if (widget.launchCount > 1) {
       _adManager.loadBannerAd(onAdLoaded: (isLoaded) {
         if (mounted) setState(() => _isAdLoaded = isLoaded);
       });
     }
+    */
     _scrollController.addListener(_loadMoreDays);
     _calculateProgressAsync();
   }
@@ -414,8 +416,10 @@ class _HistoryPageState extends State<HistoryPage> {
             },
           ),
         ),
+        /*
         if (_isAdLoaded && widget.launchCount > 1)
           _adManager.getBannerAdWidget() ?? const SizedBox.shrink(),
+        */
         const SizedBox(height: 80),
       ],
     );

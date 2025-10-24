@@ -24,12 +24,13 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   static const int maxActivities = 10;
   static const int maxNameLength = 50;
   final AdManager _adManager = AdManager.instance;
-  bool _isAdLoaded = false;
+  //bool _isAdLoaded = false;
 
   @override
   void initState() {
     super.initState();
     //print('ActivitiesPage initState: launchCount = ${widget.launchCount}');
+    /*
     if (widget.launchCount > 1) {
       //print('ActivitiesPage: Attempting to load banner ad');
       _adManager.loadBannerAd(onAdLoaded: (isLoaded) {
@@ -41,7 +42,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
       });
     } else {
       //print('ActivitiesPage: Skipping ad load due to launchCount <= 1');
-    }
+    }*/
   }
 
   void addActivity() {
@@ -301,11 +302,12 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
               );
             }).toList(),
           ),
-        ),
+        ),/*
         if (_isAdLoaded && widget.launchCount > 1) ...[
           const SizedBox(height: 20),
           _adManager.getBannerAdWidget() ?? const SizedBox.shrink(),
         ],
+        */
         const SizedBox(height: 80),
       ],
     );
