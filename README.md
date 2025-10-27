@@ -14,7 +14,8 @@ Lock In – Productivity Tracker is a Flutter-based mobile application designed 
 
 - **Activity Tracking:** Record time (timer) for timed activities or completion counts for checkable tasks.  
 - **Goals:** Define goals for each activity with type (daily, weekly, monthly) and start/end dates.  
-- **Statistics:** Bar charts (using `fl_chart`) showing time and completions over selected periods (day, week, month, all-time). Tracks streaks and provides additional motivational statistics.  
+- **Statistics:** Bar charts (using `fl_chart`) showing time and completions over selected periods (day, week, month, all-time). Tracks streaks and provides additional motivational statistics.
+- **Progress & Gamification:** Complete various **Quests** (e.g., track 10 hours, complete 5 checkable tasks in a row) to earn **Experience Points (XP)**. Accumulate XP to advance through **Ranks** and unlock new features or customizations. 
 - **History:** Review activity history and goal progress by day, with visual representation of achievements.  
 - **Activity Management:** Add, edit, delete, and reorder up to 10 activities.  
 - **Settings:** Customize app preferences, manage data, and access app information.  
@@ -40,7 +41,9 @@ Lock In – Productivity Tracker is a Flutter-based mobile application designed 
 
 ### Utils (`utils/`)
 - `format_utils.dart`: Time formatting function (HH:mm:ss).  
-- `ad_manager.dart`: AdMob ad management.  
+- `ad_manager.dart`: AdMob ad management.
+-  `notification_service.dart`: **Service for managing local notifications.**
+-`privacy_policy_screen.dart`: **Screen displaying the application's privacy policy.** 
 
 ---
 
