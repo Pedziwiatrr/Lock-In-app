@@ -1,52 +1,62 @@
-# Lock-In Tracker
+# Lock In – Productivity Tracker
 
-## Opis projektu
-LockIn Tracker to mobilna aplikacja Flutter do śledzenia aktywności i celów osobistych. Umożliwia użytkownikom monitorowanie czasu poświęconego na zadania (np. nauka, praca) oraz liczby ukończeń dla aktywności typu check-list (np. pójście na siłownie). Aplikacja wspiera definiowanie celów dziennych, tygodniowych i miesięcznych, wyświetlanie statystyk oraz przeglądanie historii aktywności.
+**Available on Google Play Store:** [Lock In – Productivity Tracker](https://play.google.com/store/apps/details?id=io.github.pedziwiatrr.lockin)
 
+---
 
-## Funkcjonalności
-- **Śledzenie aktywności**: Rejestracja czasu (timer) dla aktywności czasowych lub liczby ukończeń dla aktywności checkable.
-- **Cele**: Ustawianie celów dla każdej aktywności z określonym typem (dzienny, tygodniowy, miesięczny) oraz datami rozpoczęcia i zakończenia.
-- **Statystyki**: Wykresy słupkowe (biblioteka `fl_chart`) pokazujące czas i ukończenia w wybranym okresie (dzień, tydzień, miesiąc, cały czas). Informacje o "streakach" ukończeń celów pod rząd oraz dodatkowe statystyki mające na celu zmotywować użytkownika do działania.
-- **Historia**: Przegląd aktywności i postępu celów z podziałem na dni, z wizualizowaniem aktywności i postępu w celach.
-- **Zarządzanie aktywnościami**: Dodawanie, edytowanie, usuwanie i zmiana kolejności aktywności (maks. 10).
-- **Ustawienia**: Dostosowywanie aplikacji do swoich potrzeb, kontakt, zarządzanie danymi oraz informacje o aplikacji.
-- **Persystencja danych**: Przechowywanie aktywności, logów i celów w `SharedPreferences`.
+## Project Description
 
-## Struktura projektu
-- **Modele** (`models/`):
-    - `activity.dart`: Abstrakcyjna klasa `Activity` oraz klasy `TimedActivity` i `CheckableActivity`.
-    - `goal.dart`: Klasa `Goal` dla celów z typami (dzienny, tygodniowy, miesięczny).
-    - `activity_log.dart`: Klasa `ActivityLog` do przechowywania logów aktywności.
-- **Strony** (`pages/`):
-    - `home_page.dart`: Główna strona z zakładkami (Tracker, Goals, Activities, Stats, History).
-    - `tracker_page.dart`: Interfejs do śledzenia aktywności (timer, ręczne dodawanie/odejmowanie).
-    - `goals_page.dart`: Ustawianie i edycja celów dla aktywności.
-    - `activities_page.dart`: Zarządzanie listą aktywności.
-    - `stats_page.dart`: Wizualizacja statystyk w formie wykresów.
-    - `history_page.dart`: Przegląd historii z postępem celów.
-    - `settings_page.dart`: Ustawienia motywu i reset danych.
-- **Utils** (`utils/`):
-    - `format_utils.dart`: Funkcja formatowania czasu (`HH:mm:ss`).
-    - `ad_manager.dart` : Zarządzanie reklamami z użyciem AdMob.
+Lock In – Productivity Tracker is a Flutter-based mobile application designed to track personal activities and goals. It allows users to monitor time spent on tasks (e.g., study, work) and completion counts for checkable activities (e.g., going to the gym). The app supports setting daily, weekly, and monthly goals, displaying statistics, and reviewing activity history.
 
-## Wymagania
-- Flutter SDK (zalecana wersja: najnowsza stabilna)
-- Zależności:
-    - `shared_preferences`: Do przechowywania danych.
-    - `fl_chart`: Do wizualizacji statystyk.
-    - `flutter/services`: Do filtrowania danych wejściowych.
+---
 
-## Instalacja
-1. Skopiuj repozytorium:
-   ```bash
-   git clone https://github.com/Pedziwiatrr/Lock-In-app
-   ```
-2. Zainstaluj zależności:
-   ```bash
-   flutter pub get
-   ```
-3. Uruchom aplikację:
-   ```bash
-   flutter run
-   ```
+## Features
+
+- **Activity Tracking:** Record time (timer) for timed activities or completion counts for checkable tasks.  
+- **Goals:** Define goals for each activity with type (daily, weekly, monthly) and start/end dates.  
+- **Statistics:** Bar charts (using `fl_chart`) showing time and completions over selected periods (day, week, month, all-time). Tracks streaks and provides additional motivational statistics.  
+- **History:** Review activity history and goal progress by day, with visual representation of achievements.  
+- **Activity Management:** Add, edit, delete, and reorder up to 10 activities.  
+- **Settings:** Customize app preferences, manage data, and access app information.  
+- **Data Persistence:** Store activities, logs, and goals using `SharedPreferences`.
+
+---
+
+## Project Structure
+
+### Models (`models/`)
+- `activity.dart`: Abstract `Activity` class with `TimedActivity` and `CheckableActivity`.  
+- `goal.dart`: `Goal` class for daily, weekly, and monthly goals.  
+- `activity_log.dart`: `ActivityLog` for storing activity logs.  
+
+### Pages (`pages/`)
+- `home_page.dart`: Main page with tabs (Tracker, Goals, Activities, Stats, History).  
+- `tracker_page.dart`: Interface for activity tracking (timer, manual adjustments).  
+- `goals_page.dart`: Set and edit activity goals.  
+- `activities_page.dart`: Manage activity list.  
+- `stats_page.dart`: Visualize statistics with charts.  
+- `history_page.dart`: View history and goal progress.  
+- `settings_page.dart`: Theme and data reset settings.  
+
+### Utils (`utils/`)
+- `format_utils.dart`: Time formatting function (HH:mm:ss).  
+- `ad_manager.dart`: AdMob ad management.  
+
+---
+
+## Requirements
+
+- Flutter SDK (recommended: latest stable version)  
+- Dependencies:  
+  - `shared_preferences` – data storage  
+  - `fl_chart` – statistics visualization  
+  - `flutter/services` – input filtering  
+
+---
+
+## Installation
+
+```bash
+git clone https://github.com/Pedziwiatrr/Lock-In-app
+flutter pub get
+flutter run
