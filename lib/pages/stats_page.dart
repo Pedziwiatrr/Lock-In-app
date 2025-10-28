@@ -58,8 +58,13 @@ class HistoryDataProvider {
         case GoalType.daily:
           iterDate = DateTime(start.year, start.month, start.day);
           while (iterDate.isBefore(end.add(const Duration(days: 1)))) {
-            if (goal.startDate.isAfter(iterDate) ||
-                (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
+            final dayStart = iterDate;
+            final dayEnd = dayStart.add(const Duration(days: 1));
+
+            final bool startsTooLate = !goal.startDate.isBefore(dayEnd);
+            final bool endedTooEarly = goal.endDate != null && !goal.endDate!.isAfter(dayStart);
+
+            if (startsTooLate || endedTooEarly) {
               iterDate = iterDate.add(const Duration(days: 1));
               continue;
             }
@@ -72,8 +77,13 @@ class HistoryDataProvider {
         case GoalType.weekly:
           iterDate = start.subtract(Duration(days: start.weekday - 1));
           while (iterDate.isBefore(end.add(const Duration(days: 1)))) {
-            if (goal.startDate.isAfter(iterDate.add(const Duration(days: 7))) ||
-                (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
+            final dayStart = iterDate;
+            final dayEnd = dayStart.add(const Duration(days: 7));
+
+            final bool startsTooLate = !goal.startDate.isBefore(dayEnd);
+            final bool endedTooEarly = goal.endDate != null && !goal.endDate!.isAfter(dayStart);
+
+            if (startsTooLate || endedTooEarly) {
               iterDate = iterDate.add(const Duration(days: 7));
               continue;
             }
@@ -86,15 +96,19 @@ class HistoryDataProvider {
         case GoalType.monthly:
           iterDate = DateTime(start.year, start.month, 1);
           while (iterDate.isBefore(end.add(const Duration(days: 1)))) {
-            final nextMonth = DateTime(iterDate.year, iterDate.month + 1, 1);
-            if (goal.startDate.isAfter(nextMonth) ||
-                (goal.endDate != null && goal.endDate!.isBefore(iterDate))) {
-              iterDate = nextMonth;
+            final dayStart = iterDate;
+            final dayEnd = DateTime(iterDate.year, iterDate.month + 1, 1);
+
+            final bool startsTooLate = !goal.startDate.isBefore(dayEnd);
+            final bool endedTooEarly = goal.endDate != null && !goal.endDate!.isAfter(dayStart);
+
+            if (startsTooLate || endedTooEarly) {
+              iterDate = dayEnd;
               continue;
             }
             statuses.add(_calculateStatusForPeriod(
-                goal, activityLogs, activities, iterDate, nextMonth));
-            iterDate = nextMonth;
+                goal, activityLogs, activities, iterDate, dayEnd));
+            iterDate = dayEnd;
           }
           break;
       }
@@ -170,24 +184,32 @@ class HistoryDataProvider {
         final dayStart = iterDate;
         final dayEnd = dayStart.add(const Duration(days: 1));
 
-        final activeGoalsForDay = allDailyGoals.where((g) =>
-        g.goalDuration > Duration.zero &&
-            (g.startDate.isBefore(dayEnd) || g.startDate.isAtSameMomentAs(dayStart)) &&
-            (g.endDate == null || g.endDate!.isAfter(dayStart))
-        ).toList();
+        final allFilteredDailyGoals = allDailyGoals
+            .where((g) => (selectedActivity == null || g.activityName == selectedActivity))
+            .toList();
 
-        if (activeGoalsForDay.isEmpty) {
+        if (allFilteredDailyGoals.isEmpty) {
           final logsForDay = activityLogs.where((log) =>
           log.date.isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
-              log.date.isBefore(dayEnd)
+              log.date.isBefore(dayEnd) &&
+              (selectedActivity == null || log.activityName == selectedActivity)
           ).toList();
 
           dailyStatusByDay[dayStart] = logsForDay.isNotEmpty;
         } else {
-          final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
-          final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
+          final activeGoalsForDay = allFilteredDailyGoals.where((g) =>
+          g.goalDuration > Duration.zero &&
+              g.startDate.isBefore(dayEnd) &&
+              (g.endDate == null || g.endDate!.isAfter(dayStart))
+          ).toList();
 
-          dailyStatusByDay[dayStart] = successfulCount == activeGoalsForDay.length;
+          if (activeGoalsForDay.isEmpty) {
+            dailyStatusByDay[dayStart] = true;
+          } else {
+            final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
+            final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
+            dailyStatusByDay[dayStart] = successfulCount == activeGoalsForDay.length;
+          }
         }
 
         iterDate = iterDate.add(const Duration(days: 1));
@@ -308,24 +330,35 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
         final dayStart = iterDate;
         final dayEnd = dayStart.add(const Duration(days: 1));
 
-        final activeGoalsForDay = allDailyGoals.where((g) =>
-        g.goalDuration > Duration.zero &&
-            (g.startDate.isBefore(dayEnd) || g.startDate.isAtSameMomentAs(dayStart)) &&
-            (g.endDate == null || g.endDate!.isAfter(dayStart))
-        ).toList();
+        final allFilteredDailyGoals = allDailyGoals
+            .where((g) => (selectedActivity == null || g.activityName == selectedActivity))
+            .toList();
 
-        if (activeGoalsForDay.isEmpty) {
+        if (allFilteredDailyGoals.isEmpty) {
           final logsForDay = widget.activityLogs.where((log) =>
           log.date.isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
-              log.date.isBefore(dayEnd)
+              log.date.isBefore(dayEnd) &&
+              (selectedActivity == null || log.activityName == selectedActivity)
           ).toList();
 
           dailyStatusByDay[dayStart] = logsForDay.isNotEmpty;
         } else {
-          final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
-          final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
 
-          dailyStatusByDay[dayStart] = successfulCount == activeGoalsForDay.length;
+          final activeGoalsForDay = allFilteredDailyGoals.where((g) =>
+          g.goalDuration > Duration.zero &&
+              g.startDate.isBefore(dayEnd) &&
+              (g.endDate == null || g.endDate!.isAfter(dayStart))
+          ).toList();
+
+          if (activeGoalsForDay.isEmpty) {
+
+            dailyStatusByDay[dayStart] = true;
+          } else {
+
+            final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
+            final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
+            dailyStatusByDay[dayStart] = successfulCount == activeGoalsForDay.length;
+          }
         }
 
         iterDate = iterDate.add(const Duration(days: 1));
