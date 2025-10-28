@@ -54,12 +54,19 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     }
 
     final controller = TextEditingController();
+    _isTimedActivity = true;
 
     showDialog(
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add Activity'),
+          title: const Row(
+            children: [
+              Icon(Icons.add_circle_outline),
+              SizedBox(width: 8),
+              Text('Add Activity'),
+            ],
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -73,29 +80,26 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                   LengthLimitingTextInputFormatter(maxNameLength),
                 ],
               ),
-              Row(
-                children: [
-                  Radio<bool>(
+              const SizedBox(height: 16),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment<bool>(
                     value: true,
-                    groupValue: _isTimedActivity,
-                    onChanged: (val) {
-                      setDialogState(() {
-                        _isTimedActivity = val!;
-                      });
-                    },
+                    label: Text('Timed'),
+                    icon: Icon(Icons.timer_outlined),
                   ),
-                  const Text('Timed'),
-                  Radio<bool>(
+                  ButtonSegment<bool>(
                     value: false,
-                    groupValue: _isTimedActivity,
-                    onChanged: (val) {
-                      setDialogState(() {
-                        _isTimedActivity = val!;
-                      });
-                    },
+                    label: Text('Checkable'),
+                    icon: Icon(Icons.check_circle_outline),
                   ),
-                  const Text('Checkable'),
                 ],
+                selected: {_isTimedActivity},
+                onSelectionChanged: (Set<bool> newSelection) {
+                  setDialogState(() {
+                    _isTimedActivity = newSelection.first;
+                  });
+                },
               ),
             ],
           ),
@@ -180,7 +184,13 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Rename Activity'),
+        title: const Row(
+          children: [
+            Icon(Icons.edit_outlined),
+            SizedBox(width: 8),
+            Text('Rename Activity'),
+          ],
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -301,48 +311,48 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        ElevatedButton.icon(
-          onPressed: addActivity,
-          icon: const Icon(Icons.add),
-          label: const Text('Add Activity'),
-        ),
-        Expanded(
-          child: ReorderableListView(
-            onReorder: _onReorder,
-            children: widget.activities.asMap().entries.map((entry) {
-              final index = entry.key;
-              final a = entry.value;
-              return ListTile(
-                key: ValueKey(a.name),
-                title: Text(a.name),
-                subtitle: Text(a is TimedActivity ? 'Timed' : 'Checkable'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit),
-                      onPressed: () => renameActivity(index),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete),
-                      onPressed: () => deleteActivity(index),
-                    ),
-                  ],
-                ),
-                leading: const Icon(Icons.drag_handle),
-              );
-            }).toList(),
-          ),
-        ),/*
-        if (_isAdLoaded && widget.launchCount > 1) ...[
-          const SizedBox(height: 20),
-          _adManager.getBannerAdWidget() ?? const SizedBox.shrink(),
-        ],
-        */
-        const SizedBox(height: 80),
-      ],
+    return Scaffold(
+      body: ReorderableListView(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8)
+            .copyWith(bottom: 88),
+        onReorder: _onReorder,
+        children: widget.activities.asMap().entries.map((entry) {
+          final index = entry.key;
+          final a = entry.value;
+          return Card(
+            key: ValueKey(a.name),
+            child: ListTile(
+              leading: Icon(
+                a is TimedActivity
+                    ? Icons.timer_outlined
+                    : Icons.check_circle_outline,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: Text(a.name),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: () => renameActivity(index),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                    onPressed: () => deleteActivity(index),
+                  ),
+                  const Icon(Icons.drag_handle),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: addActivity,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Activity'),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }
