@@ -95,6 +95,18 @@ Future<void> initializeService() async {
   );
 }
 
+String _getNotificationContent(int minutes) {
+  String minuteString;
+  if (minutes == 0) {
+    minuteString = "less than 1 minute";
+  } else if (minutes == 1) {
+    minuteString = "1 minute";
+  } else {
+    minuteString = "$minutes minutes";
+  }
+  return 'Locked in for: $minuteString\nKeep up the good work!';
+}
+
 @pragma('vm:entry-point')
 void onStart(ServiceInstance service) {
   DartPluginRegistrant.ensureInitialized();
@@ -121,21 +133,18 @@ void onStart(ServiceInstance service) {
     _elapsed = Duration(seconds: previousElapsedSeconds);
     _isRunning = true;
 
-    final int minutes = _elapsed.inMinutes;
     NotificationService().showOrUpdateServiceNotification(
       title: 'Locked In',
-      content: 'Locked in for: $minutes minutes\nKeep up the good work!',
+      content: _getNotificationContent(_elapsed.inMinutes),
     );
 
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _elapsed += const Duration(seconds: 1);
 
       if (_elapsed.inSeconds % 60 == 0) {
-        final int currentMinutes = _elapsed.inMinutes;
-
         NotificationService().showOrUpdateServiceNotification(
           title: 'Locked In',
-          content: 'Locked in for: $currentMinutes minutes\nKeep up the good work!',
+          content: _getNotificationContent(_elapsed.inMinutes),
         );
       }
 
