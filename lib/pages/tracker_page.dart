@@ -447,8 +447,14 @@ class _TrackerPageState extends State<TrackerPage> {
                   progressText = '$completionsInPeriod / ${goal.goalDuration.inMinutes} time(s)';
                 }
 
+                final goalTypeString = goal.goalType.toString().split('.').last;
+                final bool hasCustomTitle = goal.title != null && goal.title!.isNotEmpty;
+                final String displayTitle = hasCustomTitle
+                    ? '${goal.title} - ${activity.name} ($goalTypeString)'
+                    : '${activity.name} ($goalTypeString)';
+
                 return ListTile(
-                  title: Text('${activity.name} (${goal.goalType.toString().split('.').last})'),
+                  title: Text(displayTitle),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
