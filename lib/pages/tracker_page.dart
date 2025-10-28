@@ -317,11 +317,34 @@ class _TrackerPageState extends State<TrackerPage> {
             Row(
               children: [
                 Expanded(
-                  child: DropdownButton<Activity>(
+                  child: DropdownButtonFormField<Activity>(
                     value: selectedActivityForDropdown,
-                    hint: const Text('Choose activity'),
+                    hint: const Text('Choose Activity'),
                     isExpanded: true,
-                    items: uniqueActivitiesForDropdown.map((a) => DropdownMenuItem(value: a, child: Text(a.name))).toList(),
+                    decoration: const InputDecoration(
+                      labelText: 'Activity',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12.0),
+                    ),
+                    items: uniqueActivitiesForDropdown.map((a) {
+                      final String emoji = a is TimedActivity ? '⏰' : '✅';
+                      return DropdownMenuItem(
+                        value: a,
+                        child: Text(
+                          '$emoji ${a.name}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    selectedItemBuilder: (BuildContext context) {
+                      return uniqueActivitiesForDropdown.map<Widget>((Activity a) {
+                        final String emoji = a is TimedActivity ? '⏰' : '✅';
+                        return Text(
+                          '$emoji ${a.name}',
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      }).toList();
+                    },
                     onChanged: widget.onSelectActivity,
                   ),
                 ),
