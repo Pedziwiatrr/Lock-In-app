@@ -74,7 +74,8 @@ class _HomePageState extends State<HomePage> {
       final int elapsedTimeInSeconds = event?['elapsedTime'] as int? ?? 0;
       final bool isCurrentlyRunning = event?['isRunning'] as bool? ?? false;
 
-      if (isCurrentlyRunning != isRunning || Duration(seconds: elapsedTimeInSeconds) != elapsed) {
+      if (isCurrentlyRunning != isRunning ||
+          Duration(seconds: elapsedTimeInSeconds) != elapsed) {
         setState(() {
           isRunning = isCurrentlyRunning;
           elapsed = Duration(seconds: elapsedTimeInSeconds);
@@ -93,10 +94,14 @@ class _HomePageState extends State<HomePage> {
       final now = DateTime.now();
       final timerStart = _timerStartDate;
 
-      final int elapsedTimeInSeconds = (event?['elapsedTime'] as int?) ?? elapsed.inSeconds + 1;
+      final int elapsedTimeInSeconds =
+          (event?['elapsedTime'] as int?) ?? elapsed.inSeconds + 1;
       final newElapsed = Duration(seconds: elapsedTimeInSeconds);
 
-      if (timerStart != null && (now.day != timerStart.day || now.month != timerStart.month || now.year != timerStart.year)) {
+      if (timerStart != null &&
+          (now.day != timerStart.day ||
+              now.month != timerStart.month ||
+              now.year != timerStart.year)) {
         final timeToLog = elapsed;
         final activityToLog = selectedActivity;
 
@@ -112,7 +117,8 @@ class _HomePageState extends State<HomePage> {
 
           setState(() {
             activityLogs = [...activityLogs, log];
-            final activityIndex = activities.indexWhere((a) => a.name == activityToLog.name);
+            final activityIndex =
+            activities.indexWhere((a) => a.name == activityToLog.name);
             if (activityIndex != -1) {
               final activity = activities[activityIndex];
               if (activity is TimedActivity) {
@@ -125,7 +131,9 @@ class _HomePageState extends State<HomePage> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               scaffoldMessengerKey.currentState?.showSnackBar(
-                const SnackBar(content: Text('Timer session saved automatically at midnight.')),
+                const SnackBar(
+                    content:
+                    Text('Timer session saved automatically at midnight.')),
               );
             }
           });
@@ -150,9 +158,19 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void _startTimer() {
-    if (selectedActivity == null || selectedActivity is! TimedActivity || isRunning) return;
-    FlutterBackgroundService().invoke('startTimer', {'previousElapsed': elapsed.inSeconds});
+  void _startTimer() async {
+    if (selectedActivity == null ||
+        selectedActivity is! TimedActivity ||
+        isRunning) return;
+
+    final service = FlutterBackgroundService();
+    bool isServiceRunning = await service.isRunning();
+    if (!isServiceRunning) {
+      await service.startService();
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+
+    service.invoke('startTimer', {'previousElapsed': elapsed.inSeconds});
     setState(() {
       isRunning = true;
       _timerStartDate = selectedDate;
@@ -181,7 +199,8 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     final now = DateTime.now();
-    final logDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, now.hour, now.minute, now.second);
+    final logDate = DateTime(selectedDate.year, selectedDate.month,
+        selectedDate.day, now.hour, now.minute, now.second);
     final log = ActivityLog(
       activityName: selectedActivity!.name,
       date: logDate,
@@ -190,7 +209,8 @@ class _HomePageState extends State<HomePage> {
     );
     setState(() {
       activityLogs = [...activityLogs, log];
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      final activity =
+      activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is TimedActivity) {
         activity.totalTime += elapsed;
       }
@@ -227,13 +247,16 @@ class _HomePageState extends State<HomePage> {
 
       service.invoke('getServiceState');
 
-      final backgroundState = await completer.future.timeout(const Duration(seconds: 2), onTimeout: () => null);
+      final backgroundState = await completer.future
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
 
       subscription.cancel();
 
       if (backgroundState != null) {
-        final int elapsedTimeInSeconds = backgroundState['elapsedTime'] as int? ?? 0;
-        final bool isCurrentlyRunning = backgroundState['isRunning'] as bool? ?? false;
+        final int elapsedTimeInSeconds =
+            backgroundState['elapsedTime'] as int? ?? 0;
+        final bool isCurrentlyRunning =
+            backgroundState['isRunning'] as bool? ?? false;
 
         if (isCurrentlyRunning || elapsedTimeInSeconds > 0) {
           setState(() {
@@ -260,7 +283,8 @@ class _HomePageState extends State<HomePage> {
     final Set<String> completedIds = {};
 
     for (var quest in ProgressService.quests) {
-      final progress = quest.getProgress(activities, activityLogs, goals, widget.launchCount, _hasRatedApp);
+      final progress = quest.getProgress(
+          activities, activityLogs, goals, widget.launchCount, _hasRatedApp);
       if (quest.isRepeatable) {
         final level = quest.levels.first;
         if (level.target > 0) {
@@ -286,7 +310,8 @@ class _HomePageState extends State<HomePage> {
 
   void _checkQuestCompletions() {
     final currentCompletedIds = _getAllCompletedQuestLevelIds();
-    final newlyCompletedIds = currentCompletedIds.difference(_previousCompletedQuestIds);
+    final newlyCompletedIds =
+    currentCompletedIds.difference(_previousCompletedQuestIds);
 
     if (newlyCompletedIds.isNotEmpty) {
       for (final id in newlyCompletedIds) {
@@ -310,7 +335,8 @@ class _HomePageState extends State<HomePage> {
               SnackBar(
                 behavior: SnackBarBehavior.floating,
                 margin: const EdgeInsets.all(12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 content: Row(
                   children: [
                     const Icon(Icons.emoji_events, color: Colors.amber),
@@ -320,8 +346,10 @@ class _HomePageState extends State<HomePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text('Quest Completed!', style: TextStyle(fontWeight: FontWeight.bold)),
-                          Text('"${quest.title}" (+${completedLevel.xpReward} XP)'),
+                          const Text('Quest Completed!',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(
+                              '"${quest.title}" (+${completedLevel.xpReward} XP)'),
                         ],
                       ),
                     ),
@@ -337,19 +365,24 @@ class _HomePageState extends State<HomePage> {
     _previousCompletedQuestIds = currentCompletedIds;
   }
 
-  static Future<Map<String, dynamic>> _loadDataFromPrefs(int shouldLoadDefaultData) async {
+  static Future<Map<String, dynamic>> _loadDataFromPrefs(
+      int shouldLoadDefaultData) async {
     final prefs = await SharedPreferences.getInstance();
     List<Activity> activities = [];
     List<ActivityLog> logs = [];
     List<Goal> goals = [];
 
     final activitiesJson = prefs.getString('activities');
-    if (activitiesJson == null || activitiesJson.isEmpty || activitiesJson == '[]' || shouldLoadDefaultData == 1) {
+    if (activitiesJson == null ||
+        activitiesJson.isEmpty ||
+        activitiesJson == '[]' ||
+        shouldLoadDefaultData == 1) {
       activities = [
         TimedActivity(name: 'Focus'),
         CheckableActivity(name: 'Workout'),
       ];
-      await prefs.setString('activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
+      await prefs.setString(
+          'activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
     } else {
       try {
         final decoded = jsonDecode(activitiesJson);
@@ -359,7 +392,9 @@ class _HomePageState extends State<HomePage> {
           final List<dynamic> activitiesList = decoded;
           activities = activitiesList.where((json) {
             if (json is! Map<String, dynamic>) return false;
-            if (!json.containsKey('type') || !json.containsKey('name')) return false;
+            if (!json.containsKey('type') || !json.containsKey('name')) {
+              return false;
+            }
             return true;
           }).map((json) {
             try {
@@ -381,7 +416,10 @@ class _HomePageState extends State<HomePage> {
     if (logsJson != null && logsJson.isNotEmpty) {
       try {
         final List<dynamic> logsList = jsonDecode(logsJson);
-        logs = logsList.map((json) => ActivityLog.fromJson(json)).take(maxLogs).toList();
+        logs = logsList
+            .map((json) => ActivityLog.fromJson(json))
+            .take(maxLogs)
+            .toList();
       } catch (e) {
         logs = [];
       }
@@ -391,7 +429,8 @@ class _HomePageState extends State<HomePage> {
     if (goalsJson != null && goalsJson.isNotEmpty) {
       try {
         final List<dynamic> goalsList = jsonDecode(goalsJson);
-        goals = goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
+        goals =
+            goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
       } catch (e) {
         goals = [];
       }
@@ -400,10 +439,14 @@ class _HomePageState extends State<HomePage> {
     for (var activity in activities) {
       if (activity is TimedActivity) {
         activity.totalTime = logs
-            .where((log) => log.activityName == activity.name && !log.isCheckable)
+            .where((log) =>
+        log.activityName == activity.name && !log.isCheckable)
             .fold(Duration.zero, (prev, log) => prev + log.duration);
       } else if (activity is CheckableActivity) {
-        activity.completionCount = logs.where((log) => log.activityName == activity.name && log.isCheckable).length;
+        activity.completionCount = logs
+            .where((log) =>
+        log.activityName == activity.name && log.isCheckable)
+            .length;
       }
     }
 
@@ -434,21 +477,23 @@ class _HomePageState extends State<HomePage> {
       if (goal.goalDuration > Duration.zero &&
           goal.startDate.isBefore(tomorrow) &&
           (goal.endDate == null || goal.endDate!.isAfter(today))) {
-
-        final activity = activities.firstWhere((a) => a.name == goal.activityName, orElse: () => CheckableActivity(name: ''));
+        final activity = activities.firstWhere((a) => a.name == goal.activityName,
+            orElse: () => CheckableActivity(name: ''));
         if (activity.name.isEmpty) continue;
 
         bool isCompletedNow = false;
         if (activity is TimedActivity) {
           final totalTime = activityLogs
-              .where((log) => log.activityName == goal.activityName && !log.isCheckable)
+              .where((log) =>
+          log.activityName == goal.activityName && !log.isCheckable)
               .fold(Duration.zero, (sum, log) => sum + log.duration);
           if (totalTime >= goal.goalDuration) {
             isCompletedNow = true;
           }
         } else if (activity is CheckableActivity) {
           final completions = activityLogs
-              .where((log) => log.activityName == goal.activityName && log.isCheckable)
+              .where((log) =>
+          log.activityName == goal.activityName && log.isCheckable)
               .length;
           if (completions >= goal.goalDuration.inMinutes) {
             isCompletedNow = true;
@@ -470,9 +515,12 @@ class _HomePageState extends State<HomePage> {
     final activities = data['activities'] as List<Activity>;
     final logs = data['logs'] as List<ActivityLog>;
     final goals = data['goals'] as List<Goal>;
-    await prefs.setString('activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
-    await prefs.setString('activityLogs', jsonEncode(logs.map((log) => log.toJson()).toList()));
-    await prefs.setString('goals', jsonEncode(goals.map((g) => g.toJson()).toList()));
+    await prefs.setString(
+        'activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
+    await prefs.setString(
+        'activityLogs', jsonEncode(logs.map((log) => log.toJson()).toList()));
+    await prefs.setString(
+        'goals', jsonEncode(goals.map((g) => g.toJson()).toList()));
   }
 
   Future<void> _resetData() async {
@@ -503,13 +551,15 @@ class _HomePageState extends State<HomePage> {
     if (selectedActivity == null || activityLogs.length >= maxLogs) {
       if (activityLogs.length >= maxLogs) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
+          const SnackBar(
+              content: Text('Max log limit reached. Cannot add more.')),
         );
       }
       return;
     }
     final now = DateTime.now();
-    final logDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, now.hour, now.minute, now.second);
+    final logDate = DateTime(selectedDate.year, selectedDate.month,
+        selectedDate.day, now.hour, now.minute, now.second);
     final log = ActivityLog(
       activityName: selectedActivity!.name,
       date: logDate,
@@ -518,7 +568,8 @@ class _HomePageState extends State<HomePage> {
     );
     setState(() {
       activityLogs = [...activityLogs, log];
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      final activity =
+      activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is CheckableActivity) {
         activity.completionCount += 1;
       }
@@ -527,7 +578,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void addManualTime(Duration duration) {
-    final bool cheatsEnabled = activities.any((a) => a.name == 'sv_cheats 1');
+    final bool cheatsEnabled =
+    activities.any((a) => a.name == 'sv_cheats 1');
     final int limit = cheatsEnabled ? maxManualTimeMinutes : 300;
 
     if (selectedActivity == null ||
@@ -538,7 +590,8 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     final now = DateTime.now();
-    final logDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, now.hour, now.minute, now.second);
+    final logDate = DateTime(selectedDate.year, selectedDate.month,
+        selectedDate.day, now.hour, now.minute, now.second);
     final log = ActivityLog(
       activityName: selectedActivity!.name,
       date: logDate,
@@ -547,7 +600,8 @@ class _HomePageState extends State<HomePage> {
     );
     setState(() {
       activityLogs = [...activityLogs, log];
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      final activity =
+      activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is TimedActivity) {
         activity.totalTime += duration;
       }
@@ -556,9 +610,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   void subtractManualTime(Duration duration) {
-    if (selectedActivity == null || selectedActivity is! TimedActivity || duration <= Duration.zero) return;
+    if (selectedActivity == null ||
+        selectedActivity is! TimedActivity ||
+        duration <= Duration.zero) return;
 
-    final dateStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final dateStart =
+    DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
     final dateEnd = dateStart.add(const Duration(days: 1));
     List<ActivityLog> logsCopy = List.from(activityLogs);
 
@@ -578,16 +635,20 @@ class _HomePageState extends State<HomePage> {
     for (final log in relevantLogs) {
       if (remainingDurationToSubtract <= Duration.zero) break;
 
-      final durationToSubtract = log.duration > remainingDurationToSubtract ? remainingDurationToSubtract : log.duration;
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
-      if(activity is TimedActivity) {
+      final durationToSubtract = log.duration > remainingDurationToSubtract
+          ? remainingDurationToSubtract
+          : log.duration;
+      final activity =
+      activities.firstWhere((a) => a.name == selectedActivity!.name);
+      if (activity is TimedActivity) {
         activity.totalTime -= durationToSubtract;
       }
       log.duration -= durationToSubtract;
       remainingDurationToSubtract -= durationToSubtract;
     }
 
-    logsCopy.removeWhere((log) => !log.isCheckable && log.duration <= Duration.zero);
+    logsCopy
+        .removeWhere((log) => !log.isCheckable && log.duration <= Duration.zero);
 
     setState(() {
       activityLogs = logsCopy;
@@ -596,7 +657,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void addManualCompletion(int count) {
-    final bool cheatsEnabled = activities.any((a) => a.name == 'sv_cheats 1');
+    final bool cheatsEnabled =
+    activities.any((a) => a.name == 'sv_cheats 1');
     final int limit = cheatsEnabled ? maxManualCompletions : 30;
 
     if (selectedActivity == null ||
@@ -607,7 +669,8 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     final now = DateTime.now();
-    final logDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, now.hour, now.minute, now.second);
+    final logDate = DateTime(selectedDate.year, selectedDate.month,
+        selectedDate.day, now.hour, now.minute, now.second);
 
     List<ActivityLog> newLogs = [];
     for (int i = 0; i < count; i++) {
@@ -621,7 +684,8 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {
       activityLogs = [...activityLogs, ...newLogs];
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      final activity =
+      activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is CheckableActivity) {
         activity.completionCount += count;
       }
@@ -630,9 +694,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   void subtractManualCompletion(int count) {
-    if (selectedActivity == null || selectedActivity is! CheckableActivity || count <= 0) return;
+    if (selectedActivity == null ||
+        selectedActivity is! CheckableActivity ||
+        count <= 0) return;
 
-    final dateStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+    final dateStart =
+    DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
     final dateEnd = dateStart.add(const Duration(days: 1));
 
     List<ActivityLog> logsToRemove = activityLogs
@@ -650,10 +717,13 @@ class _HomePageState extends State<HomePage> {
     final logsToActuallyRemove = logsToRemove.take(count).toSet();
 
     setState(() {
-      activityLogs = activityLogs.where((log) => !logsToActuallyRemove.contains(log)).toList();
-      final activity = activities.firstWhere((a) => a.name == selectedActivity!.name);
+      activityLogs =
+          activityLogs.where((log) => !logsToActuallyRemove.contains(log)).toList();
+      final activity =
+      activities.firstWhere((a) => a.name == selectedActivity!.name);
       if (activity is CheckableActivity) {
-        activity.completionCount = max(0, activity.completionCount - logsToActuallyRemove.length);
+        activity.completionCount =
+            max(0, activity.completionCount - logsToActuallyRemove.length);
       }
     });
     _saveData();
@@ -675,7 +745,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void selectDate(DateTime date) {
-    if(isRunning) return;
+    if (isRunning) return;
     setState(() {
       selectedDate = date;
       elapsed = Duration.zero;

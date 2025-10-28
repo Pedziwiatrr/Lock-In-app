@@ -83,13 +83,13 @@ Future<void> initializeService() async {
   await service.configure(
     androidConfiguration: AndroidConfiguration(
       onStart: onStart,
-      autoStart: true,
+      autoStart: false,
       isForegroundMode: true,
       notificationChannelId: 'background_service_notif_channel',
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
-      autoStart: true,
+      autoStart: false,
       onForeground: onStart,
     ),
   );
@@ -101,7 +101,6 @@ void onStart(ServiceInstance service) {
   Timer? timer;
   Duration _elapsed = Duration.zero;
   bool _isRunning = false;
-
 
   NotificationService().showOrUpdateServiceNotification(
     title: 'Working in the background',
@@ -122,20 +121,23 @@ void onStart(ServiceInstance service) {
     _elapsed = Duration(seconds: previousElapsedSeconds);
     _isRunning = true;
 
+    final int minutes = _elapsed.inMinutes;
     NotificationService().showOrUpdateServiceNotification(
       title: 'Locked In',
-      content: 'Locked in for: ${_elapsed.toString().split('.').first.padLeft(8, "0")}\nKeep up the good work!',
+      content: 'Locked in for: $minutes minutes\nKeep up the good work!',
     );
 
     timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _elapsed += const Duration(seconds: 1);
 
-      final String formattedTime = _elapsed.toString().split('.').first.padLeft(8, "0");
+      if (_elapsed.inSeconds % 60 == 0) {
+        final int currentMinutes = _elapsed.inMinutes;
 
-      NotificationService().showOrUpdateServiceNotification(
-        title: 'Locked In',
-        content: 'Locked in for: $formattedTime\nKeep up the good work!',
-      );
+        NotificationService().showOrUpdateServiceNotification(
+          title: 'Locked In',
+          content: 'Locked in for: $currentMinutes minutes\nKeep up the good work!',
+        );
+      }
 
       service.invoke('tick', {'elapsedTime': _elapsed.inSeconds});
     });
@@ -145,11 +147,7 @@ void onStart(ServiceInstance service) {
     timer?.cancel();
     timer = null;
     _isRunning = false;
-
-    NotificationService().showOrUpdateServiceNotification(
-      title: 'Working in the background',
-      content: "Don't get distracted!",
-    );
+    service.stopSelf();
   });
 }
 
