@@ -205,6 +205,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
         return {
           'activityName': goal.activityName,
+          'title': goal.title,
           'goalType': goal.goalType.toString().split('.').last,
           'percent': percent,
           'progressText': progressText,
@@ -250,7 +251,7 @@ class _HistoryPageState extends State<HistoryPage> {
       case _GoalStatus.green:
         return Colors.green;
       case _GoalStatus.yellow:
-        return Colors.yellow;
+        return Colors.orange;
       case _GoalStatus.red:
         return Colors.red;
       case _GoalStatus.grey:
@@ -267,64 +268,103 @@ class _HistoryPageState extends State<HistoryPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text('${day.day.toString().padLeft(2, '0')}-${day.month.toString().padLeft(2, '0')}-${day.year}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Logged Activities', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              if (activitiesLogged.isEmpty)
-                const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No activities logged for this day.'))
-              else
-                ...activitiesLogged.map((entry) {
-                  final data = entry.value as Map<String, dynamic>;
-                  return ListTile(
-                    title: Text(entry.key),
-                    trailing: Text(data['isTimed']
-                        ? formatDuration(data['duration'])
-                        : '${data['completions']} time(s)'),
-                  );
-                }),
-              const SizedBox(height: 16),
-              const Text('Goal Progress', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              if (goalDetails.isEmpty)
-                const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No goals were active on this day.'))
-              else
-                ...goalDetails.map((details) {
-                  final detailMap = details as Map<String, dynamic>;
-                  final percent = detailMap['percent'] as double;
-                  final progressColor = _mapStatusToColor(detailMap['status'] as _GoalStatus);
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text(
+                    'Logged Activities',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (activitiesLogged.isEmpty)
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No activities logged for this day.'))
+                else
+                  ...activitiesLogged.map((entry) {
+                    final data = entry.value as Map<String, dynamic>;
+                    return ListTile(
+                      dense: true,
+                      title: Text(entry.key),
+                      trailing: Text(data['isTimed']
+                          ? formatDuration(data['duration'])
+                          : '${data['completions']} time(s)'),
+                    );
+                  }),
+                const Divider(height: 24, thickness: 1),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Text(
+                    'Goal Progress',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                if (goalDetails.isEmpty)
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('No goals were active on this day.'))
+                else
+                  ...goalDetails.map((details) {
+                    final detailMap = details as Map<String, dynamic>;
+                    final percent = detailMap['percent'] as double;
+                    final progressColor = _mapStatusToColor(detailMap['status'] as _GoalStatus);
+                    final title = detailMap['title'] as String?;
+                    final activityName = detailMap['activityName'] as String;
+                    final goalType = detailMap['goalType'] as String;
 
-                  return ListTile(
-                    title: Row(
-                      children: [
-                        Container(width: 10, height: 10, decoration: BoxDecoration(shape: BoxShape.circle, color: progressColor)),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text('${detailMap['activityName']} (${detailMap['goalType']})')),
-                      ],
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        LinearProgressIndicator(
-                          value: percent,
-                          backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
-                          valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    String displayText;
+                    if (title != null && title.isNotEmpty && title != activityName) {
+                      displayText = '$title - $activityName ($goalType)';
+                    } else {
+                      displayText = '$activityName ($goalType)';
+                    }
+
+                    return ListTile(
+                      dense: true,
+                      title: Row(
+                        children: [
+                          Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle, color: progressColor)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              displayText,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(detailMap['progressText'] as String, style: const TextStyle(fontSize: 12)),
-                            Text('${(percent * 100).toStringAsFixed(0)}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            LinearProgressIndicator(
+                              value: percent,
+                              backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                              valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                              minHeight: 6,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(detailMap['progressText'] as String, style: Theme.of(context).textTheme.bodySmall),
+                                Text(
+                                  '${(percent * 100).toStringAsFixed(0)}%',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
-                      ],
-                    ),
-                  );
-                }),
-            ],
+                      ),
+                    );
+                  }),
+              ],
+            ),
           ),
         ),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
@@ -365,6 +405,7 @@ class _HistoryPageState extends State<HistoryPage> {
               ? const Center(child: Text("No history data."))
               : ListView.builder(
             controller: _scrollController,
+            padding: const EdgeInsets.only(bottom: 16),
             itemCount: _visibleDays.length < _progressCache.length ? _visibleDays.length + 1 : _visibleDays.length,
             itemBuilder: (context, index) {
               if (index == _visibleDays.length) {
@@ -384,33 +425,38 @@ class _HistoryPageState extends State<HistoryPage> {
               final monthlyStatus = dayData['monthlyStatus'] as _GoalStatus;
               final checkableCompletions = dayData['checkableCompletions'] as int;
 
-              return ListTile(
-                onTap: () => _showDayDetails(context, day, dayData),
-                title: Text(
-                  '${day.day.toString().padLeft(2, '0')}-${day.month.toString().padLeft(2, '0')}-${day.year}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: duration == Duration.zero && checkableCompletions == 0
-                    ? const Text('No activity')
-                    : Text('Time: ${formatDuration(duration)} | Checks: $checkableCompletions'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Tooltip(
-                      message: 'Daily Goals: $completedDailyGoals/$totalDailyGoals',
-                      child: Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle, color: _mapStatusToColor(dailyStatus))),
-                    ),
-                    const SizedBox(width: 4),
-                    Tooltip(
-                      message: 'Weekly Goals: $completedWeeklyGoals/$totalWeeklyGoals',
-                      child: Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle, color: _mapStatusToColor(weeklyStatus))),
-                    ),
-                    const SizedBox(width: 4),
-                    Tooltip(
-                      message: 'Monthly Goals: $completedMonthlyGoals/$totalMonthlyGoals',
-                      child: Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle, color: _mapStatusToColor(monthlyStatus))),
-                    ),
-                  ],
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                clipBehavior: Clip.antiAlias,
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  onTap: () => _showDayDetails(context, day, dayData),
+                  title: Text(
+                    '${day.day.toString().padLeft(2, '0')}-${day.month.toString().padLeft(2, '0')}-${day.year}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: duration == Duration.zero && checkableCompletions == 0
+                      ? const Text('No activity')
+                      : Text('Time: ${formatDuration(duration)} | Checks: $checkableCompletions'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Tooltip(
+                        message: 'Daily Goals: $completedDailyGoals/$totalDailyGoals',
+                        child: Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle, color: _mapStatusToColor(dailyStatus))),
+                      ),
+                      const SizedBox(width: 6),
+                      Tooltip(
+                        message: 'Weekly Goals: $completedWeeklyGoals/$totalWeeklyGoals',
+                        child: Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle, color: _mapStatusToColor(weeklyStatus))),
+                      ),
+                      const SizedBox(width: 6),
+                      Tooltip(
+                        message: 'Monthly Goals: $completedMonthlyGoals/$totalMonthlyGoals',
+                        child: Container(width: 12, height: 12, decoration: BoxDecoration(shape: BoxShape.circle, color: _mapStatusToColor(monthlyStatus))),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
