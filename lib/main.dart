@@ -209,7 +209,11 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
       scaffoldMessengerKey: scaffoldMessengerKey,
       title: 'LockIn Tracker',
       theme: ThemeData.light(),
-      darkTheme: ThemeData.dark(),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: Colors.black,
+
+      ),
       themeMode: _themeMode,
       home: HomePage(
         onThemeChanged: toggleTheme,
