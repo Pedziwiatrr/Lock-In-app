@@ -23,6 +23,7 @@ class Goal {
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    'title': title,
     'activityName': activityName,
     'goalDuration': goalDuration.inSeconds,
     'goalType': goalType.toString(),
@@ -32,6 +33,7 @@ class Goal {
 
   factory Goal.fromJson(Map<String, dynamic> json) => Goal(
     id: json['id'] ?? const Uuid().v4(),
+    title: json['title'],
     activityName: json['activityName'],
     goalDuration: Duration(seconds: json['goalDuration']),
     goalType: json['goalType'] == 'GoalType.weekly'

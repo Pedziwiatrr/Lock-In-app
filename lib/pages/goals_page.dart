@@ -63,19 +63,22 @@ class _GoalsPageState extends State<GoalsPage> {
     final now = DateTime.now();
     final activityNames = widget.activities.map((a) => a.name).toSet();
 
+    final currentTypes = {
+      for (var goal in editableGoals)
+        if (activityNames.contains(goal.activityName))
+          goal.activityName: goal.goalType
+    };
+
     editableGoals = widget.activities.map((activity) {
-      final existingGoal = editableGoals.firstWhere(
-            (g) => g.activityName == activity.name,
-        orElse: () => Goal(activityName: '', goalType: GoalType.daily, startDate: now, goalDuration: Duration.zero, title: null),
-      );
+      final goalType = currentTypes[activity.name] ?? GoalType.daily;
 
       return widget.goals.firstWhere(
-            (g) => g.activityName == activity.name && g.goalType == (existingGoal.activityName.isNotEmpty ? existingGoal.goalType : GoalType.daily),
+            (g) => g.activityName == activity.name && g.goalType == goalType,
         orElse: () => Goal(
           activityName: activity.name,
           goalDuration: Duration.zero,
           startDate: now,
-          goalType: existingGoal.activityName.isNotEmpty ? existingGoal.goalType : GoalType.daily,
+          goalType: goalType,
           title: null,
         ),
       );
