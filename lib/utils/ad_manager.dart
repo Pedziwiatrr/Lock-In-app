@@ -172,7 +172,7 @@ class AdManager {
       _lastAdShown = false;
       return false;
     }
-    final random = Random().nextDouble() < 0.5;
+    final random = Random().nextDouble() < 0.4;
     _lastAdShown = random;
     if (!kReleaseMode) print('[AD] Ad decision: ${random ? "show" : "skip (random)"}');
     return random;
@@ -199,7 +199,7 @@ class AdManager {
       if (!kReleaseMode) print('[AD] Ad not shown: first goals');
       return false;
     }
-    final random = Random().nextDouble() < 0.4;
+    final random = Random().nextDouble() < 0.3;
     if (!kReleaseMode) print('[AD] Ad goal decision: ${random ? "show" : "skip (random)"}');
     return random;
   }
@@ -209,7 +209,7 @@ class AdManager {
       if (!kReleaseMode) print('[AD] Ad not shown: first two activity changes');
       return false;
     }
-    final random = Random().nextDouble() < 0.4;
+    final random = Random().nextDouble() < 0.3;
     if (!kReleaseMode) print('[AD] Ad activity change decision: ${random ? "show" : "skip (random)"}');
     return random;
   }
