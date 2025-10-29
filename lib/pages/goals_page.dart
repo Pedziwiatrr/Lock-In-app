@@ -192,6 +192,15 @@ class _GoalsPageState extends State<GoalsPage> {
       updatedGoals.add(newGoal);
     }
     widget.onGoalChanged(updatedGoals);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Goal successfully set!'),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.symmetric(vertical: 16.0, horizontal: 12.0),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> selectDate(BuildContext context, bool isStartDate, String activityName, DateTime currentDate, TextEditingController controller) async {
@@ -334,17 +343,23 @@ class _GoalsPageState extends State<GoalsPage> {
                               ],
                               onChanged: (val) {
                                 if (val != null) {
+                                  final currentTitle = titleController.text;
+                                  final currentGoalValueText = controller.text;
+                                  final currentGoalValue = int.tryParse(currentGoalValueText) ?? 0;
+
                                   setState(() {
                                     final index = editableGoals.indexWhere((g) => g.activityName == activity.name);
+                                    final currentGoal = editableGoals[index];
+
                                     final newGoalData = widget.goals.firstWhere(
                                           (g) => g.activityName == activity.name && g.goalType == val,
                                       orElse: () => Goal(
                                         activityName: activity.name,
-                                        goalDuration: Duration.zero,
+                                        goalDuration: Duration(minutes: currentGoalValue),
                                         goalType: val,
-                                        startDate: editableGoals[index].startDate,
-                                        endDate: editableGoals[index].endDate,
-                                        title: null,
+                                        startDate: currentGoal.startDate,
+                                        endDate: currentGoal.endDate,
+                                        title: currentTitle.isEmpty ? null : currentTitle,
                                       ),
                                     );
                                     if (index != -1) {
