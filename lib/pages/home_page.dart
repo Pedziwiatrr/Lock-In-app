@@ -675,7 +675,7 @@ class _HomePageState extends State<HomePage> {
   void addManualTime(Duration duration) {
     final bool cheatsEnabled =
     activities.any((a) => a.name == 'sv_cheats 1');
-    final int limit = cheatsEnabled ? maxManualTimeMinutes : 300;
+    final int limit = cheatsEnabled ? maxManualTimeMinutes : 360;
 
     if (selectedActivity == null ||
         selectedActivity is! TimedActivity ||
