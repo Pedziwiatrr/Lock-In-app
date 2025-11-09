@@ -114,6 +114,9 @@ void onStart(ServiceInstance service) {
   Duration _elapsed = Duration.zero;
   bool _isRunning = false;
   String? _activityName;
+  DateTime? _startTime;
+  int _baseElapsedSeconds = 0;
+  int _lastNotifMinute = -1;
 
   NotificationService().showOrUpdateServiceNotification(
     title: 'Working in the background',
@@ -121,6 +124,10 @@ void onStart(ServiceInstance service) {
   );
 
   service.on('getServiceState').listen((event) {
+    if (_isRunning && _startTime != null) {
+      _elapsed = DateTime.now().difference(_startTime!) + Duration(seconds: _baseElapsedSeconds);
+    }
+
     service.invoke('serviceState', {
       'elapsedTime': _elapsed.inSeconds,
       'isRunning': _isRunning,
@@ -131,23 +138,29 @@ void onStart(ServiceInstance service) {
   service.on('startTimer').listen((event) {
     if (timer?.isActive ?? false) return;
 
-    final int previousElapsedSeconds = (event?['previousElapsed'] as int?) ?? 0;
+    _baseElapsedSeconds = (event?['previousElapsed'] as int?) ?? 0;
     _activityName = event?['activityName'] as String?;
-    _elapsed = Duration(seconds: previousElapsedSeconds);
+    _elapsed = Duration(seconds: _baseElapsedSeconds);
+    _startTime = DateTime.now();
     _isRunning = true;
+    _lastNotifMinute = _elapsed.inMinutes;
 
     NotificationService().showOrUpdateServiceNotification(
       title: 'Locked In',
       content: _getNotificationContent(_elapsed.inMinutes),
     );
 
-    timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _elapsed += const Duration(seconds: 1);
+    timer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      if (_startTime == null) return;
 
-      if (_elapsed.inSeconds % 60 == 0) {
+      _elapsed = DateTime.now().difference(_startTime!) + Duration(seconds: _baseElapsedSeconds);
+
+      final currentMinute = _elapsed.inMinutes;
+      if (currentMinute > _lastNotifMinute) {
+        _lastNotifMinute = currentMinute;
         NotificationService().showOrUpdateServiceNotification(
           title: 'Locked In',
-          content: _getNotificationContent(_elapsed.inMinutes),
+          content: _getNotificationContent(currentMinute),
         );
       }
 
@@ -160,6 +173,9 @@ void onStart(ServiceInstance service) {
     timer = null;
     _isRunning = false;
     _activityName = null;
+    _startTime = null;
+    _baseElapsedSeconds = 0;
+    _lastNotifMinute = -1;
     service.stopSelf();
   });
 }
