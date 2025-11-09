@@ -113,6 +113,7 @@ void onStart(ServiceInstance service) {
   Timer? timer;
   Duration _elapsed = Duration.zero;
   bool _isRunning = false;
+  String? _activityName;
 
   NotificationService().showOrUpdateServiceNotification(
     title: 'Working in the background',
@@ -123,6 +124,7 @@ void onStart(ServiceInstance service) {
     service.invoke('serviceState', {
       'elapsedTime': _elapsed.inSeconds,
       'isRunning': _isRunning,
+      'activityName': _activityName,
     });
   });
 
@@ -130,6 +132,7 @@ void onStart(ServiceInstance service) {
     if (timer?.isActive ?? false) return;
 
     final int previousElapsedSeconds = (event?['previousElapsed'] as int?) ?? 0;
+    _activityName = event?['activityName'] as String?;
     _elapsed = Duration(seconds: previousElapsedSeconds);
     _isRunning = true;
 
@@ -156,6 +159,7 @@ void onStart(ServiceInstance service) {
     timer?.cancel();
     timer = null;
     _isRunning = false;
+    _activityName = null;
     service.stopSelf();
   });
 }
