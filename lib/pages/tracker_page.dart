@@ -388,13 +388,13 @@ class _TrackerPageState extends State<TrackerPage> {
                         );
                       }).toList();
                     },
-                    onChanged: widget.onSelectActivity,
+                    onChanged: widget.isRunning ? null : widget.onSelectActivity,
                   ),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                  onPressed: () async {
+                  onPressed: widget.isRunning ? null : () async {
                     final pickedDate = await showDatePicker(
                         context: context,
                         initialDate: widget.selectedDate,
