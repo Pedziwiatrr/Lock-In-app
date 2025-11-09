@@ -47,6 +47,7 @@ class _HomePageState extends State<HomePage> {
   StreamSubscription? _tickSubscription;
   StreamSubscription? _serviceStateSubscription;
   DateTime? _timerStartDate;
+  Duration _elapsedOffset = Duration.zero;
 
   final NotificationService _notificationService = NotificationService();
 
@@ -101,9 +102,13 @@ class _HomePageState extends State<HomePage> {
           }
 
           if (isRunning && _timerStartDate == null) {
-            _timerStartDate = selectedDate;
+            final now = DateTime.now();
+            final loadedElapsed = Duration(seconds: elapsedTimeInSeconds);
+            _timerStartDate = now.subtract(loadedElapsed);
+            selectedDate = now;
           } else if (!isRunning) {
             _timerStartDate = null;
+            _elapsedOffset = Duration.zero;
           }
         });
       }
@@ -123,51 +128,67 @@ class _HomePageState extends State<HomePage> {
           (now.day != timerStart.day ||
               now.month != timerStart.month ||
               now.year != timerStart.year)) {
-        final timeToLog = elapsed;
-        final activityToLog = selectedActivity;
 
-        _stopTimer();
+        if (_elapsedOffset == Duration.zero) {
+          final activityToLog = selectedActivity;
+          final totalElapsedOnTick = newElapsed;
+          final effectiveStartTime = now.subtract(totalElapsedOnTick);
 
-        if (activityToLog != null && timeToLog > Duration.zero) {
-          final log = ActivityLog(
-            activityName: activityToLog.name,
-            date: timerStart,
-            duration: timeToLog,
-            isCheckable: false,
-          );
+          final midnightOfNewDay = DateTime(timerStart.year, timerStart.month, timerStart.day + 1);
+
+          final yesterdayDuration = midnightOfNewDay.difference(effectiveStartTime);
+          final todayDuration = now.difference(midnightOfNewDay);
+
+          if (activityToLog != null && yesterdayDuration > Duration.zero) {
+            final yesterdayLog = ActivityLog(
+              activityName: activityToLog.name,
+              date: timerStart,
+              duration: yesterdayDuration,
+              isCheckable: false,
+            );
+
+            setState(() {
+              activityLogs = [...activityLogs, yesterdayLog];
+              final activity = activities.firstWhere((a) => a.name == activityToLog.name, orElse: () => CheckableActivity(name: ''));
+              if (activity.name.isNotEmpty && activity is TimedActivity) {
+                activity.totalTime += yesterdayDuration;
+              }
+            });
+            _saveData();
+
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                scaffoldMessengerKey.currentState?.showSnackBar(
+                  const SnackBar(
+                      content:
+                      Text('Timer session from yesterday saved automatically.')),
+                );
+              }
+            });
+          }
 
           setState(() {
-            activityLogs = [...activityLogs, log];
-            final activityIndex =
-            activities.indexWhere((a) => a.name == activityToLog.name);
-            if (activityIndex != -1) {
-              final activity = activities[activityIndex];
-              if (activity is TimedActivity) {
-                activity.totalTime += timeToLog;
-              }
-            }
+            selectedDate = now;
+            _elapsedOffset = yesterdayDuration;
+            elapsed = todayDuration;
           });
-          _saveData();
-
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              scaffoldMessengerKey.currentState?.showSnackBar(
-                const SnackBar(
-                    content:
-                    Text('Timer session saved automatically at midnight.')),
-              );
-            }
+        } else {
+          final todayDuration = newElapsed - _elapsedOffset;
+          setState(() {
+            selectedDate = now;
+            elapsed = todayDuration;
           });
         }
 
-        setState(() {
-          selectedDate = now;
-        });
         return;
       }
 
       setState(() {
-        elapsed = newElapsed;
+        if (_elapsedOffset > Duration.zero) {
+          elapsed = newElapsed - _elapsedOffset;
+        } else {
+          elapsed = newElapsed;
+        }
       });
     });
   }
@@ -198,6 +219,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       isRunning = true;
       _timerStartDate = selectedDate;
+      _elapsedOffset = Duration.zero;
     });
   }
 
@@ -206,6 +228,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       isRunning = false;
       _timerStartDate = null;
+      _elapsedOffset = Duration.zero;
     });
   }
 
@@ -293,7 +316,8 @@ class _HomePageState extends State<HomePage> {
 
           setState(() {
             isRunning = isCurrentlyRunning;
-            elapsed = Duration(seconds: elapsedTimeInSeconds);
+            final loadedElapsed = Duration(seconds: elapsedTimeInSeconds);
+            elapsed = loadedElapsed;
 
             if (runningActivity != null) {
               selectedActivity = runningActivity;
@@ -304,7 +328,9 @@ class _HomePageState extends State<HomePage> {
             }
 
             if (isRunning && runningActivity != null) {
-              _timerStartDate = selectedDate;
+              final now = DateTime.now();
+              _timerStartDate = now.subtract(loadedElapsed);
+              selectedDate = now;
             }
           });
         }
@@ -585,6 +611,7 @@ class _HomePageState extends State<HomePage> {
       elapsed = Duration.zero;
       isRunning = false;
       _timerStartDate = null;
+      _elapsedOffset = Duration.zero;
     });
   }
 
