@@ -73,12 +73,33 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       final int elapsedTimeInSeconds = event?['elapsedTime'] as int? ?? 0;
       final bool isCurrentlyRunning = event?['isRunning'] as bool? ?? false;
+      final String? activityName = event?['activityName'] as String?;
+
+      Activity? runningActivity;
+      if (isCurrentlyRunning && activityName != null) {
+        try {
+          runningActivity = activities.firstWhere((a) => a.name == activityName);
+        } catch (_) {}
+      }
 
       if (isCurrentlyRunning != isRunning ||
-          Duration(seconds: elapsedTimeInSeconds) != elapsed) {
+          Duration(seconds: elapsedTimeInSeconds) != elapsed ||
+          (isCurrentlyRunning && runningActivity != null && selectedActivity?.name != runningActivity.name)) {
+
         setState(() {
           isRunning = isCurrentlyRunning;
           elapsed = Duration(seconds: elapsedTimeInSeconds);
+
+          if (isRunning) {
+            if (runningActivity != null) {
+              selectedActivity = runningActivity;
+            } else {
+              FlutterBackgroundService().invoke('stopTimer');
+              isRunning = false;
+              elapsed = Duration.zero;
+            }
+          }
+
           if (isRunning && _timerStartDate == null) {
             _timerStartDate = selectedDate;
           } else if (!isRunning) {
@@ -170,7 +191,10 @@ class _HomePageState extends State<HomePage> {
       await Future.delayed(const Duration(milliseconds: 200));
     }
 
-    service.invoke('startTimer', {'previousElapsed': elapsed.inSeconds});
+    service.invoke('startTimer', {
+      'previousElapsed': elapsed.inSeconds,
+      'activityName': selectedActivity!.name,
+    });
     setState(() {
       isRunning = true;
       _timerStartDate = selectedDate;
@@ -257,12 +281,29 @@ class _HomePageState extends State<HomePage> {
             backgroundState['elapsedTime'] as int? ?? 0;
         final bool isCurrentlyRunning =
             backgroundState['isRunning'] as bool? ?? false;
+        final String? activityName = backgroundState['activityName'] as String?;
 
         if (isCurrentlyRunning || elapsedTimeInSeconds > 0) {
+          Activity? runningActivity;
+          if (activityName != null) {
+            try {
+              runningActivity = activities.firstWhere((a) => a.name == activityName);
+            } catch (_) {}
+          }
+
           setState(() {
             isRunning = isCurrentlyRunning;
             elapsed = Duration(seconds: elapsedTimeInSeconds);
-            if (isRunning) {
+
+            if (runningActivity != null) {
+              selectedActivity = runningActivity;
+            } else if (isCurrentlyRunning) {
+              FlutterBackgroundService().invoke('stopTimer');
+              isRunning = false;
+              elapsed = Duration.zero;
+            }
+
+            if (isRunning && runningActivity != null) {
               _timerStartDate = selectedDate;
             }
           });
