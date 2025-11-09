@@ -31,6 +31,8 @@ class _GoalsPageState extends State<GoalsPage> {
 
   final Map<String, TextEditingController> _goalTitleControllers = {};
   final Map<String, TextEditingController> _goalValueControllers = {};
+  final Map<String, TextEditingController> _goalHoursControllers = {};
+  final Map<String, TextEditingController> _goalMinutesControllers = {};
   final Map<String, TextEditingController> _startDateControllers = {};
   final Map<String, TextEditingController> _endDateControllers = {};
 
@@ -54,6 +56,8 @@ class _GoalsPageState extends State<GoalsPage> {
   void dispose() {
     _goalTitleControllers.values.forEach((c) => c.dispose());
     _goalValueControllers.values.forEach((c) => c.dispose());
+    _goalHoursControllers.values.forEach((c) => c.dispose());
+    _goalMinutesControllers.values.forEach((c) => c.dispose());
     _startDateControllers.values.forEach((c) => c.dispose());
     _endDateControllers.values.forEach((c) => c.dispose());
     super.dispose();
@@ -98,14 +102,28 @@ class _GoalsPageState extends State<GoalsPage> {
     cleanupControllerMap(_goalValueControllers);
     cleanupControllerMap(_startDateControllers);
     cleanupControllerMap(_endDateControllers);
+    cleanupControllerMap(_goalHoursControllers);
+    cleanupControllerMap(_goalMinutesControllers);
 
 
     for (var goal in editableGoals) {
+      final activity = widget.activities.firstWhere((a) => a.name == goal.activityName);
+
       _goalTitleControllers.putIfAbsent(goal.activityName, () => TextEditingController()).text =
           goal.title ?? '';
 
       _goalValueControllers.putIfAbsent(goal.activityName, () => TextEditingController()).text =
       goal.goalDuration.inMinutes > 0 ? goal.goalDuration.inMinutes.toString() : '';
+
+      if (activity is TimedActivity) {
+        final totalMinutes = goal.goalDuration.inMinutes;
+        final hours = totalMinutes ~/ 60;
+        final minutes = totalMinutes % 60;
+        _goalHoursControllers.putIfAbsent(goal.activityName, () => TextEditingController()).text =
+        hours > 0 ? hours.toString() : '';
+        _goalMinutesControllers.putIfAbsent(goal.activityName, () => TextEditingController()).text =
+        minutes > 0 ? minutes.toString() : '';
+      }
 
       _startDateControllers.putIfAbsent(goal.activityName, () => TextEditingController()).text =
       '${goal.startDate.day.toString().padLeft(2, '0')}-${goal.startDate.month.toString().padLeft(2, '0')}-${goal.startDate.year}';
@@ -316,13 +334,44 @@ class _GoalsPageState extends State<GoalsPage> {
                         children: [
                           Expanded(
                             flex: 3,
-                            child: TextField(
+                            child: activity is TimedActivity
+                                ? Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _goalHoursControllers[activity.name]!,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Hours',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  ),
+                                ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 4.0),
+                                  child: Text(':'),
+                                ),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _goalMinutesControllers[activity.name]!,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Mins',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  ),
+                                ),
+                              ],
+                            )
+                                : TextField(
                               controller: controller,
                               keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
+                              decoration: const InputDecoration(
                                 labelText: 'Goal',
-                                suffixText: activity is TimedActivity ? 'min' : 'times',
-                                border: const OutlineInputBorder(),
+                                suffixText: 'times',
+                                border: OutlineInputBorder(),
                               ),
                               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                             ),
@@ -344,8 +393,15 @@ class _GoalsPageState extends State<GoalsPage> {
                               onChanged: (val) {
                                 if (val != null) {
                                   final currentTitle = titleController.text;
-                                  final currentGoalValueText = controller.text;
-                                  final currentGoalValue = int.tryParse(currentGoalValueText) ?? 0;
+
+                                  int currentGoalValue;
+                                  if (activity is TimedActivity) {
+                                    final int hours = int.tryParse(_goalHoursControllers[activity.name]!.text.trim()) ?? 0;
+                                    final int minutes = int.tryParse(_goalMinutesControllers[activity.name]!.text.trim()) ?? 0;
+                                    currentGoalValue = (hours * 60) + minutes;
+                                  } else {
+                                    currentGoalValue = int.tryParse(controller.text.trim()) ?? 0;
+                                  }
 
                                   setState(() {
                                     final index = editableGoals.indexWhere((g) => g.activityName == activity.name);
@@ -367,6 +423,15 @@ class _GoalsPageState extends State<GoalsPage> {
 
                                       _goalTitleControllers[activity.name]!.text = newGoalData.title ?? '';
                                       _goalValueControllers[activity.name]!.text = newGoalData.goalDuration.inMinutes > 0 ? newGoalData.goalDuration.inMinutes.toString() : '';
+
+                                      if (activity is TimedActivity) {
+                                        final totalMinutes = newGoalData.goalDuration.inMinutes;
+                                        final hours = totalMinutes ~/ 60;
+                                        final minutes = totalMinutes % 60;
+                                        _goalHoursControllers[activity.name]!.text = hours > 0 ? hours.toString() : '';
+                                        _goalMinutesControllers[activity.name]!.text = minutes > 0 ? minutes.toString() : '';
+                                      }
+
                                       _startDateControllers[activity.name]!.text = '${newGoalData.startDate.day.toString().padLeft(2, '0')}-${newGoalData.startDate.month.toString().padLeft(2, '0')}-${newGoalData.startDate.year}';
                                       _endDateControllers[activity.name]!.text = newGoalData.endDate != null ? '${newGoalData.endDate!.day.toString().padLeft(2, '0')}-${newGoalData.endDate!.month.toString().padLeft(2, '0')}-${newGoalData.endDate!.year}' : 'Ongoing';
                                     }
@@ -427,10 +492,22 @@ class _GoalsPageState extends State<GoalsPage> {
                         child: ElevatedButton.icon(
                           onPressed: () {
                             final currentGoal = editableGoals.firstWhere((g) => g.activityName == activity.name);
+
+                            String valueToSave;
+                            if (activity is TimedActivity) {
+                              final int hours = int.tryParse(_goalHoursControllers[activity.name]!.text.trim()) ?? 0;
+                              final int minutes = int.tryParse(_goalMinutesControllers[activity.name]!.text.trim()) ?? 0;
+                              final totalMinutes = (hours * 60) + minutes;
+                              valueToSave = totalMinutes.toString();
+                              controller.text = valueToSave;
+                            } else {
+                              valueToSave = controller.text;
+                            }
+
                             updateGoal(
                               activity.name,
                               titleController.text,
-                              controller.text,
+                              valueToSave,
                               currentGoal.goalType,
                               currentGoal.startDate,
                               currentGoal.endDate,
