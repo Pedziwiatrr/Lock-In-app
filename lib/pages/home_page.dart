@@ -48,6 +48,7 @@ class _HomePageState extends State<HomePage> {
   StreamSubscription? _serviceStateSubscription;
   DateTime? _timerStartDate;
   Duration _elapsedOffset = Duration.zero;
+  Timer? _uiTimer;
 
   final NotificationService _notificationService = NotificationService();
 
@@ -99,6 +100,9 @@ class _HomePageState extends State<HomePage> {
               isRunning = false;
               elapsed = Duration.zero;
             }
+            _startUiTimer();
+          } else {
+            _stopUiTimer();
           }
 
           if (isRunning && _timerStartDate == null) {
@@ -193,8 +197,27 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _startUiTimer() {
+    _stopUiTimer();
+    _uiTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || !isRunning) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        elapsed += const Duration(seconds: 1);
+      });
+    });
+  }
+
+  void _stopUiTimer() {
+    _uiTimer?.cancel();
+    _uiTimer = null;
+  }
+
   @override
   void dispose() {
+    _uiTimer?.cancel();
     _tickSubscription?.cancel();
     _serviceStateSubscription?.cancel();
     super.dispose();
@@ -221,6 +244,7 @@ class _HomePageState extends State<HomePage> {
       _timerStartDate = selectedDate;
       _elapsedOffset = Duration.zero;
     });
+    _startUiTimer();
   }
 
   void _stopTimer() {
@@ -230,6 +254,7 @@ class _HomePageState extends State<HomePage> {
       _timerStartDate = null;
       _elapsedOffset = Duration.zero;
     });
+    _stopUiTimer();
   }
 
   void _finishTimerAndSave() {
@@ -331,6 +356,7 @@ class _HomePageState extends State<HomePage> {
               final now = DateTime.now();
               _timerStartDate = now.subtract(loadedElapsed);
               selectedDate = now;
+              _startUiTimer();
             }
           });
         }
@@ -613,6 +639,7 @@ class _HomePageState extends State<HomePage> {
       _timerStartDate = null;
       _elapsedOffset = Duration.zero;
     });
+    _stopUiTimer();
   }
 
   void checkActivity() {
