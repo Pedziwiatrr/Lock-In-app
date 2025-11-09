@@ -140,24 +140,68 @@ class _TrackerPageState extends State<TrackerPage> {
   void showInputDialog(String title, String hint, bool isTimed, Function(int) onSave) {
     final bool cheatsEnabled = widget.activities.any((a) => a.name == 'sv_cheats 1');
 
-    final int timeLimit = cheatsEnabled ? maxManualTimeMinutes : 300;
+    final int timeLimit = cheatsEnabled ? maxManualTimeMinutes : 360;
     final int completionLimit = cheatsEnabled ? maxManualCompletions : 30;
 
     final int currentLimit = isTimed ? timeLimit : completionLimit;
     final String unit = isTimed ? "minutes" : "completions";
 
-    final controller = TextEditingController();
+    final hoursController = TextEditingController();
+    final minutesController = TextEditingController();
+    final completionController = TextEditingController();
+
+    String limitText;
+    if (isTimed) {
+      final int hours = currentLimit ~/ 60;
+      limitText = 'Max $hours hours ($currentLimit minutes)';
+    } else {
+      limitText = 'Max $currentLimit $unit';
+    }
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(title),
-        content: TextField(
-          controller: controller,
+        content: isTimed
+            ? Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: hoursController,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Hours'),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Text(':'),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: minutesController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Minutes'),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(limitText, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        )
+            : TextField(
+          controller: completionController,
           autofocus: true,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
             hintText: hint,
-            helperText: 'Max $currentLimit $unit',
+            helperText: limitText,
           ),
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         ),
@@ -165,17 +209,34 @@ class _TrackerPageState extends State<TrackerPage> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
             onPressed: () {
-              final value = controller.text.trim();
-              final intVal = int.tryParse(value);
-              if (value.isNotEmpty && intVal != null && intVal > 0 && intVal <= currentLimit) {
-                Navigator.pop(context);
-                onSave(intVal);
+              if (isTimed) {
+                final int hours = int.tryParse(hoursController.text.trim()) ?? 0;
+                final int minutes = int.tryParse(minutesController.text.trim()) ?? 0;
+                final totalMinutes = (hours * 60) + minutes;
+
+                if (totalMinutes > 0 && totalMinutes <= currentLimit) {
+                  Navigator.pop(context);
+                  onSave(totalMinutes);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Total time must be between 1 minute and $currentLimit minutes.'),
+                    ),
+                  );
+                }
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Enter a number between 1 and $currentLimit.'),
-                  ),
-                );
+                final value = completionController.text.trim();
+                final intVal = int.tryParse(value);
+                if (value.isNotEmpty && intVal != null && intVal > 0 && intVal <= currentLimit) {
+                  Navigator.pop(context);
+                  onSave(intVal);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Enter a number between 1 and $currentLimit.'),
+                    ),
+                  );
+                }
               }
             },
             child: const Text('Save'),
@@ -470,7 +531,7 @@ class _TrackerPageState extends State<TrackerPage> {
                   ElevatedButton(
                     onPressed: () => showInputDialog(
                         widget.selectedActivity is TimedActivity ? 'Add time' : 'Add completions',
-                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
+                        widget.selectedActivity is TimedActivity ? 'Enter hours and minutes' : 'Enter number of completions',
                         widget.selectedActivity is TimedActivity,
                             (intVal) => _handleAddManual(intVal)),
                     style: ElevatedButton.styleFrom(
@@ -487,7 +548,7 @@ class _TrackerPageState extends State<TrackerPage> {
                         ? null
                         : () => showInputDialog(
                         widget.selectedActivity is TimedActivity ? 'Subtract time' : 'Subtract completions',
-                        widget.selectedActivity is TimedActivity ? 'Enter minutes' : 'Enter number of completions',
+                        widget.selectedActivity is TimedActivity ? 'Enter hours and minutes' : 'Enter number of completions',
                         widget.selectedActivity is TimedActivity,
                             (intVal) => _handleSubtractManual(intVal)),
                     style: ElevatedButton.styleFrom(
