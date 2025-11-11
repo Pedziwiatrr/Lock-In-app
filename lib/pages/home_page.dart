@@ -415,7 +415,7 @@ class _HomePageState extends State<HomePage> {
         if (mounted) {
           scaffoldMessengerKey.currentState?.showSnackBar(
             const SnackBar(
-              content: Text('Error: Could not read saved data. It might be corrupted.'),
+              content: Text('Error: Could not read saved data. It might be corrupted. Try restarting the app.'),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 5),
             ),
