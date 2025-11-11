@@ -405,8 +405,16 @@ class _HomePageState extends State<HomePage> {
       activities = result['activities'] as List<Activity>;
       activityLogs = result['logs'] as List<ActivityLog>;
       goals = result['goals'] as List<Goal>;
-      if (activities.isNotEmpty && selectedActivity == null) {
-        selectedActivity = activities.first;
+
+      if (activities.isNotEmpty) {
+        final currentActivityName = selectedActivity?.name;
+        try {
+          selectedActivity = activities.firstWhere((a) => a.name == currentActivityName);
+        } catch (e) {
+          selectedActivity = activities.first;
+        }
+      } else {
+        selectedActivity = null;
       }
     });
 
@@ -963,14 +971,21 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            Navigator.of(context).push(MaterialPageRoute(
+          onPressed: () async {
+            final importSuccessful = await Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => SettingsPage(
                 isDarkMode: widget.isDarkMode,
                 onThemeChanged: widget.onThemeChanged,
                 onResetData: _resetData,
               ),
             ));
+
+            if (importSuccessful == true && mounted) {
+              await _loadData();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Import successful. Data reloaded.')),
+              );
+            }
           },
           child: const Icon(Icons.settings),
         ),
