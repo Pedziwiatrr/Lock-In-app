@@ -22,14 +22,12 @@ import 'dart:io';
 class HomePage extends StatefulWidget {
   final void Function(bool) onThemeChanged;
   final bool isDarkMode;
-  final VoidCallback onResetData;
   final int launchCount;
 
   const HomePage({
     super.key,
     required this.onThemeChanged,
     required this.isDarkMode,
-    required this.onResetData,
     required this.launchCount,
   });
 
