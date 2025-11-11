@@ -95,7 +95,7 @@ Future<void> initializeService() async {
   );
 }
 
-String _getNotificationContent(int minutes) {
+String getNotificationContent(int minutes) {
   String minuteString;
   if (minutes == 0) {
     minuteString = "less than 1 minute";
@@ -147,7 +147,7 @@ void onStart(ServiceInstance service) {
 
     NotificationService().showOrUpdateServiceNotification(
       title: 'Locked In',
-      content: _getNotificationContent(_elapsed.inMinutes),
+      content: getNotificationContent(_elapsed.inMinutes),
     );
 
     timer = Timer.periodic(const Duration(seconds: 15), (timer) {
@@ -160,7 +160,7 @@ void onStart(ServiceInstance service) {
         _lastNotifMinute = currentMinute;
         NotificationService().showOrUpdateServiceNotification(
           title: 'Locked In',
-          content: _getNotificationContent(currentMinute),
+          content: getNotificationContent(currentMinute),
         );
       }
 

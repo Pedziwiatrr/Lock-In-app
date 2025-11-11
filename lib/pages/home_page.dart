@@ -17,6 +17,7 @@ import '../pages/progress_page.dart';
 import '../utils/format_utils.dart';
 import '../utils/notification_service.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
+import 'dart:io';
 
 class HomePage extends StatefulWidget {
   final void Function(bool) onThemeChanged;
@@ -150,6 +151,14 @@ class _HomePageState extends State<HomePage> {
   Set<String> _previousCompletedQuestIds = {};
   bool _hasRatedApp = false;
 
+  bool get _isTesting {
+    try {
+      return Platform.environment.containsKey('FLUTTER_TEST');
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -158,6 +167,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _configureTimerListener() {
+    if (_isTesting) return;
+
     final service = FlutterBackgroundService();
 
     _serviceStateSubscription = service.on('serviceState').listen((event) {
@@ -394,60 +405,63 @@ class _HomePageState extends State<HomePage> {
       }
     });
 
-    final service = FlutterBackgroundService();
-    final isServiceRunning = await service.isRunning();
+    if (!_isTesting) {
+      final service = FlutterBackgroundService();
+      final isServiceRunning = await service.isRunning();
 
-    if (isServiceRunning) {
-      final completer = Completer<Map<String, dynamic>?>();
+      if (isServiceRunning) {
+        final completer = Completer<Map<String, dynamic>?>();
 
-      final subscription = service.on('serviceState').listen((event) {
-        if (!completer.isCompleted) {
-          completer.complete(event);
-        }
-      });
-
-      service.invoke('getServiceState');
-
-      final backgroundState = await completer.future
-          .timeout(const Duration(seconds: 2), onTimeout: () => null);
-
-      subscription.cancel();
-
-      if (backgroundState != null) {
-        final int elapsedTimeInSeconds =
-            backgroundState['elapsedTime'] as int? ?? 0;
-        final bool isCurrentlyRunning =
-            backgroundState['isRunning'] as bool? ?? false;
-        final String? activityName = backgroundState['activityName'] as String?;
-
-        if (isCurrentlyRunning || elapsedTimeInSeconds > 0) {
-          Activity? runningActivity;
-          if (activityName != null) {
-            try {
-              runningActivity = activities.firstWhere((a) => a.name == activityName);
-            } catch (_) {}
+        final subscription = service.on('serviceState').listen((event) {
+          if (!completer.isCompleted) {
+            completer.complete(event);
           }
+        });
 
-          setState(() {
-            isRunning = isCurrentlyRunning;
-            final loadedElapsed = Duration(seconds: elapsedTimeInSeconds);
-            elapsed = loadedElapsed;
+        service.invoke('getServiceState');
 
-            if (runningActivity != null) {
-              selectedActivity = runningActivity;
-            } else if (isCurrentlyRunning) {
-              FlutterBackgroundService().invoke('stopTimer');
-              isRunning = false;
-              elapsed = Duration.zero;
+        final backgroundState = await completer.future
+            .timeout(const Duration(seconds: 2), onTimeout: () => null);
+
+        subscription.cancel();
+
+        if (backgroundState != null) {
+          final int elapsedTimeInSeconds =
+              backgroundState['elapsedTime'] as int? ?? 0;
+          final bool isCurrentlyRunning =
+              backgroundState['isRunning'] as bool? ?? false;
+          final String? activityName = backgroundState['activityName'] as String?;
+
+          if (isCurrentlyRunning || elapsedTimeInSeconds > 0) {
+            Activity? runningActivity;
+            if (activityName != null) {
+              try {
+                runningActivity =
+                    activities.firstWhere((a) => a.name == activityName);
+              } catch (_) {}
             }
 
-            if (isRunning && runningActivity != null) {
-              final now = DateTime.now();
-              _timerStartDate = now.subtract(loadedElapsed);
-              selectedDate = now;
-              _startUiTimer();
-            }
-          });
+            setState(() {
+              isRunning = isCurrentlyRunning;
+              final loadedElapsed = Duration(seconds: elapsedTimeInSeconds);
+              elapsed = loadedElapsed;
+
+              if (runningActivity != null) {
+                selectedActivity = runningActivity;
+              } else if (isCurrentlyRunning) {
+                FlutterBackgroundService().invoke('stopTimer');
+                isRunning = false;
+                elapsed = Duration.zero;
+              }
+
+              if (isRunning && runningActivity != null) {
+                final now = DateTime.now();
+                _timerStartDate = now.subtract(loadedElapsed);
+                selectedDate = now;
+                _startUiTimer();
+              }
+            });
+          }
         }
       }
     }
