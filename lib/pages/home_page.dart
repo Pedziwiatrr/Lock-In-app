@@ -82,7 +82,6 @@ class HomePage extends StatefulWidget {
         }
       } catch (e) {
         activities = [];
-        await prefs.setString('activities', jsonEncode([]));
       }
     }
 
