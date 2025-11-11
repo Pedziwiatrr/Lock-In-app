@@ -32,6 +32,100 @@ class HomePage extends StatefulWidget {
     required this.launchCount,
   });
 
+  static const int maxLogs = 3000;
+  static const int maxManualTimeMinutes = 10000;
+  static const int maxManualCompletions = 10000;
+  static const int maxActivities = 10;
+  static const int maxGoals = 10;
+
+  static Future<Map<String, dynamic>> loadDataFromPrefs(
+      int shouldLoadDefaultData) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<Activity> activities = [];
+    List<ActivityLog> logs = [];
+    List<Goal> goals = [];
+
+    final activitiesJson = prefs.getString('activities');
+    if (activitiesJson == null ||
+        activitiesJson.isEmpty ||
+        activitiesJson == '[]' ||
+        shouldLoadDefaultData == 1) {
+      activities = [
+        TimedActivity(name: 'Focus'),
+        CheckableActivity(name: 'Workout'),
+      ];
+      await prefs.setString(
+          'activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
+    } else {
+      try {
+        final decoded = jsonDecode(activitiesJson);
+        if (decoded is! List) {
+          activities = [];
+        } else {
+          final List<dynamic> activitiesList = decoded;
+          activities = activitiesList.where((json) {
+            if (json is! Map<String, dynamic>) return false;
+            if (!json.containsKey('type') || !json.containsKey('name')) {
+              return false;
+            }
+            return true;
+          }).map((json) {
+            try {
+              return json['type'] == 'TimedActivity'
+                  ? TimedActivity.fromJson(json)
+                  : CheckableActivity.fromJson(json);
+            } catch (e) {
+              return null;
+            }
+          }).whereType<Activity>().take(maxActivities).toList();
+        }
+      } catch (e) {
+        activities = [];
+        await prefs.setString('activities', jsonEncode([]));
+      }
+    }
+
+    final logsJson = prefs.getString('activityLogs');
+    if (logsJson != null && logsJson.isNotEmpty) {
+      try {
+        final List<dynamic> logsList = jsonDecode(logsJson);
+        logs = logsList
+            .map((json) => ActivityLog.fromJson(json))
+            .take(maxLogs)
+            .toList();
+      } catch (e) {
+        logs = [];
+      }
+    }
+
+    final goalsJson = prefs.getString('goals');
+    if (goalsJson != null && goalsJson.isNotEmpty) {
+      try {
+        final List<dynamic> goalsList = jsonDecode(goalsJson);
+        goals =
+            goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
+      } catch (e) {
+        goals = [];
+      }
+    }
+
+    for (var activity in activities) {
+      if (activity is TimedActivity) {
+        activity.totalTime = logs
+            .where((log) =>
+        log.activityName == activity.name && !log.isCheckable)
+            .fold(Duration.zero, (prev, log) => prev + log.duration);
+      } else if (activity is CheckableActivity) {
+        activity.completionCount = logs
+            .where((log) =>
+        log.activityName == activity.name && log.isCheckable)
+            .length;
+      }
+    }
+
+    return {'activities': activities, 'logs': logs, 'goals': goals};
+  }
+
   @override
   State<HomePage> createState() => _HomePageState();
 }
@@ -52,11 +146,6 @@ class _HomePageState extends State<HomePage> {
 
   final NotificationService _notificationService = NotificationService();
 
-  static const int maxLogs = 3000;
-  static const int maxManualTimeMinutes = 10000;
-  static const int maxManualCompletions = 10000;
-  static const int maxActivities = 10;
-  static const int maxGoals = 10;
 
   Set<String> _previousCompletedQuestIds = {};
   bool _hasRatedApp = false;
@@ -263,7 +352,7 @@ class _HomePageState extends State<HomePage> {
       _resetTimerState();
       return;
     }
-    if (activityLogs.length >= maxLogs) {
+    if (activityLogs.length >= HomePage.maxLogs) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Max log limit reached. Cannot add more.')),
       );
@@ -295,7 +384,7 @@ class _HomePageState extends State<HomePage> {
     final prefs = await SharedPreferences.getInstance();
     _hasRatedApp = prefs.getBool('hasRatedApp') ?? false;
 
-    final result = await _loadDataFromPrefs(widget.launchCount == 1 ? 1 : 0);
+    final result = await HomePage.loadDataFromPrefs(widget.launchCount == 1 ? 1 : 0);
     setState(() {
       activities = result['activities'] as List<Activity>;
       activityLogs = result['logs'] as List<ActivityLog>;
@@ -458,103 +547,16 @@ class _HomePageState extends State<HomePage> {
     _previousCompletedQuestIds = currentCompletedIds;
   }
 
-  static Future<Map<String, dynamic>> _loadDataFromPrefs(
-      int shouldLoadDefaultData) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<Activity> activities = [];
-    List<ActivityLog> logs = [];
-    List<Goal> goals = [];
-
-    final activitiesJson = prefs.getString('activities');
-    if (activitiesJson == null ||
-        activitiesJson.isEmpty ||
-        activitiesJson == '[]' ||
-        shouldLoadDefaultData == 1) {
-      activities = [
-        TimedActivity(name: 'Focus'),
-        CheckableActivity(name: 'Workout'),
-      ];
-      await prefs.setString(
-          'activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
-    } else {
-      try {
-        final decoded = jsonDecode(activitiesJson);
-        if (decoded is! List) {
-          activities = [];
-        } else {
-          final List<dynamic> activitiesList = decoded;
-          activities = activitiesList.where((json) {
-            if (json is! Map<String, dynamic>) return false;
-            if (!json.containsKey('type') || !json.containsKey('name')) {
-              return false;
-            }
-            return true;
-          }).map((json) {
-            try {
-              return json['type'] == 'TimedActivity'
-                  ? TimedActivity.fromJson(json)
-                  : CheckableActivity.fromJson(json);
-            } catch (e) {
-              return null;
-            }
-          }).whereType<Activity>().take(maxActivities).toList();
-        }
-      } catch (e) {
-        activities = [];
-        await prefs.setString('activities', jsonEncode([]));
-      }
-    }
-
-    final logsJson = prefs.getString('activityLogs');
-    if (logsJson != null && logsJson.isNotEmpty) {
-      try {
-        final List<dynamic> logsList = jsonDecode(logsJson);
-        logs = logsList
-            .map((json) => ActivityLog.fromJson(json))
-            .take(maxLogs)
-            .toList();
-      } catch (e) {
-        logs = [];
-      }
-    }
-
-    final goalsJson = prefs.getString('goals');
-    if (goalsJson != null && goalsJson.isNotEmpty) {
-      try {
-        final List<dynamic> goalsList = jsonDecode(goalsJson);
-        goals =
-            goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
-      } catch (e) {
-        goals = [];
-      }
-    }
-
-    for (var activity in activities) {
-      if (activity is TimedActivity) {
-        activity.totalTime = logs
-            .where((log) =>
-        log.activityName == activity.name && !log.isCheckable)
-            .fold(Duration.zero, (prev, log) => prev + log.duration);
-      } else if (activity is CheckableActivity) {
-        activity.completionCount = logs
-            .where((log) =>
-        log.activityName == activity.name && log.isCheckable)
-            .length;
-      }
-    }
-
-    return {'activities': activities, 'logs': logs, 'goals': goals};
-  }
 
   Future<void> _saveData() async {
-    final logs = activityLogs.length > maxLogs
-        ? activityLogs.sublist(activityLogs.length - maxLogs)
+    final logs = activityLogs.length > HomePage.maxLogs
+        ? activityLogs.sublist(activityLogs.length - HomePage.maxLogs)
         : activityLogs;
 
     await _saveDataToPrefs({
-      'activities': activities.take(maxActivities).toList(),
+      'activities': activities.take(HomePage.maxActivities).toList(),
       'logs': logs,
-      'goals': goals.take(maxGoals).toList(),
+      'goals': goals.take(HomePage.maxGoals).toList(),
     });
 
     _checkQuestCompletions();
@@ -643,8 +645,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void checkActivity() {
-    if (selectedActivity == null || activityLogs.length >= maxLogs) {
-      if (activityLogs.length >= maxLogs) {
+    if (selectedActivity == null || activityLogs.length >= HomePage.maxLogs) {
+      if (activityLogs.length >= HomePage.maxLogs) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text('Max log limit reached. Cannot add more.')),
@@ -675,13 +677,13 @@ class _HomePageState extends State<HomePage> {
   void addManualTime(Duration duration) {
     final bool cheatsEnabled =
     activities.any((a) => a.name == 'sv_cheats 1');
-    final int limit = cheatsEnabled ? maxManualTimeMinutes : 360;
+    final int limit = cheatsEnabled ? HomePage.maxManualTimeMinutes : 360;
 
     if (selectedActivity == null ||
         selectedActivity is! TimedActivity ||
         duration <= Duration.zero ||
         duration > Duration(minutes: limit) ||
-        activityLogs.length >= maxLogs) {
+        activityLogs.length >= HomePage.maxLogs) {
       return;
     }
     final now = DateTime.now();
@@ -754,13 +756,13 @@ class _HomePageState extends State<HomePage> {
   void addManualCompletion(int count) {
     final bool cheatsEnabled =
     activities.any((a) => a.name == 'sv_cheats 1');
-    final int limit = cheatsEnabled ? maxManualCompletions : 30;
+    final int limit = cheatsEnabled ? HomePage.maxManualCompletions : 30;
 
     if (selectedActivity == null ||
         selectedActivity is! CheckableActivity ||
         count <= 0 ||
         count > limit ||
-        activityLogs.length + count > maxLogs) {
+        activityLogs.length + count > HomePage.maxLogs) {
       return;
     }
     final now = DateTime.now();
@@ -826,7 +828,7 @@ class _HomePageState extends State<HomePage> {
 
   void handleGoalChanged(List<Goal> newGoals) {
     setState(() {
-      goals = newGoals.take(maxGoals).toList();
+      goals = newGoals.take(HomePage.maxGoals).toList();
     });
     _saveData();
   }
