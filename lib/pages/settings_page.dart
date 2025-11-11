@@ -126,6 +126,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _exportData() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('hasExportedData', true);
+
       final jsonString = await _getBackupJsonString();
       final tempDir = await getTemporaryDirectory();
       final filePath = '${tempDir.path}/lockin_backup.json';

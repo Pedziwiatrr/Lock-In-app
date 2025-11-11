@@ -154,6 +154,7 @@ class _HomePageState extends State<HomePage> {
 
   Set<String> _previousCompletedQuestIds = {};
   bool _hasRatedApp = false;
+  bool _hasExportedData = false;
 
   bool get _isTesting {
     try {
@@ -398,6 +399,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     _hasRatedApp = prefs.getBool('hasRatedApp') ?? false;
+    _hasExportedData = prefs.getBool('hasExportedData') ?? false;
 
     final result = await HomePage.loadDataFromPrefs(widget.launchCount == 1 ? 1 : 0);
     final bool loadError = result['hasError'] as bool? ?? false;
@@ -504,12 +506,13 @@ class _HomePageState extends State<HomePage> {
         activityLogs: activityLogs,
         goals: goals,
         launchCount: widget.launchCount,
-        hasRatedApp: _hasRatedApp);
+        hasRatedApp: _hasRatedApp,
+        hasExportedData: _hasExportedData);
     final Set<String> completedIds = {};
 
     for (var quest in ProgressService.quests) {
       final progress = quest.getProgress(
-          activities, activityLogs, goals, widget.launchCount, _hasRatedApp);
+          activities, activityLogs, goals, widget.launchCount, _hasRatedApp, _hasExportedData);
       if (quest.isRepeatable) {
         final level = quest.levels.first;
         if (level.target > 0) {
@@ -973,7 +976,7 @@ class _HomePageState extends State<HomePage> {
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () async {
-            final importSuccessful = await Navigator.of(context).push(MaterialPageRoute(
+            final result = await Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => SettingsPage(
                 isDarkMode: widget.isDarkMode,
                 onThemeChanged: widget.onThemeChanged,
@@ -981,8 +984,12 @@ class _HomePageState extends State<HomePage> {
               ),
             ));
 
-            if (importSuccessful == true && mounted) {
+
+            if (mounted) {
               await _loadData();
+            }
+
+            if (result == true && mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Import successful. Data reloaded.')),
               );
