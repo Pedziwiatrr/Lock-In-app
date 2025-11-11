@@ -51,6 +51,14 @@ build/
 /ios/Flutter/App.framework
 /ios/Flutter/Flutter.xcframework
 
+# Windows
+/windows/flutter/generated_plugin_registrant.cc
+/windows/flutter/generated_plugin_registrant.h
+/windows/flutter/generated_plugins.cmake
+
+# macOS
+/windows/flutter/GeneratedPluginRegistrant.swift
+
 # Symbolication and obfuscation
 app.*.symbols
 app.*.map.json
