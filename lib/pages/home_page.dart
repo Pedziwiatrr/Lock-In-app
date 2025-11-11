@@ -45,6 +45,7 @@ class HomePage extends StatefulWidget {
     List<Activity> activities = [];
     List<ActivityLog> logs = [];
     List<Goal> goals = [];
+    bool hasError = false;
 
     final activitiesJson = prefs.getString('activities');
     if (activitiesJson == null ||
@@ -82,6 +83,7 @@ class HomePage extends StatefulWidget {
         }
       } catch (e) {
         activities = [];
+        hasError = true;
       }
     }
 
@@ -95,6 +97,7 @@ class HomePage extends StatefulWidget {
             .toList();
       } catch (e) {
         logs = [];
+        hasError = true;
       }
     }
 
@@ -106,6 +109,7 @@ class HomePage extends StatefulWidget {
             goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
       } catch (e) {
         goals = [];
+        hasError = true;
       }
     }
 
@@ -123,7 +127,7 @@ class HomePage extends StatefulWidget {
       }
     }
 
-    return {'activities': activities, 'logs': logs, 'goals': goals};
+    return {'activities': activities, 'logs': logs, 'goals': goals, 'hasError': hasError};
   }
 
   @override
@@ -395,6 +399,8 @@ class _HomePageState extends State<HomePage> {
     _hasRatedApp = prefs.getBool('hasRatedApp') ?? false;
 
     final result = await HomePage.loadDataFromPrefs(widget.launchCount == 1 ? 1 : 0);
+    final bool loadError = result['hasError'] as bool? ?? false;
+
     setState(() {
       activities = result['activities'] as List<Activity>;
       activityLogs = result['logs'] as List<ActivityLog>;
@@ -403,6 +409,20 @@ class _HomePageState extends State<HomePage> {
         selectedActivity = activities.first;
       }
     });
+
+    if (loadError) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          scaffoldMessengerKey.currentState?.showSnackBar(
+            const SnackBar(
+              content: Text('Error: Could not read saved data. It might be corrupted.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      });
+    }
 
     if (!_isTesting) {
       final service = FlutterBackgroundService();
@@ -467,6 +487,7 @@ class _HomePageState extends State<HomePage> {
 
     _updatePreviousQuestsState();
   }
+
 
   Set<String> _getAllCompletedQuestLevelIds() {
     final service = ProgressService(
