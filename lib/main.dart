@@ -60,20 +60,6 @@ Future<void> main() async {
   int launchCount = (prefs.getInt('launchCount') ?? 0) + 1;
   await prefs.setInt('launchCount', launchCount);
 
-  if (!(prefs.containsKey('activities') &&
-      prefs.getString('activities') != null &&
-      prefs.getString('activities')!.isNotEmpty)) {
-    final defaultActivities = [
-      {'type': 'TimedActivity', 'name': 'Focus', 'totalTime': 0},
-      {
-        'type': 'CheckableActivity',
-        'name': 'Workout 💪',
-        'completionCount': 0
-      },
-    ];
-    await prefs.setString('activities', jsonEncode(defaultActivities));
-  }
-
   runApp(LockInTrackerApp(launchCount: launchCount));
 }
 
@@ -211,12 +197,6 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
     _saveTheme(isDark);
   }
 
-  Future<void> _resetData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    setState(() {});
-  }
-
   @override
   void initState() {
     super.initState();
@@ -238,7 +218,6 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
       home: HomePage(
         onThemeChanged: toggleTheme,
         isDarkMode: _themeMode == ThemeMode.dark,
-        onResetData: _resetData,
         launchCount: widget.launchCount,
       ),
     );
