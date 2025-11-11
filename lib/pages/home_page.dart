@@ -48,19 +48,23 @@ class HomePage extends StatefulWidget {
     bool hasError = false;
 
     final activitiesJson = prefs.getString('activities');
-    if (activitiesJson == null ||
-        activitiesJson.isEmpty ||
-        activitiesJson == '[]' ||
-        shouldLoadDefaultData == 1) {
+    final logsJson = prefs.getString('activityLogs');
+
+    final bool activitiesAreEmpty =
+        activitiesJson == null || activitiesJson.isEmpty || activitiesJson == '[]';
+    final bool logsAreEmpty =
+        logsJson == null || logsJson.isEmpty || logsJson == '[]';
+
+    if (shouldLoadDefaultData == 1 && activitiesAreEmpty && logsAreEmpty) {
       activities = [
         TimedActivity(name: 'Focus'),
         CheckableActivity(name: 'Workout'),
       ];
       await prefs.setString(
           'activities', jsonEncode(activities.map((a) => a.toJson()).toList()));
-    } else {
+    } else if (!activitiesAreEmpty) {
       try {
-        final decoded = jsonDecode(activitiesJson);
+        final decoded = jsonDecode(activitiesJson!);
         if (decoded is! List) {
           activities = [];
         } else {
@@ -87,7 +91,6 @@ class HomePage extends StatefulWidget {
       }
     }
 
-    final logsJson = prefs.getString('activityLogs');
     if (logsJson != null && logsJson.isNotEmpty) {
       try {
         final List<dynamic> logsList = jsonDecode(logsJson);
