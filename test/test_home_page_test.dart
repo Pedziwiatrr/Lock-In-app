@@ -48,7 +48,6 @@ void main() {
           home: HomePage(
             onThemeChanged: (_) {},
             isDarkMode: true,
-            onResetData: () {},
             launchCount: 2,
           ),
         ),
@@ -77,7 +76,7 @@ void main() {
       await setupMockPrefs();
     });
 
-    test('_loadDataFromPrefs loads existing data correctly', () async {
+    test('loadDataFromPrefs loads existing data correctly', () async {
       final data = await HomePage.loadDataFromPrefs(0);
 
       final activities = data['activities'] as List<Activity>;
@@ -96,18 +95,16 @@ void main() {
       expect(goals.first.activityName, 'Focus');
     });
 
-    test('_loadDataFromPrefs loads default data if no data', () async {
+    test('loadDataFromPrefs does not load default data when flag is 0', () async {
       SharedPreferences.setMockInitialValues({});
 
       final data = await HomePage.loadDataFromPrefs(0);
       final activities = data['activities'] as List<Activity>;
 
-      expect(activities, hasLength(2));
-      expect(activities.first.name, 'Focus');
-      expect(activities.last.name, 'Workout');
+      expect(activities, hasLength(0));
     });
 
-    test('_loadDataFromPrefs loads default data on first launch (flag)', () async {
+    test('loadDataFromPrefs loads default data on first launch (flag 1)', () async {
       SharedPreferences.setMockInitialValues({});
 
       final data = await HomePage.loadDataFromPrefs(1);
