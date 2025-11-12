@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
+import 'dart:io';
 import '../models/activity.dart';
 import '../models/activity_log.dart';
 import '../models/goal.dart';
@@ -10,6 +11,7 @@ import '../utils/format_utils.dart';
 enum StatsPeriod { week, month, total }
 
 class HistoryDataProvider {
+  static final bool _isTesting = Platform.environment.containsKey('FLUTTER_TEST');
   final List<Goal> goals;
   final List<ActivityLog> activityLogs;
   final List<Activity> activities;
@@ -23,15 +25,21 @@ class HistoryDataProvider {
   Future<List<Map<String, dynamic>>> getGoalStatusesForPeriod(DateTime start,
       DateTime end, String? selectedActivity) async {
     try {
-      final result = await compute(_computeGoalStatusesForPeriod, {
+      final params = {
         'goals': goals,
         'activityLogs': activityLogs,
         'activities': activities,
         'start': start,
         'end': end,
         'selectedActivity': selectedActivity,
-      });
-      return result;
+      };
+
+      if (_isTesting) {
+        return _computeGoalStatusesForPeriod(params);
+      } else {
+        final result = await compute(_computeGoalStatusesForPeriod, params);
+        return result;
+      }
     } catch (e, stackTrace) {
       //print("Error computing goal statuses:");
       //print(e);
