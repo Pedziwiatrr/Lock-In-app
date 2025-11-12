@@ -6,12 +6,14 @@ import '../utils/ad_manager.dart';
 class ActivitiesPage extends StatefulWidget {
   final List<Activity> activities;
   final VoidCallback onUpdate;
+  final Function(Activity activity, String newName) onRenameActivity;
   final int launchCount;
 
   const ActivitiesPage({
     super.key,
     required this.activities,
     required this.onUpdate,
+    required this.onRenameActivity,
     required this.launchCount,
   });
 
@@ -216,11 +218,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                     //print("Attempting to show rewarded ad for activity rename");
                     _adManager.showRewardedAd(
                       onUserEarnedReward: () {
-                        setState(() {
-                          widget.activities[index].name = name;
-                        });
-                        //print('Renamed activity to: $name');
-                        widget.onUpdate();
+                        widget.onRenameActivity(widget.activities[index], name);
                         Navigator.pop(context);
                       },
                       onAdDismissed: () {
@@ -231,11 +229,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                       },
                     );
                   } else {
-                    setState(() {
-                      widget.activities[index].name = name;
-                    });
-                    //print('Renamed activity to: $name');
-                    widget.onUpdate();
+                    widget.onRenameActivity(widget.activities[index], name);
                     Navigator.pop(context);
                   }
                 });

@@ -132,10 +132,10 @@ class HomePage extends StatefulWidget {
   }
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomePage> createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> {
   List<Activity> activities = [];
   List<ActivityLog> activityLogs = [];
   List<Goal> goals = [];
@@ -879,6 +879,29 @@ class _HomePageState extends State<HomePage> {
     _saveData();
   }
 
+  void handleRenameActivity(Activity activity, String newName) {
+    final String oldName = activity.name;
+    if (oldName == newName) return;
+
+    setState(() {
+      activity.name = newName;
+
+      for (var log in activityLogs) {
+        if (log.activityName == oldName) {
+          log.activityName = newName;
+        }
+      }
+
+      for (var goal in goals) {
+        if (goal.activityName == oldName) {
+          goal.activityName = newName;
+        }
+      }
+    });
+
+    _saveData();
+  }
+
   void selectActivity(Activity? activity) {
     if (isRunning) return;
     setState(() {
@@ -950,6 +973,7 @@ class _HomePageState extends State<HomePage> {
                 setState(() {});
                 _saveData();
               },
+              onRenameActivity: handleRenameActivity,
               launchCount: widget.launchCount,
             ),
             ProgressPage(
