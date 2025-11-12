@@ -210,7 +210,20 @@ class HistoryDataProvider {
             .where((g) => (selectedActivity == null || g.activityName == selectedActivity))
             .toList();
 
-        if (allFilteredDailyGoals.isEmpty) {
+        final activeGoalsForDay = allFilteredDailyGoals.where((g) =>
+        g.goalDuration > Duration.zero &&
+            g.startDate.isBefore(dayEnd) &&
+            (g.endDate == null || g.endDate!.isAfter(dayStart))
+        ).toList();
+
+        if (activeGoalsForDay.isNotEmpty) {
+          final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
+          final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
+          dayStatus = successfulCount == activeGoalsForDay.length;
+          if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
+            //print('[STREAK DEBUG (getCurrentStreak)] Day: $dayStart. Active goals: ${activeGoalsForDay.length}. Success: $successfulCount. Status: $dayStatus');
+          }
+        } else {
           final logsForDay = activityLogs.where((log) =>
           log.date.isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
               log.date.isBefore(dayEnd) &&
@@ -219,29 +232,10 @@ class HistoryDataProvider {
 
           dayStatus = logsForDay.isNotEmpty;
           if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
-            //print('[STREAK DEBUG (getCurrentStreak)] Day: $dayStart. No goals. Logs: ${logsForDay.length}. Status: $dayStatus');
-          }
-        } else {
-          final activeGoalsForDay = allFilteredDailyGoals.where((g) =>
-          g.goalDuration > Duration.zero &&
-              g.startDate.isBefore(dayEnd) &&
-              (g.endDate == null || g.endDate!.isAfter(dayStart))
-          ).toList();
-
-          if (activeGoalsForDay.isEmpty) {
-            dayStatus = true;
-            if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
-              //print('[STREAK DEBUG (getCurrentStreak)] Day: $dayStart. Goals exist, 0 active. Status: $dayStatus');
-            }
-          } else {
-            final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
-            final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
-            dayStatus = successfulCount == activeGoalsForDay.length;
-            if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
-              //print('[STREAK DEBUG (getCurrentStreak)] Day: $dayStart. Active goals: ${activeGoalsForDay.length}. Success: $successfulCount. Status: $dayStatus');
-            }
+            //print('[STREAK DEBUG (getCurrentStreak)] Day: $dayStart. No active goals. Logs: ${logsForDay.length}. Status: $dayStatus');
           }
         }
+
         dailyStatusByDay[dayStart] = dayStatus;
 
         iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day + 1);
@@ -377,7 +371,20 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
             .where((g) => (selectedActivity == null || g.activityName == selectedActivity))
             .toList();
 
-        if (allFilteredDailyGoals.isEmpty) {
+        final activeGoalsForDay = allFilteredDailyGoals.where((g) =>
+        g.goalDuration > Duration.zero &&
+            g.startDate.isBefore(dayEnd) &&
+            (g.endDate == null || g.endDate!.isAfter(dayStart))
+        ).toList();
+
+        if (activeGoalsForDay.isNotEmpty) {
+          final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
+          final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
+          dayStatus = successfulCount == activeGoalsForDay.length;
+          if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
+            //print('[STREAK DEBUG (_getCombinedGoalData)] Day: $dayStart. Active goals: ${activeGoalsForDay.length}. Success: $successfulCount. Status: $dayStatus');
+          }
+        } else {
           final logsForDay = widget.activityLogs.where((log) =>
           log.date.isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
               log.date.isBefore(dayEnd) &&
@@ -386,28 +393,7 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
 
           dayStatus = logsForDay.isNotEmpty;
           if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
-            //print('[STREAK DEBUG (_getCombinedGoalData)] Day: $dayStart. No goals. Logs: ${logsForDay.length}. Status: $dayStatus');
-          }
-        } else {
-
-          final activeGoalsForDay = allFilteredDailyGoals.where((g) =>
-          g.goalDuration > Duration.zero &&
-              g.startDate.isBefore(dayEnd) &&
-              (g.endDate == null || g.endDate!.isAfter(dayStart))
-          ).toList();
-
-          if (activeGoalsForDay.isEmpty) {
-            dayStatus = true;
-            if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
-              //print('[STREAK DEBUG (_getCombinedGoalData)] Day: $dayStart. Goals exist, 0 active. Status: $dayStatus');
-            }
-          } else {
-            final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
-            final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
-            dayStatus = successfulCount == activeGoalsForDay.length;
-            if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
-              //print('[STREAK DEBUG (_getCombinedGoalData)] Day: $dayStart. Active goals: ${activeGoalsForDay.length}. Success: $successfulCount. Status: $dayStatus');
-            }
+            //print('[STREAK DEBUG (_getCombinedGoalData)] Day: $dayStart. No active goals. Logs: ${logsForDay.length}. Status: $dayStatus');
           }
         }
 
