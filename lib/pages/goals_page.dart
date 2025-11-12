@@ -342,7 +342,7 @@ class _GoalsPageState extends State<GoalsPage> {
                                     controller: _goalHoursControllers[activity.name]!,
                                     keyboardType: TextInputType.number,
                                     decoration: const InputDecoration(
-                                      labelText: 'Hours',
+                                      labelText: 'Hrs',
                                       border: OutlineInputBorder(),
                                     ),
                                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
