@@ -10,7 +10,9 @@
         android:label="Lock-In"
         android:name="${applicationName}"
         android:enableOnBackInvokedCallback="true"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:fullBackupContent="@xml/backup_rules">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -32,9 +34,11 @@
 
         <service
             android:name="id.flutter.flutter_background_service.BackgroundService"
-            android:foregroundServiceType="specialUse" /> <meta-data
-        android:name="flutterEmbedding"
-        android:value="2" />
+            android:foregroundServiceType="specialUse" />
+
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
         <meta-data
             android:name="com.google.android.gms.ads.INTEGRATION_MANAGER"
             android:value="webview"/>

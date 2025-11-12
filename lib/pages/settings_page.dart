@@ -4,6 +4,11 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/privacy_policy_screen.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 
 class SettingsPage extends StatefulWidget {
   final bool isDarkMode;
@@ -36,7 +41,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _isTimerNotificationEnabled = prefs.getBool('timerNotificationEnabled') ?? true;
+      _isTimerNotificationEnabled =
+          prefs.getBool('timerNotificationEnabled') ?? true;
       _isGoalReminderEnabled = prefs.getBool('goalReminderEnabled') ?? true;
     });
   }
@@ -58,7 +64,8 @@ class _SettingsPageState extends State<SettingsPage> {
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Consent form is not available at this time.')),
+              const SnackBar(
+                  content: Text('Consent form is not available at this time.')),
             );
           }
         }
@@ -66,7 +73,8 @@ class _SettingsPageState extends State<SettingsPage> {
           (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to update consent info: ${error.message}')),
+            SnackBar(
+                content: Text('Failed to update consent info: ${error.message}')),
           );
         }
       },
@@ -87,11 +95,142 @@ class _SettingsPageState extends State<SettingsPage> {
           (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to load consent form: ${error.message}')),
+            SnackBar(
+                content: Text('Failed to load consent form: ${error.message}')),
           );
         }
       },
     );
+  }
+
+  Future<String> _getBackupJsonString() async {
+    final prefs = await SharedPreferences.getInstance();
+    final allData = <String, dynamic>{};
+
+    final keys = prefs.getKeys();
+    for (String key in keys) {
+      if (key == 'launchCount') continue;
+      if (key == 'activities' || key == 'activityLogs' || key == 'goals') {
+        final jsonString = prefs.getString(key);
+        if (jsonString != null && jsonString.isNotEmpty) {
+          allData[key] = jsonDecode(jsonString);
+        } else {
+          allData[key] = [];
+        }
+      } else {
+        allData[key] = prefs.get(key);
+      }
+    }
+    return jsonEncode(allData);
+  }
+
+  Future<void> _exportData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('hasExportedData', true);
+
+      final jsonString = await _getBackupJsonString();
+      final tempDir = await getTemporaryDirectory();
+      final filePath = '${tempDir.path}/lockin_backup.json';
+      final file = File(filePath);
+      await file.writeAsString(jsonString);
+
+      await Share.shareXFiles(
+        [XFile(filePath)],
+        text: 'LockIn Tracker Backup',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _importData() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result == null || result.files.single.path == null) return;
+
+      final file = File(result.files.single.path!);
+      final jsonString = await file.readAsString();
+      final allData = jsonDecode(jsonString) as Map<String, dynamic>;
+
+      if (!allData.containsKey('activities') ||
+          !allData.containsKey('activityLogs') ||
+          !allData.containsKey('goals')) {
+        throw Exception('Invalid backup file structure.');
+      }
+
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Confirm Import'),
+          content:
+          const Text('This can possibly overwrite current data. Are you sure?'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Import')),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
+      final prefs = await SharedPreferences.getInstance();
+
+      final int currentLaunchCount = prefs.getInt('launchCount') ?? 1;
+
+      await prefs.clear();
+
+      for (var entry in allData.entries) {
+        final key = entry.key;
+        final value = entry.value;
+
+        if (key == 'activities' || key == 'activityLogs' || key == 'goals') {
+          if (value is String) {
+            await prefs.setString(key, value);
+          } else if (value is List) {
+            await prefs.setString(key, jsonEncode(value));
+          }
+        } else if (value is String) {
+          await prefs.setString(key, value);
+        } else if (value is bool) {
+          await prefs.setBool(key, value);
+        } else if (value is int) {
+          await prefs.setInt(key, value);
+        } else if (value is double) {
+          await prefs.setDouble(key, value);
+        }
+      }
+
+      await prefs.setInt('launchCount', currentLaunchCount);
+
+      final bool newIsDarkMode =
+          allData['isDarkMode'] as bool? ?? widget.isDarkMode;
+      widget.onThemeChanged(newIsDarkMode);
+
+
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Import failed: $e')),
+        );
+      }
+    }
   }
 
   void _confirmResetData() {
@@ -100,10 +239,12 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (_) => AlertDialog(
         title: const Text('Reset Data'),
         content: const Text(
-          'Are you sure you want to reset all activities, logs, goals, and progress? This action cannot be undone.',
+          'Are you sure you want to reset all activities, logs, and goals? This action cannot be undone.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           TextButton(
             onPressed: () {
               widget.onResetData();
@@ -122,15 +263,19 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _launchEmail(String subject, {String body = ''}) async {
-    final uri = Uri(scheme: 'mailto', path: 'lockintrackerapp@gmail.com', queryParameters: {
-      'subject': subject,
-      if (body.isNotEmpty) 'body': body,
-    });
+    final uri = Uri(
+        scheme: 'mailto',
+        path: 'lockintrackerapp@gmail.com',
+        queryParameters: {
+          'subject': subject,
+          if (body.isNotEmpty) 'body': body,
+        });
     try {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        await Clipboard.setData(const ClipboardData(text: 'lockintrackerapp@gmail.com'));
+        await Clipboard.setData(
+            const ClipboardData(text: 'lockintrackerapp@gmail.com'));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -149,7 +294,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _launchPrivacyPolicy() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
   }
 
   @override
@@ -170,36 +316,10 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const Divider(),
-          // const Padding(
-          //   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          //   child: Text('Notifications', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-          // ),
-          // ListTile(
-          //   title: const Text('Live Timer Notification'),
-          //   subtitle: const Text('Show ongoing notification when timer is running'),
-          //   trailing: Switch(
-          //     value: _isTimerNotificationEnabled,
-          //     onChanged: (value) {
-          //       setState(() => _isTimerNotificationEnabled = value);
-          //       _saveSetting('timerNotificationEnabled', value);
-          //     },
-          //   ),
-          // ),
-          // ListTile(
-          //   title: const Text('Goal Reminders'),
-          //   subtitle: const Text('Receive daily reminders about your goals'),
-          //   trailing: Switch(
-          //     value: _isGoalReminderEnabled,
-          //     onChanged: (value) {
-          //       setState(() => _isGoalReminderEnabled = value);
-          //       _saveSetting('goalReminderEnabled', value);
-          //     },
-          //   ),
-          // ),
-          // const Divider(),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text('Data & Privacy', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+            child: Text('Data & Privacy',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
           ),
           ListTile(
             title: const Text('Ad Preferences'),
@@ -218,7 +338,8 @@ class _SettingsPageState extends State<SettingsPage> {
           const Divider(),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text('Support', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+            child: Text('Support',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
           ),
           ListTile(
             title: const Text('Contact Us'),
@@ -234,6 +355,25 @@ class _SettingsPageState extends State<SettingsPage> {
               'Bug Report',
               body: 'Describe bug:\n\nApp Version:\nDevice:\nOS:\nSteps:',
             ),
+          ),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('Backup & Restore',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.grey)),
+          ),
+          ListTile(
+            title: const Text('Export Data'),
+            subtitle: const Text('Share or save a backup file'),
+            trailing: const Icon(Icons.upload_file, color: Colors.blue),
+            onTap: _exportData,
+          ),
+          ListTile(
+            title: const Text('Import Data'),
+            subtitle: const Text('Restore from a backup file'),
+            trailing: const Icon(Icons.download, color: Colors.green),
+            onTap: _importData,
           ),
           const Divider(),
           ListTile(

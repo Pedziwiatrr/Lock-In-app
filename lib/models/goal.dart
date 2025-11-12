@@ -4,6 +4,7 @@ enum GoalType { daily, weekly, monthly }
 
 class Goal {
   final String id;
+  final String? title;
   String activityName;
   Duration goalDuration;
   GoalType goalType;
@@ -17,10 +18,12 @@ class Goal {
     this.goalType = GoalType.daily,
     required this.startDate,
     this.endDate,
+    this.title,
   }) : id = id ?? const Uuid().v4();
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    'title': title,
     'activityName': activityName,
     'goalDuration': goalDuration.inSeconds,
     'goalType': goalType.toString(),
@@ -30,6 +33,7 @@ class Goal {
 
   factory Goal.fromJson(Map<String, dynamic> json) => Goal(
     id: json['id'] ?? const Uuid().v4(),
+    title: json['title'],
     activityName: json['activityName'],
     goalDuration: Duration(seconds: json['goalDuration']),
     goalType: json['goalType'] == 'GoalType.weekly'

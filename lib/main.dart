@@ -60,20 +60,6 @@ Future<void> main() async {
   int launchCount = (prefs.getInt('launchCount') ?? 0) + 1;
   await prefs.setInt('launchCount', launchCount);
 
-  if (!(prefs.containsKey('activities') &&
-      prefs.getString('activities') != null &&
-      prefs.getString('activities')!.isNotEmpty)) {
-    final defaultActivities = [
-      {'type': 'TimedActivity', 'name': 'Focus', 'totalTime': 0},
-      {
-        'type': 'CheckableActivity',
-        'name': 'Workout 💪',
-        'completionCount': 0
-      },
-    ];
-    await prefs.setString('activities', jsonEncode(defaultActivities));
-  }
-
   runApp(LockInTrackerApp(launchCount: launchCount));
 }
 
@@ -83,16 +69,28 @@ Future<void> initializeService() async {
   await service.configure(
     androidConfiguration: AndroidConfiguration(
       onStart: onStart,
-      autoStart: true,
+      autoStart: false,
       isForegroundMode: true,
       notificationChannelId: 'background_service_notif_channel',
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
-      autoStart: true,
+      autoStart: false,
       onForeground: onStart,
     ),
   );
+}
+
+String getNotificationContent(int minutes) {
+  String minuteString;
+  if (minutes == 0) {
+    minuteString = "less than 1 minute";
+  } else if (minutes == 1) {
+    minuteString = "1 minute";
+  } else {
+    minuteString = "$minutes minutes";
+  }
+  return 'Locked in for: $minuteString\nKeep up the good work!';
 }
 
 @pragma('vm:entry-point')
@@ -101,7 +99,10 @@ void onStart(ServiceInstance service) {
   Timer? timer;
   Duration _elapsed = Duration.zero;
   bool _isRunning = false;
-
+  String? _activityName;
+  DateTime? _startTime;
+  int _baseElapsedSeconds = 0;
+  int _lastNotifMinute = -1;
 
   NotificationService().showOrUpdateServiceNotification(
     title: 'Working in the background',
@@ -109,33 +110,45 @@ void onStart(ServiceInstance service) {
   );
 
   service.on('getServiceState').listen((event) {
+    if (_isRunning && _startTime != null) {
+      _elapsed = DateTime.now().difference(_startTime!) + Duration(seconds: _baseElapsedSeconds);
+    }
+
     service.invoke('serviceState', {
       'elapsedTime': _elapsed.inSeconds,
       'isRunning': _isRunning,
+      'activityName': _activityName,
     });
   });
 
   service.on('startTimer').listen((event) {
     if (timer?.isActive ?? false) return;
 
-    final int previousElapsedSeconds = (event?['previousElapsed'] as int?) ?? 0;
-    _elapsed = Duration(seconds: previousElapsedSeconds);
+    _baseElapsedSeconds = (event?['previousElapsed'] as int?) ?? 0;
+    _activityName = event?['activityName'] as String?;
+    _elapsed = Duration(seconds: _baseElapsedSeconds);
+    _startTime = DateTime.now();
     _isRunning = true;
+    _lastNotifMinute = _elapsed.inMinutes;
 
     NotificationService().showOrUpdateServiceNotification(
       title: 'Locked In',
-      content: 'Locked in for: ${_elapsed.toString().split('.').first.padLeft(8, "0")}\nKeep up the good work!',
+      content: getNotificationContent(_elapsed.inMinutes),
     );
 
-    timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _elapsed += const Duration(seconds: 1);
+    timer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      if (_startTime == null) return;
 
-      final String formattedTime = _elapsed.toString().split('.').first.padLeft(8, "0");
+      _elapsed = DateTime.now().difference(_startTime!) + Duration(seconds: _baseElapsedSeconds);
 
-      NotificationService().showOrUpdateServiceNotification(
-        title: 'Locked In',
-        content: 'Locked in for: $formattedTime\nKeep up the good work!',
-      );
+      final currentMinute = _elapsed.inMinutes;
+      if (currentMinute > _lastNotifMinute) {
+        _lastNotifMinute = currentMinute;
+        NotificationService().showOrUpdateServiceNotification(
+          title: 'Locked In',
+          content: getNotificationContent(currentMinute),
+        );
+      }
 
       service.invoke('tick', {'elapsedTime': _elapsed.inSeconds});
     });
@@ -145,11 +158,11 @@ void onStart(ServiceInstance service) {
     timer?.cancel();
     timer = null;
     _isRunning = false;
-
-    NotificationService().showOrUpdateServiceNotification(
-      title: 'Working in the background',
-      content: "Don't get distracted!",
-    );
+    _activityName = null;
+    _startTime = null;
+    _baseElapsedSeconds = 0;
+    _lastNotifMinute = -1;
+    service.stopSelf();
   });
 }
 
@@ -184,12 +197,6 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
     _saveTheme(isDark);
   }
 
-  Future<void> _resetData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    setState(() {});
-  }
-
   @override
   void initState() {
     super.initState();
@@ -202,12 +209,15 @@ class _LockInTrackerAppState extends State<LockInTrackerApp> {
       scaffoldMessengerKey: scaffoldMessengerKey,
       title: 'LockIn Tracker',
       theme: ThemeData.light(),
-      darkTheme: ThemeData.dark(),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: Colors.black,
+
+      ),
       themeMode: _themeMode,
       home: HomePage(
         onThemeChanged: toggleTheme,
         isDarkMode: _themeMode == ThemeMode.dark,
-        onResetData: _resetData,
         launchCount: widget.launchCount,
       ),
     );

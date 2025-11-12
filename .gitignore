@@ -51,6 +51,16 @@ build/
 /ios/Flutter/App.framework
 /ios/Flutter/Flutter.xcframework
 
+# Windows
+/windows/flutter/
+
+# macOS
+/macos/Flutter/
+
+# linux
+/linux/flutter/
+
+
 # Symbolication and obfuscation
 app.*.symbols
 app.*.map.json
