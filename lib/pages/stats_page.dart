@@ -76,38 +76,37 @@ class HistoryDataProvider {
           iterDate = DateTime(start.year, start.month, start.day);
           while (iterDate.isBefore(end.add(const Duration(days: 1)))) {
             final dayStart = iterDate;
-            final dayEnd = dayStart.add(const Duration(days: 1));
+            final dayEnd = DateTime(dayStart.year, dayStart.month, dayStart.day + 1);
 
             final bool startsTooLate = !goal.startDate.isBefore(dayEnd);
             final bool endedTooEarly = goal.endDate != null && !goal.endDate!.isAfter(dayStart);
 
             if (startsTooLate || endedTooEarly) {
-              iterDate = iterDate.add(const Duration(days: 1));
+              iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day + 1);
               continue;
             }
             statuses.add(_calculateStatusForPeriod(
-                goal, relevantLogs, activities, iterDate,
-                iterDate.add(const Duration(days: 1))));
-            iterDate = iterDate.add(const Duration(days: 1));
+                goal, relevantLogs, activities, iterDate, dayEnd));
+            iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day + 1);
           }
           break;
         case GoalType.weekly:
           iterDate = start.subtract(Duration(days: start.weekday - 1));
+          iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day);
           while (iterDate.isBefore(end.add(const Duration(days: 1)))) {
             final dayStart = iterDate;
-            final dayEnd = dayStart.add(const Duration(days: 7));
+            final dayEnd = DateTime(dayStart.year, dayStart.month, dayStart.day + 7);
 
             final bool startsTooLate = !goal.startDate.isBefore(dayEnd);
             final bool endedTooEarly = goal.endDate != null && !goal.endDate!.isAfter(dayStart);
 
             if (startsTooLate || endedTooEarly) {
-              iterDate = iterDate.add(const Duration(days: 7));
+              iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day + 7);
               continue;
             }
             statuses.add(_calculateStatusForPeriod(
-                goal, relevantLogs, activities, iterDate,
-                iterDate.add(const Duration(days: 7))));
-            iterDate = iterDate.add(const Duration(days: 7));
+                goal, relevantLogs, activities, iterDate, dayEnd));
+            iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day + 7);
           }
           break;
         case GoalType.monthly:
@@ -255,7 +254,7 @@ class HistoryDataProvider {
       while (dailyStatusByDay.containsKey(currentDate) &&
           dailyStatusByDay[currentDate] == true) {
         currentStreak++;
-        currentDate = currentDate.subtract(const Duration(days: 1));
+        currentDate = DateTime(currentDate.year, currentDate.month, currentDate.day - 1);
       }
       //print('[STREAK DEBUG (getCurrentStreak)] Final streak: $currentStreak');
       return currentStreak;
@@ -424,7 +423,7 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
       while(dailyStatusByDay.containsKey(currentDate) && dailyStatusByDay[currentDate] == true) {
         //print('[STREAK DEBUG (_getCombinedGoalData)] Counting streak... $currentDate = true');
         currentStreak++;
-        currentDate = currentDate.subtract(const Duration(days: 1));
+        currentDate = DateTime(currentDate.year, currentDate.month, currentDate.day - 1);
       }
       if (!dailyStatusByDay.containsKey(currentDate)) {
         //print('[STREAK DEBUG (_getCombinedGoalData)] Streak stopped. No key for: $currentDate');
@@ -447,7 +446,9 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
         } else {
           if (tempStreak > longestStreak) {
             longestStreak = tempStreak;
-            longestStreakStart = tempStreakStart?.subtract(Duration(days: tempStreak - 1));
+            if (tempStreakStart != null) {
+              longestStreakStart = DateTime(tempStreakStart.year, tempStreakStart.month, tempStreakStart.day - (tempStreak - 1));
+            }
           }
           tempStreak = 0;
           tempStreakStart = null;
@@ -455,7 +456,9 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
       }
       if (tempStreak > longestStreak) {
         longestStreak = tempStreak;
-        longestStreakStart = tempStreakStart?.subtract(Duration(days: tempStreak - 1));
+        if (tempStreakStart != null) {
+          longestStreakStart = DateTime(tempStreakStart.year, tempStreakStart.month, tempStreakStart.day - (tempStreak - 1));
+        }
       }
       //print('[STREAK DEBUG (_getCombinedGoalData)] Final longestStreak: $longestStreak');
 
