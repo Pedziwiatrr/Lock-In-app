@@ -42,8 +42,8 @@ Lock In – Productivity Tracker is a Flutter-based mobile application designed 
 ### Utils (`utils/`)
 - `format_utils.dart`: Time formatting function (HH:mm:ss).  
 - `ad_manager.dart`: AdMob ad management.
--  `notification_service.dart`: **Service for managing local notifications.**
--`privacy_policy_screen.dart`: **Screen displaying the application's privacy policy.** 
+- `notification_service.dart`: **Service for managing local notifications.**
+- `privacy_policy_screen.dart`: **Screen displaying the application's privacy policy.** 
 
 ---
 
