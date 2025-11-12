@@ -270,4 +270,87 @@ void main() {
           reason: 'Gym only - goal met today, not yesterday');
     });
   });
+
+  testWidgets('Streak calculation is correct across DST change', (tester) async {
+    final dayBeforeDST = DateTime(2024, 10, 26, 12, 0);
+    final dayOfDST = DateTime(2024, 10, 27, 12, 0);
+    final dayAfterDST = DateTime(2024, 10, 28, 12, 0);
+
+    final today = DateTime(dayAfterDST.year, dayAfterDST.month, dayAfterDST.day);
+
+    final goals = [
+      Goal(
+        activityName: 'Work',
+        goalDuration: const Duration(hours: 1),
+        goalType: GoalType.daily,
+        startDate: dayBeforeDST.subtract(const Duration(days: 10)),
+      ),
+    ];
+    final logs = [
+      ActivityLog(
+          activityName: 'Work',
+          date: dayAfterDST,
+          duration: const Duration(hours: 1)),
+      ActivityLog(
+          activityName: 'Work',
+          date: dayOfDST,
+          duration: const Duration(hours: 1)),
+      ActivityLog(
+          activityName: 'Work',
+          date: dayBeforeDST,
+          duration: const Duration(hours: 1)),
+    ];
+
+    final provider = HistoryDataProvider(
+      goals: goals,
+      activityLogs: logs,
+      activities: activities,
+    );
+
+    final allDailyStatuses = await provider.getGoalStatusesForPeriod(
+        dayBeforeDST.subtract(const Duration(days: 10)),
+        today,
+        null
+    ).then((statuses) => statuses.where((s) => (s['goal'] as Goal).goalType == GoalType.daily).toList());
+
+    final dailyStatusesGrouped = <DateTime, List<Map<String, dynamic>>>{};
+    for (var status in allDailyStatuses) {
+      final date = status['date'] as DateTime;
+      dailyStatusesGrouped.putIfAbsent(date, () => []).add(status);
+    }
+
+    final allDailyGoals = goals.where((g) => g.goalType == GoalType.daily).toList();
+    final dailyStatusByDay = <DateTime, bool>{};
+
+    DateTime iterDate = DateTime(2024, 10, 25);
+    while (iterDate.isBefore(today.add(const Duration(days: 1)))) {
+      final dayStart = iterDate;
+      final activeGoalsForDay = allDailyGoals.where((g) =>
+      g.startDate.isBefore(dayStart.add(const Duration(days: 1))) &&
+          (g.endDate == null || g.endDate!.isAfter(dayStart))
+      ).toList();
+
+      bool dayStatus;
+      if (activeGoalsForDay.isEmpty) {
+        dayStatus = true;
+      } else {
+        final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
+        final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
+        dayStatus = successfulCount == activeGoalsForDay.length;
+      }
+      dailyStatusByDay[dayStart] = dayStatus;
+      iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day + 1);
+    }
+
+    int currentStreak = 0;
+    DateTime currentDate = today;
+
+    while (dailyStatusByDay.containsKey(currentDate) &&
+        dailyStatusByDay[currentDate] == true) {
+      currentStreak++;
+      currentDate = DateTime(currentDate.year, currentDate.month, currentDate.day - 1);
+    }
+
+    expect(currentStreak, 3);
+  });
 }
