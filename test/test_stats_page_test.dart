@@ -195,7 +195,7 @@ void main() {
         });
 
     testWidgets(
-        'Streak continues on "free days" (no active goals)',
+        'Streak continues on "free days" IF a log exists',
             (tester) async {
           final goals = [
             Goal(
@@ -207,6 +207,14 @@ void main() {
             ),
           ];
           final logs = [
+            ActivityLog(
+                activityName: 'Gym',
+                date: today.add(const Duration(hours: 9)),
+                duration: Duration.zero, isCheckable: true),
+            ActivityLog(
+                activityName: 'Gym',
+                date: yesterday.add(const Duration(hours: 12)),
+                duration: Duration.zero, isCheckable: true),
             ActivityLog(
                 activityName: 'Work',
                 date: twoDaysAgo.add(const Duration(hours: 10)),
