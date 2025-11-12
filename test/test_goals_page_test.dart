@@ -5,7 +5,6 @@ import 'package:lockin/models/goal.dart';
 import 'package:lockin/pages/goals_page.dart';
 
 void main() {
-
   final List<Activity> testActivities = [
     TimedActivity(name: 'Focus'),
     CheckableActivity(name: 'Workout'),
@@ -35,22 +34,23 @@ void main() {
     );
   }
 
-  testWidgets('GoalsPage renders goal cards for activities', (WidgetTester tester) async {
-    await pumpPage(tester);
-    await tester.pumpAndSettle();
+  testWidgets('GoalsPage renders goal cards for activities',
+          (WidgetTester tester) async {
+        await pumpPage(tester);
+        await tester.pumpAndSettle();
 
-    expect(find.text('Focus ⏰'), findsOneWidget);
-    expect(find.text('Workout ✅'), findsOneWidget);
+        expect(find.text('Focus ⏰'), findsOneWidget);
+        expect(find.text('Workout ✅'), findsOneWidget);
 
-    expect(find.byType(Card), findsNWidgets(2));
-    expect(find.text('Goal Name (Optional)'), findsNWidgets(2));
+        expect(find.byType(Card), findsNWidgets(2));
+        expect(find.text('Goal Name (Optional)'), findsNWidgets(2));
 
-    expect(find.text('Hours'), findsOneWidget);
-    expect(find.text('Mins'), findsOneWidget);
+        expect(find.text('Hrs'), findsOneWidget);
+        expect(find.text('Mins'), findsOneWidget);
 
-    expect(find.text('Goal'), findsOneWidget);
-    expect(find.text('times'), findsOneWidget);
-  });
+        expect(find.text('Goal'), findsOneWidget);
+        expect(find.text('times'), findsOneWidget);
+      });
 
   testWidgets('Renders "View Goals" button', (WidgetTester tester) async {
     await pumpPage(tester);
