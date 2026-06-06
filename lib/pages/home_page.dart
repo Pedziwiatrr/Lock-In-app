@@ -201,7 +201,7 @@ class _HomePageState extends State<HomePage> {
             if (runningActivity != null) {
               selectedActivity = runningActivity;
             } else {
-              FlutterBackgroundService().invoke('stopTimer');
+              _stopBackgroundService();
               isRunning = false;
               elapsed = Duration.zero;
             }
@@ -333,6 +333,9 @@ class _HomePageState extends State<HomePage> {
         selectedActivity is! TimedActivity ||
         isRunning) return;
 
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('timerActive', true);
+
     final service = FlutterBackgroundService();
     bool isServiceRunning = await service.isRunning();
     if (!isServiceRunning) {
@@ -352,8 +355,14 @@ class _HomePageState extends State<HomePage> {
     _startUiTimer();
   }
 
-  void _stopTimer() {
+  void _stopBackgroundService() {
+    SharedPreferences.getInstance()
+        .then((prefs) => prefs.setBool('timerActive', false));
     FlutterBackgroundService().invoke('stopTimer');
+  }
+
+  void _stopTimer() {
+    _stopBackgroundService();
     setState(() {
       isRunning = false;
       _timerStartDate = null;
@@ -363,7 +372,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _finishTimerAndSave() {
-    FlutterBackgroundService().invoke('stopTimer');
+    _stopBackgroundService();
     if (selectedActivity == null || elapsed == Duration.zero) {
       _resetTimerState();
       return;
@@ -479,7 +488,7 @@ class _HomePageState extends State<HomePage> {
               if (runningActivity != null) {
                 selectedActivity = runningActivity;
               } else if (isCurrentlyRunning) {
-                FlutterBackgroundService().invoke('stopTimer');
+                _stopBackgroundService();
                 isRunning = false;
                 elapsed = Duration.zero;
               }
@@ -667,7 +676,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _resetData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
-    FlutterBackgroundService().invoke('stopTimer');
+    _stopBackgroundService();
     setState(() {
       activities = [];
       activityLogs = [];
