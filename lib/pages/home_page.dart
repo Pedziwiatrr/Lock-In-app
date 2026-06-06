@@ -500,6 +500,8 @@ class _HomePageState extends State<HomePage> {
                 _startUiTimer();
               }
             });
+          } else {
+            _stopBackgroundService();
           }
         }
       }
@@ -882,6 +884,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   void handleGoalChanged(List<Goal> newGoals) {
+    final newIds = newGoals.map((g) => g.id).toSet();
+    for (final removed in goals.where((g) => !newIds.contains(g.id))) {
+      _notificationService.cancelGoalReminder(removed);
+    }
     setState(() {
       goals = newGoals.take(HomePage.maxGoals).toList();
     });

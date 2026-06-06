@@ -87,6 +87,10 @@ class NotificationService {
     );
   }
 
+  Future<void> cancelGoalReminder(Goal goal) async {
+    await _notificationsPlugin.cancel(goal.id.hashCode);
+  }
+
   Future<void> showOrUpdateServiceNotification({
     required String title,
     required String content,
