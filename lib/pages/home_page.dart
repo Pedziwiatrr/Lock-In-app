@@ -135,7 +135,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<Activity> activities = [];
   List<ActivityLog> activityLogs = [];
   List<Goal> goals = [];
@@ -167,6 +167,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _configureTimerListener();
     _loadData();
   }
@@ -322,10 +323,40 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _uiTimer?.cancel();
     _tickSubscription?.cancel();
     _serviceStateSubscription?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _savePausedTimer();
+    }
+  }
+
+  Future<void> _savePausedTimer() async {
+    if (!isRunning &&
+        elapsed > Duration.zero &&
+        selectedActivity is TimedActivity) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('pausedElapsedSeconds', elapsed.inSeconds);
+      await prefs.setString('pausedActivityName', selectedActivity!.name);
+      await prefs.setInt(
+          'pausedSelectedDate', selectedDate.millisecondsSinceEpoch);
+    } else {
+      await _clearPausedTimer();
+    }
+  }
+
+  Future<void> _clearPausedTimer() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('pausedElapsedSeconds');
+    await prefs.remove('pausedActivityName');
+    await prefs.remove('pausedSelectedDate');
   }
 
   void _startTimer() async {
@@ -335,6 +366,9 @@ class _HomePageState extends State<HomePage> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('timerActive', true);
+    await prefs.remove('pausedElapsedSeconds');
+    await prefs.remove('pausedActivityName');
+    await prefs.remove('pausedSelectedDate');
 
     final service = FlutterBackgroundService();
     bool isServiceRunning = await service.isRunning();
@@ -502,6 +536,31 @@ class _HomePageState extends State<HomePage> {
             });
           } else {
             _stopBackgroundService();
+          }
+        }
+      }
+
+      if (!isRunning && elapsed == Duration.zero) {
+        final prefs = await SharedPreferences.getInstance();
+        final int pausedSeconds = prefs.getInt('pausedElapsedSeconds') ?? 0;
+        final String? pausedName = prefs.getString('pausedActivityName');
+        if (pausedSeconds > 0 && pausedName != null) {
+          Activity? pausedActivity;
+          try {
+            pausedActivity =
+                activities.firstWhere((a) => a.name == pausedName);
+          } catch (_) {}
+          if (pausedActivity is TimedActivity) {
+            final TimedActivity activity = pausedActivity;
+            final int? pausedDateMs = prefs.getInt('pausedSelectedDate');
+            setState(() {
+              selectedActivity = activity;
+              elapsed = Duration(seconds: pausedSeconds);
+              if (pausedDateMs != null) {
+                selectedDate =
+                    DateTime.fromMillisecondsSinceEpoch(pausedDateMs);
+              }
+            });
           }
         }
       }
@@ -699,6 +758,7 @@ class _HomePageState extends State<HomePage> {
       _elapsedOffset = Duration.zero;
     });
     _stopUiTimer();
+    _clearPausedTimer();
   }
 
   void checkActivity() {
