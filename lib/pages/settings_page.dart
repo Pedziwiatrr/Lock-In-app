@@ -128,7 +128,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final keys = prefs.getKeys();
     for (String key in keys) {
       if (key == 'launchCount') continue;
-      if (key == 'activities' || key == 'activityLogs' || key == 'goals') {
+      if (key == 'activities' || key == 'activityLogs' || key == 'goals' || key == 'dayNotes') {
         final jsonString = prefs.getString(key);
         if (jsonString != null && jsonString.isNotEmpty) {
           allData[key] = jsonDecode(jsonString);
@@ -215,10 +215,10 @@ class _SettingsPageState extends State<SettingsPage> {
         final key = entry.key;
         final value = entry.value;
 
-        if (key == 'activities' || key == 'activityLogs' || key == 'goals') {
+        if (key == 'activities' || key == 'activityLogs' || key == 'goals' || key == 'dayNotes') {
           if (value is String) {
             await prefs.setString(key, value);
-          } else if (value is List) {
+          } else if (value is List || value is Map) {
             await prefs.setString(key, jsonEncode(value));
           }
         } else if (value is String) {

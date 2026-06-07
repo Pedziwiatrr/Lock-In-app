@@ -5,6 +5,8 @@ import '../models/goal.dart';
 import '../models/activity.dart';
 import '../utils/format_utils.dart';
 import '../utils/ad_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 enum HistoryPeriod { week, month, threeMonths, allTime }
 enum _GoalStatus { green, yellow, red, grey, ongoing }
@@ -40,6 +42,7 @@ class _HistoryPageState extends State<HistoryPage> {
   List<DateTime> _visibleDays = [];
   Map<DateTime, Map<String, dynamic>> _progressCache = {};
   bool _isCalculating = false;
+  Map<String, String> _dayNotes = {};
 
   @override
   void initState() {
@@ -52,6 +55,7 @@ class _HistoryPageState extends State<HistoryPage> {
     }
     */
     _scrollController.addListener(_loadMoreDays);
+    _loadNotes();
     _calculateProgressAsync();
   }
 
@@ -83,6 +87,35 @@ class _HistoryPageState extends State<HistoryPage> {
           ..sort((a, b) => b.compareTo(a));
       });
     }
+  }
+
+  String _dayKey(DateTime day) =>
+      '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+
+  Future<void> _loadNotes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('dayNotes');
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      if (mounted) {
+        setState(() {
+          _dayNotes = decoded.map((k, v) => MapEntry(k, v.toString()));
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveNote(String dayKey, String text) async {
+    setState(() {
+      if (text.isEmpty) {
+        _dayNotes.remove(dayKey);
+      } else {
+        _dayNotes[dayKey] = text;
+      }
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('dayNotes', jsonEncode(_dayNotes));
   }
 
   Future<void> _calculateProgressAsync() async {
@@ -280,6 +313,7 @@ class _HistoryPageState extends State<HistoryPage> {
   void _showDayDetails(BuildContext context, DateTime day, Map<String, dynamic> dayData) {
     final activitiesLogged = (dayData['dayActivities'] as Map<String, dynamic>).entries.toList();
     final goalDetails = (dayData['goalDetails'] as List<dynamic>).toList();
+    final noteController = TextEditingController(text: _dayNotes[_dayKey(day)] ?? '');
 
     showDialog(
       context: context,
@@ -380,11 +414,40 @@ class _HistoryPageState extends State<HistoryPage> {
                       ),
                     );
                   }),
+                const Divider(height: 24, thickness: 1),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Text(
+                    'Notes',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                TextField(
+                  controller: noteController,
+                  minLines: 2,
+                  maxLines: 5,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    hintText: 'Add a note for this day...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
               ],
             ),
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close')),
+          TextButton(
+            onPressed: () {
+              _saveNote(_dayKey(day), noteController.text.trim());
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
   }
