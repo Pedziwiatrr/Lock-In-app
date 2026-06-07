@@ -4,6 +4,8 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/privacy_policy_screen.dart';
+import '../utils/notification_service.dart';
+import '../models/goal.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -28,7 +30,6 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late bool _isDarkMode;
-  bool _isTimerNotificationEnabled = true;
   bool _isGoalReminderEnabled = true;
 
   @override
@@ -41,8 +42,6 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _isTimerNotificationEnabled =
-          prefs.getBool('timerNotificationEnabled') ?? true;
       _isGoalReminderEnabled = prefs.getBool('goalReminderEnabled') ?? true;
     });
   }
@@ -50,6 +49,25 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _saveSetting(String key, bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
+  }
+
+  Future<void> _setGoalReminders(bool value) async {
+    setState(() => _isGoalReminderEnabled = value);
+    await _saveSetting('goalReminderEnabled', value);
+    if (!value) {
+      final prefs = await SharedPreferences.getInstance();
+      final goalsJson = prefs.getString('goals');
+      if (goalsJson != null && goalsJson.isNotEmpty) {
+        try {
+          final List<dynamic> list = jsonDecode(goalsJson);
+          for (final j in list) {
+            try {
+              await NotificationService().cancelGoalReminder(Goal.fromJson(j));
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+    }
   }
 
   void _showConsentForm() {
@@ -314,6 +332,18 @@ class _SettingsPageState extends State<SettingsPage> {
                 widget.onThemeChanged(v);
               },
             ),
+          ),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('Notifications',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          ),
+          SwitchListTile(
+            title: const Text('Goal Reminders'),
+            subtitle: const Text('Daily reminder for your active goals'),
+            value: _isGoalReminderEnabled,
+            onChanged: _setGoalReminders,
           ),
           const Divider(),
           const Padding(
