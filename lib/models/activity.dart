@@ -18,7 +18,7 @@ class TimedActivity extends Activity {
 
   factory TimedActivity.fromJson(Map<String, dynamic> json) => TimedActivity(
     name: json['name'] as String? ?? 'Unnamed',
-    totalTime: Duration(seconds: json['totalTime']),
+    totalTime: Duration(seconds: (json['totalTime'] as int?) ?? 0),
   );
 }
 
@@ -36,6 +36,6 @@ class CheckableActivity extends Activity {
   factory CheckableActivity.fromJson(Map<String, dynamic> json) =>
       CheckableActivity(
         name: json['name'] as String? ?? 'Unnamed',
-        completionCount: json['completionCount'],
+        completionCount: (json['completionCount'] as int?) ?? 0,
       );
 }

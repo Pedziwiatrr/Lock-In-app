@@ -157,6 +157,13 @@ class _GoalsPageState extends State<GoalsPage> {
       return;
     }
 
+    if (endDate != null && endDate.isBefore(startDate)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('End date cannot be before the start date.')),
+      );
+      return;
+    }
+
     final String? finalTitle = (title?.trim().isEmpty ?? true) ? null : title!.trim();
 
     _adManager.incrementGoalAddCount().then((_) {
@@ -166,7 +173,9 @@ class _GoalsPageState extends State<GoalsPage> {
             _updateGoalState(activityName, finalTitle, value, goalType, startDate, endDate);
           },
           onAdDismissed: () {},
-          onAdFailedToShow: () {},
+          onAdFailedToShow: () {
+            _updateGoalState(activityName, finalTitle, value, goalType, startDate, endDate);
+          },
         );
       } else {
         _updateGoalState(activityName, finalTitle, value, goalType, startDate, endDate);

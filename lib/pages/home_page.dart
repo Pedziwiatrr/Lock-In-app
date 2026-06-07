@@ -35,7 +35,7 @@ class HomePage extends StatefulWidget {
   static const int maxManualTimeMinutes = 10000;
   static const int maxManualCompletions = 10000;
   static const int maxActivities = 10;
-  static const int maxGoals = 10;
+  static const int maxGoals = 30;
 
   static Future<Map<String, dynamic>> loadDataFromPrefs(
       int shouldLoadDefaultData) async {
@@ -93,7 +93,14 @@ class HomePage extends StatefulWidget {
       try {
         final List<dynamic> logsList = jsonDecode(logsJson);
         logs = logsList
-            .map((json) => ActivityLog.fromJson(json))
+            .map((json) {
+              try {
+                return ActivityLog.fromJson(json);
+              } catch (_) {
+                return null;
+              }
+            })
+            .whereType<ActivityLog>()
             .take(maxLogs)
             .toList();
       } catch (e) {
@@ -106,8 +113,17 @@ class HomePage extends StatefulWidget {
     if (goalsJson != null && goalsJson.isNotEmpty) {
       try {
         final List<dynamic> goalsList = jsonDecode(goalsJson);
-        goals =
-            goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
+        goals = goalsList
+            .map((json) {
+              try {
+                return Goal.fromJson(json);
+              } catch (_) {
+                return null;
+              }
+            })
+            .whereType<Goal>()
+            .take(maxGoals)
+            .toList();
       } catch (e) {
         goals = [];
         hasError = true;
@@ -153,6 +169,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
 
   Set<String> _previousCompletedQuestIds = {};
+  final Set<String> _completedGoalIds = {};
   bool _hasRatedApp = false;
   bool _hasExportedData = false;
 
@@ -711,11 +728,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
         }
 
-        if (isCompletedNow && !_previousCompletedQuestIds.contains(goal.id)) {
+        if (isCompletedNow && !_completedGoalIds.contains(goal.id)) {
           _notificationService.scheduleGoalReminder(goal);
-          _previousCompletedQuestIds.add(goal.id);
+          _completedGoalIds.add(goal.id);
         } else if (!isCompletedNow) {
-          _previousCompletedQuestIds.remove(goal.id);
+          _completedGoalIds.remove(goal.id);
         }
       }
     }
@@ -943,6 +960,40 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _saveData();
   }
 
+  void _renameActivity(String oldName, String newName) {
+    setState(() {
+      for (final a in activities) {
+        if (a.name == oldName) {
+          a.name = newName;
+        }
+      }
+      for (final log in activityLogs) {
+        if (log.activityName == oldName) {
+          log.activityName = newName;
+        }
+      }
+      for (final g in goals) {
+        if (g.activityName == oldName) {
+          g.activityName = newName;
+        }
+      }
+    });
+    _saveData();
+  }
+
+  void _deleteActivity(String name) {
+    setState(() {
+      activities.removeWhere((a) => a.name == name);
+      activityLogs.removeWhere((log) => log.activityName == name);
+      goals.removeWhere((g) => g.activityName == name);
+      if (selectedActivity?.name == name) {
+        selectedActivity = activities.isNotEmpty ? activities.first : null;
+        elapsed = Duration.zero;
+      }
+    });
+    _saveData();
+  }
+
   void handleGoalChanged(List<Goal> newGoals) {
     final newIds = newGoals.map((g) => g.id).toSet();
     for (final removed in goals.where((g) => !newIds.contains(g.id))) {
@@ -1025,6 +1076,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 setState(() {});
                 _saveData();
               },
+              onRenameActivity: _renameActivity,
+              onDeleteActivity: _deleteActivity,
               launchCount: widget.launchCount,
             ),
             ProgressPage(
@@ -1038,6 +1091,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               activities: activities,
               goals: goals,
               launchCount: widget.launchCount,
+              onUpdate: () {
+                setState(() {});
+                _saveData();
+              },
             ),
             HistoryPage(
               activities: activities,
