@@ -164,6 +164,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   DateTime? _timerStartDate;
   Duration _elapsedOffset = Duration.zero;
   Timer? _uiTimer;
+  int? _sessionTargetSeconds;
 
   final NotificationService _notificationService = NotificationService();
 
@@ -397,6 +398,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     service.invoke('startTimer', {
       'previousElapsed': elapsed.inSeconds,
       'activityName': selectedActivity!.name,
+      'targetSeconds': _sessionTargetSeconds,
     });
     setState(() {
       isRunning = true;
@@ -1005,6 +1007,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _saveData();
   }
 
+  void _setSessionTarget(int? seconds) {
+    setState(() {
+      _sessionTargetSeconds = seconds;
+    });
+  }
+
   void selectActivity(Activity? activity) {
     if (isRunning) return;
     setState(() {
@@ -1053,6 +1061,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               selectedDate: selectedDate,
               elapsed: elapsed,
               isRunning: isRunning,
+              sessionTargetSeconds: _sessionTargetSeconds,
+              onSetSessionTarget: _setSessionTarget,
               onSelectActivity: selectActivity,
               onSelectDate: selectDate,
               onStartTimer: _startTimer,

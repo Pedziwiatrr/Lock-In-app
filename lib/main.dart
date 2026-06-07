@@ -105,6 +105,8 @@ void onStart(ServiceInstance service) {
   DateTime? _startTime;
   int _baseElapsedSeconds = 0;
   int _lastNotifMinute = -1;
+  int? _targetSeconds;
+  bool _targetNotified = false;
 
   service.on('getServiceState').listen((event) {
     if (_isRunning && _startTime != null) {
@@ -128,6 +130,9 @@ void onStart(ServiceInstance service) {
     _startTime = DateTime.now();
     _isRunning = true;
     _lastNotifMinute = _elapsed.inMinutes;
+    _targetSeconds = event?['targetSeconds'] as int?;
+    _targetNotified =
+        _targetSeconds != null && _baseElapsedSeconds >= _targetSeconds!;
 
     NotificationService().showOrUpdateServiceNotification(
       title: 'Locked In',
@@ -148,6 +153,16 @@ void onStart(ServiceInstance service) {
         );
       }
 
+      if (_targetSeconds != null &&
+          !_targetNotified &&
+          _elapsed.inSeconds >= _targetSeconds!) {
+        _targetNotified = true;
+        NotificationService().showSessionTargetNotification(
+          activityName: _activityName,
+          targetMinutes: (_targetSeconds! / 60).round(),
+        );
+      }
+
       service.invoke('tick', {'elapsedTime': _elapsed.inSeconds});
     });
   });
@@ -161,6 +176,8 @@ void onStart(ServiceInstance service) {
     _startTime = null;
     _baseElapsedSeconds = 0;
     _lastNotifMinute = -1;
+    _targetSeconds = null;
+    _targetNotified = false;
     service.stopSelf();
   });
 
