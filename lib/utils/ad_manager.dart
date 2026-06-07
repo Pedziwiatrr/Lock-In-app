@@ -163,16 +163,12 @@ class AdManager {
       if (!kReleaseMode) print('[AD] Ad not shown: duration too short');
       return false;
     }
-    if (_stoperUsageCount < 5) {
-      if (!kReleaseMode) print('[AD] Ad not shown: grace time');
-      return false;
-    }
     if (_lastAdShown) {
       if (!kReleaseMode) print('[AD] Ad not shown: ad shown last time');
       _lastAdShown = false;
       return false;
     }
-    final random = Random().nextDouble() < 0.4;
+    final random = Random().nextDouble() < 0.05;
     _lastAdShown = random;
     if (!kReleaseMode) print('[AD] Ad decision: ${random ? "show" : "skip (random)"}');
     return random;
@@ -188,7 +184,7 @@ class AdManager {
       _lastCheckAdShown = false;
       return false;
     }
-    final random = Random().nextDouble() < 0.2;
+    final random = Random().nextDouble() < 0.05;
     _lastCheckAdShown = random;
     if (!kReleaseMode) print('[AD] Ad check decision: ${random ? "show" : "skip (random)"}');
     return random;
@@ -199,7 +195,7 @@ class AdManager {
       if (!kReleaseMode) print('[AD] Ad not shown: first goals');
       return false;
     }
-    final random = Random().nextDouble() < 0.3;
+    final random = Random().nextDouble() < 0.05;
     if (!kReleaseMode) print('[AD] Ad goal decision: ${random ? "show" : "skip (random)"}');
     return random;
   }
@@ -209,7 +205,7 @@ class AdManager {
       if (!kReleaseMode) print('[AD] Ad not shown: first two activity changes');
       return false;
     }
-    final random = Random().nextDouble() < 0.3;
+    final random = Random().nextDouble() < 0.05;
     if (!kReleaseMode) print('[AD] Ad activity change decision: ${random ? "show" : "skip (random)"}');
     return random;
   }

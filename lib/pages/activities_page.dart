@@ -216,28 +216,15 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                   name.length <= maxNameLength &&
                   !widget.activities.any((a) => a.name == name)) {
                 final oldName = widget.activities[index].name;
-                void applyRename() {
-                  if (widget.onRenameActivity != null) {
-                    widget.onRenameActivity!(oldName, name);
-                  } else {
-                    setState(() {
-                      widget.activities[index].name = name;
-                    });
-                    widget.onUpdate();
-                  }
-                  Navigator.pop(context);
+                if (widget.onRenameActivity != null) {
+                  widget.onRenameActivity!(oldName, name);
+                } else {
+                  setState(() {
+                    widget.activities[index].name = name;
+                  });
+                  widget.onUpdate();
                 }
-                _adManager.incrementActivityChangeCount().then((_) {
-                  if (_adManager.shouldShowActivityChangeAd()) {
-                    _adManager.showRewardedAd(
-                      onUserEarnedReward: applyRename,
-                      onAdDismissed: () {},
-                      onAdFailedToShow: applyRename,
-                    );
-                  } else {
-                    applyRename();
-                  }
-                });
+                Navigator.pop(context);
               } else if (name.length > maxNameLength) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -275,28 +262,14 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              void applyDelete() {
-                if (widget.onDeleteActivity != null) {
-                  widget.onDeleteActivity!(name);
-                } else {
-                  setState(() {
-                    widget.activities.removeAt(index);
-                  });
-                  widget.onUpdate();
-                }
+              if (widget.onDeleteActivity != null) {
+                widget.onDeleteActivity!(name);
+              } else {
+                setState(() {
+                  widget.activities.removeAt(index);
+                });
+                widget.onUpdate();
               }
-
-              _adManager.incrementActivityChangeCount().then((_) {
-                if (_adManager.shouldShowActivityChangeAd()) {
-                  _adManager.showRewardedAd(
-                    onUserEarnedReward: applyDelete,
-                    onAdDismissed: () {},
-                    onAdFailedToShow: applyDelete,
-                  );
-                } else {
-                  applyDelete();
-                }
-              });
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),

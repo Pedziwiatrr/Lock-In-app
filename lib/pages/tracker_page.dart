@@ -277,46 +277,20 @@ class _TrackerPageState extends State<TrackerPage> {
 
   void _handleAddManual(int intVal) {
     if (widget.isRunning) widget.onStopTimer();
-    final action = widget.selectedActivity is TimedActivity
-        ? () => widget.onAddManualTime(Duration(minutes: intVal))
-        : () => widget.onAddManualCompletion(intVal);
-
-    _adManager.incrementStoperUsage().then((_) {
-      bool shouldShow = widget.selectedActivity is TimedActivity
-          ? _adManager.shouldShowAd(Duration(minutes: intVal))
-          : _adManager.shouldShowCheckAd();
-      if (shouldShow) {
-        _adManager.showRewardedAd(
-          onUserEarnedReward: action,
-          onAdDismissed: () {},
-          onAdFailedToShow: action,
-        );
-      } else {
-        action();
-      }
-    });
+    if (widget.selectedActivity is TimedActivity) {
+      widget.onAddManualTime(Duration(minutes: intVal));
+    } else {
+      widget.onAddManualCompletion(intVal);
+    }
   }
 
   void _handleSubtractManual(int intVal) {
     if (widget.isRunning) widget.onStopTimer();
-    final action = widget.selectedActivity is TimedActivity
-        ? () => widget.onSubtractManualTime(Duration(minutes: intVal))
-        : () => widget.onSubtractManualCompletion(intVal);
-
-    _adManager.incrementStoperUsage().then((_) {
-      bool shouldShow = widget.selectedActivity is TimedActivity
-          ? _adManager.shouldShowAd(Duration(minutes: intVal))
-          : _adManager.shouldShowCheckAd();
-      if (shouldShow) {
-        _adManager.showRewardedAd(
-          onUserEarnedReward: action,
-          onAdDismissed: () {},
-          onAdFailedToShow: action,
-        );
-      } else {
-        action();
-      }
-    });
+    if (widget.selectedActivity is TimedActivity) {
+      widget.onSubtractManualTime(Duration(minutes: intVal));
+    } else {
+      widget.onSubtractManualCompletion(intVal);
+    }
   }
 
   void _handleFinish() {
