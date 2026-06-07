@@ -405,7 +405,7 @@ class _TrackerPageState extends State<TrackerPage> {
       return widget.activities.any((a) => a.name == goal.activityName) &&
           goal.goalDuration > Duration.zero &&
           goal.startDate.isBefore(dateEnd) &&
-          (goal.endDate == null || goal.endDate!.isAfter(dateStart));
+          (goal.endDate == null || !goal.endDate!.isBefore(dateStart));
     }).toList();
 
     Widget mainDisplay;

@@ -7,7 +7,7 @@ import '../utils/format_utils.dart';
 import '../utils/ad_manager.dart';
 
 enum HistoryPeriod { week, month, threeMonths, allTime }
-enum _GoalStatus { green, yellow, red, grey }
+enum _GoalStatus { green, yellow, red, grey, ongoing }
 
 class HistoryPage extends StatefulWidget {
   final List<ActivityLog> activityLogs;
@@ -89,11 +89,12 @@ class _HistoryPageState extends State<HistoryPage> {
     if (_isCalculating) return;
     setState(() => _isCalculating = true);
 
+    final now = DateTime.now();
     final progress = await compute(_calculateGoalProgressIsolate, {
       'logs': widget.activityLogs,
       'goals': widget.goals,
       'activities': widget.activities,
-      'selectedDate': widget.selectedDate,
+      'today': DateTime(now.year, now.month, now.day),
       'selectedPeriod': selectedPeriod,
     });
 
@@ -113,7 +114,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final logs = params['logs'] as List<ActivityLog>;
     final goals = params['goals'] as List<Goal>;
     final activities = params['activities'] as List<Activity>;
-    final today = params['selectedDate'] as DateTime;
+    final today = params['today'] as DateTime;
     final selectedPeriod = params['selectedPeriod'] as HistoryPeriod;
 
     final logsByDay = <DateTime, List<ActivityLog>>{};
@@ -159,12 +160,16 @@ class _HistoryPageState extends State<HistoryPage> {
       final monthStart = DateTime(day.year, day.month, 1);
       final monthEnd = DateTime(day.year, day.month + 1, 0).add(const Duration(days: 1));
 
+      final bool dayOngoing = !today.isBefore(dayStart) && today.isBefore(dayEnd);
+      final bool weekOngoing = !today.isBefore(weekStart) && today.isBefore(weekEnd);
+      final bool monthOngoing = !today.isBefore(monthStart) && today.isBefore(monthEnd);
+
       final logsInWeek = logsByDay.entries.where((e) => !e.key.isBefore(weekStart) && e.key.isBefore(weekEnd)).expand((e) => e.value).toList();
       final logsInMonth = logsByDay.entries.where((e) => !e.key.isBefore(monthStart) && e.key.isBefore(monthEnd)).expand((e) => e.value).toList();
 
-      final dailyGoals = goals.where((g) => g.goalType == GoalType.daily && g.goalDuration > Duration.zero && g.startDate.isBefore(dayEnd) && (g.endDate == null || g.endDate!.isAfter(dayStart))).toList();
-      final weeklyGoals = goals.where((g) => g.goalType == GoalType.weekly && g.goalDuration > Duration.zero && g.startDate.isBefore(weekEnd) && (g.endDate == null || g.endDate!.isAfter(weekStart))).toList();
-      final monthlyGoals = goals.where((g) => g.goalType == GoalType.monthly && g.goalDuration > Duration.zero && g.startDate.isBefore(monthEnd) && (g.endDate == null || g.endDate!.isAfter(monthStart))).toList();
+      final dailyGoals = goals.where((g) => g.goalType == GoalType.daily && g.goalDuration > Duration.zero && g.startDate.isBefore(dayEnd) && (g.endDate == null || !g.endDate!.isBefore(dayStart))).toList();
+      final weeklyGoals = goals.where((g) => g.goalType == GoalType.weekly && g.goalDuration > Duration.zero && g.startDate.isBefore(weekEnd) && (g.endDate == null || !g.endDate!.isBefore(weekStart))).toList();
+      final monthlyGoals = goals.where((g) => g.goalType == GoalType.monthly && g.goalDuration > Duration.zero && g.startDate.isBefore(monthEnd) && (g.endDate == null || !g.endDate!.isBefore(monthStart))).toList();
 
       int completedDaily = dailyGoals.where((goal) => _isGoalCompletedInPeriod(goal, activitiesMap[goal.activityName], dailyLogs)).length;
       int completedWeekly = weeklyGoals.where((goal) => _isGoalCompletedInPeriod(goal, activitiesMap[goal.activityName], logsInWeek)).length;
@@ -182,7 +187,7 @@ class _HistoryPageState extends State<HistoryPage> {
         }
       }
 
-      final activeGoals = goals.where((g) => g.goalDuration > Duration.zero && g.startDate.isBefore(dayEnd) && (g.endDate == null || g.endDate!.isAfter(dayStart))).toList();
+      final activeGoals = goals.where((g) => g.goalDuration > Duration.zero && g.startDate.isBefore(dayEnd) && (g.endDate == null || !g.endDate!.isBefore(dayStart))).toList();
       final goalDetails = activeGoals.map((goal) {
         final activity = activitiesMap[goal.activityName];
         if (activity == null) return null;
@@ -209,7 +214,17 @@ class _HistoryPageState extends State<HistoryPage> {
           'goalType': goal.goalType.toString().split('.').last,
           'percent': percent,
           'progressText': progressText,
-          'status': percent >= 1.0 ? _GoalStatus.green : (percent > 0 ? _GoalStatus.yellow : _GoalStatus.red),
+          'status': percent >= 1.0
+              ? _GoalStatus.green
+              : (percent > 0
+                  ? _GoalStatus.yellow
+                  : ((goal.goalType == GoalType.daily
+                          ? dayOngoing
+                          : (goal.goalType == GoalType.weekly
+                              ? weekOngoing
+                              : monthOngoing))
+                      ? _GoalStatus.ongoing
+                      : _GoalStatus.red)),
         };
       }).where((details) => details != null).toList();
 
@@ -217,13 +232,13 @@ class _HistoryPageState extends State<HistoryPage> {
       progress[dayKey] = {
         'completedDailyGoals': completedDaily,
         'totalDailyGoals': dailyGoals.length,
-        'dailyStatus': dailyGoals.isEmpty ? _GoalStatus.grey : (completedDaily >= dailyGoals.length ? _GoalStatus.green : (completedDaily > 0 ? _GoalStatus.yellow : _GoalStatus.red)),
+        'dailyStatus': dailyGoals.isEmpty ? _GoalStatus.grey : (completedDaily >= dailyGoals.length ? _GoalStatus.green : (completedDaily > 0 ? _GoalStatus.yellow : (dayOngoing ? _GoalStatus.ongoing : _GoalStatus.red))),
         'completedWeeklyGoals': completedWeekly,
         'totalWeeklyGoals': weeklyGoals.length,
-        'weeklyStatus': weeklyGoals.isEmpty ? _GoalStatus.grey : (completedWeekly >= weeklyGoals.length ? _GoalStatus.green : (completedWeekly > 0 ? _GoalStatus.yellow : _GoalStatus.red)),
+        'weeklyStatus': weeklyGoals.isEmpty ? _GoalStatus.grey : (completedWeekly >= weeklyGoals.length ? _GoalStatus.green : (completedWeekly > 0 ? _GoalStatus.yellow : (weekOngoing ? _GoalStatus.ongoing : _GoalStatus.red))),
         'completedMonthlyGoals': completedMonthly,
         'totalMonthlyGoals': monthlyGoals.length,
-        'monthlyStatus': monthlyGoals.isEmpty ? _GoalStatus.grey : (completedMonthly >= monthlyGoals.length ? _GoalStatus.green : (completedMonthly > 0 ? _GoalStatus.yellow : _GoalStatus.red)),
+        'monthlyStatus': monthlyGoals.isEmpty ? _GoalStatus.grey : (completedMonthly >= monthlyGoals.length ? _GoalStatus.green : (completedMonthly > 0 ? _GoalStatus.yellow : (monthOngoing ? _GoalStatus.ongoing : _GoalStatus.red))),
         'duration': dailyLogs.fold(Duration.zero, (prev, log) => prev + log.duration),
         'checkableCompletions': dailyLogs.where((log) => log.isCheckable).length,
         'dayActivities': dayActivities,
@@ -254,6 +269,8 @@ class _HistoryPageState extends State<HistoryPage> {
         return Colors.orange;
       case _GoalStatus.red:
         return Colors.red;
+      case _GoalStatus.ongoing:
+        return Colors.blueGrey;
       case _GoalStatus.grey:
       default:
         return Colors.grey.shade700;
