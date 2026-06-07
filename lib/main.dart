@@ -107,6 +107,7 @@ void onStart(ServiceInstance service) {
   int _lastNotifMinute = -1;
   int? _targetSeconds;
   bool _targetNotified = false;
+  int _sessionStartMs = 0;
 
   service.on('getServiceState').listen((event) {
     if (_isRunning && _startTime != null) {
@@ -134,9 +135,12 @@ void onStart(ServiceInstance service) {
     _targetNotified =
         _targetSeconds != null && _baseElapsedSeconds >= _targetSeconds!;
 
+    _sessionStartMs =
+        _startTime!.millisecondsSinceEpoch - _baseElapsedSeconds * 1000;
     NotificationService().showOrUpdateServiceNotification(
       title: 'Locked In',
-      content: getNotificationContent(_elapsed.inMinutes),
+      content: _activityName ?? "Don't get distracted!",
+      whenMs: _sessionStartMs,
     );
 
     timer = Timer.periodic(const Duration(seconds: 15), (timer) {
@@ -149,7 +153,8 @@ void onStart(ServiceInstance service) {
         _lastNotifMinute = currentMinute;
         NotificationService().showOrUpdateServiceNotification(
           title: 'Locked In',
-          content: getNotificationContent(currentMinute),
+          content: _activityName ?? "Don't get distracted!",
+          whenMs: _sessionStartMs,
         );
       }
 

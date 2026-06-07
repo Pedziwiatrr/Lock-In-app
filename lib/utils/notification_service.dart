@@ -132,7 +132,9 @@ class NotificationService {
   Future<void> showOrUpdateServiceNotification({
     required String title,
     required String content,
+    int? whenMs,
   }) async {
+    final bool useChronometer = whenMs != null;
     final notificationDetails = NotificationDetails(
       android: AndroidNotificationDetails(
         _serviceChannel.id,
@@ -145,13 +147,19 @@ class NotificationService {
         playSound: false,
         enableVibration: false,
         silent: true,
+        when: whenMs,
+        usesChronometer: useChronometer,
+        chronometerCountDown: false,
+        showWhen: useChronometer,
         largeIcon: const DrawableResourceAndroidBitmap('@drawable/ic_notification_icon'),
-        styleInformation: BigTextStyleInformation(
-          content,
-          htmlFormatContent: false,
-          summaryText: title,
-          htmlFormatSummaryText: false,
-        ),
+        styleInformation: useChronometer
+            ? null
+            : BigTextStyleInformation(
+                content,
+                htmlFormatContent: false,
+                summaryText: title,
+                htmlFormatSummaryText: false,
+              ),
       ),
     );
 
