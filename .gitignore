@@ -65,3 +65,10 @@ app.*.map.json
 
 # key.properties file
 /android/key.properties
+
+# Signing — never commit
+*.jks
+*.keystore
+*.pem
+/lockin-upload.jks
+/certificate.pem
