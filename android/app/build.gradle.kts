@@ -17,6 +17,7 @@ if (hasKeystore) {
 android {
     namespace = "io.github.pedziwiatrr.lockin"
     compileSdk = 36
+    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "io.github.pedziwiatrr.lockin"
