@@ -31,6 +31,8 @@ void main() {
             selectedDate: DateTime.now(),
             elapsed: elapsed,
             isRunning: isRunning,
+            sessionTargetSeconds: null,
+            onSetSessionTarget: (_) {},
             onSelectActivity: (_) {},
             onSelectDate: (_) {},
             onStartTimer: () {},

@@ -70,6 +70,7 @@ Future<void> initializeService() async {
     androidConfiguration: AndroidConfiguration(
       onStart: onStart,
       autoStart: false,
+      autoStartOnBoot: false,
       isForegroundMode: true,
       notificationChannelId: 'background_service_notif_channel',
       foregroundServiceNotificationId: 888,
@@ -97,17 +98,16 @@ String getNotificationContent(int minutes) {
 void onStart(ServiceInstance service) {
   DartPluginRegistrant.ensureInitialized();
   Timer? timer;
+  Timer? orphanGuard;
   Duration _elapsed = Duration.zero;
   bool _isRunning = false;
   String? _activityName;
   DateTime? _startTime;
   int _baseElapsedSeconds = 0;
   int _lastNotifMinute = -1;
-
-  NotificationService().showOrUpdateServiceNotification(
-    title: 'Working in the background',
-    content: "Don't get distracted!",
-  );
+  int? _targetSeconds;
+  bool _targetNotified = false;
+  int _sessionStartMs = 0;
 
   service.on('getServiceState').listen((event) {
     if (_isRunning && _startTime != null) {
@@ -124,16 +124,23 @@ void onStart(ServiceInstance service) {
   service.on('startTimer').listen((event) {
     if (timer?.isActive ?? false) return;
 
+    orphanGuard?.cancel();
     _baseElapsedSeconds = (event?['previousElapsed'] as int?) ?? 0;
     _activityName = event?['activityName'] as String?;
     _elapsed = Duration(seconds: _baseElapsedSeconds);
     _startTime = DateTime.now();
     _isRunning = true;
     _lastNotifMinute = _elapsed.inMinutes;
+    _targetSeconds = event?['targetSeconds'] as int?;
+    _targetNotified =
+        _targetSeconds != null && _baseElapsedSeconds >= _targetSeconds!;
 
+    _sessionStartMs =
+        _startTime!.millisecondsSinceEpoch - _baseElapsedSeconds * 1000;
     NotificationService().showOrUpdateServiceNotification(
       title: 'Locked In',
-      content: getNotificationContent(_elapsed.inMinutes),
+      content: _activityName ?? "Don't get distracted!",
+      whenMs: _sessionStartMs,
     );
 
     timer = Timer.periodic(const Duration(seconds: 15), (timer) {
@@ -146,7 +153,18 @@ void onStart(ServiceInstance service) {
         _lastNotifMinute = currentMinute;
         NotificationService().showOrUpdateServiceNotification(
           title: 'Locked In',
-          content: getNotificationContent(currentMinute),
+          content: _activityName ?? "Don't get distracted!",
+          whenMs: _sessionStartMs,
+        );
+      }
+
+      if (_targetSeconds != null &&
+          !_targetNotified &&
+          _elapsed.inSeconds >= _targetSeconds!) {
+        _targetNotified = true;
+        NotificationService().showSessionTargetNotification(
+          activityName: _activityName,
+          targetMinutes: (_targetSeconds! / 60).round(),
         );
       }
 
@@ -155,6 +173,7 @@ void onStart(ServiceInstance service) {
   });
 
   service.on('stopTimer').listen((event) {
+    orphanGuard?.cancel();
     timer?.cancel();
     timer = null;
     _isRunning = false;
@@ -162,7 +181,28 @@ void onStart(ServiceInstance service) {
     _startTime = null;
     _baseElapsedSeconds = 0;
     _lastNotifMinute = -1;
+    _targetSeconds = null;
+    _targetNotified = false;
     service.stopSelf();
+  });
+
+  SharedPreferences.getInstance().then((prefs) {
+    final bool timerActive = prefs.getBool('timerActive') ?? false;
+    if (!timerActive) {
+      service.stopSelf();
+      return;
+    }
+
+    NotificationService().showOrUpdateServiceNotification(
+      title: 'Working in the background',
+      content: "Don't get distracted!",
+    );
+
+    orphanGuard = Timer(const Duration(seconds: 15), () {
+      if (!_isRunning) {
+        service.stopSelf();
+      }
+    });
   });
 }
 

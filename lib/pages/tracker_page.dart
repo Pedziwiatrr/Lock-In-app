@@ -17,6 +17,8 @@ class TrackerPage extends StatefulWidget {
   final DateTime selectedDate;
   final Duration elapsed;
   final bool isRunning;
+  final int? sessionTargetSeconds;
+  final void Function(int?) onSetSessionTarget;
   final void Function(Activity?) onSelectActivity;
   final void Function(DateTime) onSelectDate;
   final VoidCallback onStartTimer;
@@ -37,6 +39,8 @@ class TrackerPage extends StatefulWidget {
     required this.selectedDate,
     required this.elapsed,
     required this.isRunning,
+    required this.sessionTargetSeconds,
+    required this.onSetSessionTarget,
     required this.onSelectActivity,
     required this.onSelectDate,
     required this.onStartTimer,
@@ -277,46 +281,20 @@ class _TrackerPageState extends State<TrackerPage> {
 
   void _handleAddManual(int intVal) {
     if (widget.isRunning) widget.onStopTimer();
-    final action = widget.selectedActivity is TimedActivity
-        ? () => widget.onAddManualTime(Duration(minutes: intVal))
-        : () => widget.onAddManualCompletion(intVal);
-
-    _adManager.incrementStoperUsage().then((_) {
-      bool shouldShow = widget.selectedActivity is TimedActivity
-          ? _adManager.shouldShowAd(Duration(minutes: intVal))
-          : _adManager.shouldShowCheckAd();
-      if (shouldShow) {
-        _adManager.showRewardedAd(
-          onUserEarnedReward: action,
-          onAdDismissed: () {},
-          onAdFailedToShow: action,
-        );
-      } else {
-        action();
-      }
-    });
+    if (widget.selectedActivity is TimedActivity) {
+      widget.onAddManualTime(Duration(minutes: intVal));
+    } else {
+      widget.onAddManualCompletion(intVal);
+    }
   }
 
   void _handleSubtractManual(int intVal) {
     if (widget.isRunning) widget.onStopTimer();
-    final action = widget.selectedActivity is TimedActivity
-        ? () => widget.onSubtractManualTime(Duration(minutes: intVal))
-        : () => widget.onSubtractManualCompletion(intVal);
-
-    _adManager.incrementStoperUsage().then((_) {
-      bool shouldShow = widget.selectedActivity is TimedActivity
-          ? _adManager.shouldShowAd(Duration(minutes: intVal))
-          : _adManager.shouldShowCheckAd();
-      if (shouldShow) {
-        _adManager.showRewardedAd(
-          onUserEarnedReward: action,
-          onAdDismissed: () {},
-          onAdFailedToShow: action,
-        );
-      } else {
-        action();
-      }
-    });
+    if (widget.selectedActivity is TimedActivity) {
+      widget.onSubtractManualTime(Duration(minutes: intVal));
+    } else {
+      widget.onSubtractManualCompletion(intVal);
+    }
   }
 
   void _handleFinish() {
@@ -331,6 +309,89 @@ class _TrackerPageState extends State<TrackerPage> {
     } else {
       widget.onFinishTimer();
     }
+  }
+
+  String _formatTargetLabel(int seconds) {
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    if (h > 0) return m > 0 ? '${h}h ${m}m' : '${h}h';
+    return '${m}m';
+  }
+
+  void _showTargetDialog() {
+    final hoursController = TextEditingController(
+        text: (widget.sessionTargetSeconds != null &&
+                widget.sessionTargetSeconds! ~/ 3600 > 0)
+            ? (widget.sessionTargetSeconds! ~/ 3600).toString()
+            : '');
+    final minutesController = TextEditingController(
+        text: widget.sessionTargetSeconds != null
+            ? ((widget.sessionTargetSeconds! % 3600) ~/ 60).toString()
+            : '');
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Session goal'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: hoursController,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Hours'),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Text(':'),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: minutesController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Minutes'),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'You get a one-time notification when the session reaches this time. The timer keeps counting up as usual.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          if (widget.sessionTargetSeconds != null)
+            TextButton(
+              onPressed: () {
+                widget.onSetSessionTarget(null);
+                Navigator.pop(context);
+              },
+              child: const Text('Clear'),
+            ),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              final h = int.tryParse(hoursController.text.trim()) ?? 0;
+              final m = int.tryParse(minutesController.text.trim()) ?? 0;
+              final total = (h * 60 + m) * 60;
+              widget.onSetSessionTarget(total > 0 ? total : null);
+              Navigator.pop(context);
+            },
+            child: const Text('Set'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildStreakCard(BuildContext context) {
@@ -405,7 +466,7 @@ class _TrackerPageState extends State<TrackerPage> {
       return widget.activities.any((a) => a.name == goal.activityName) &&
           goal.goalDuration > Duration.zero &&
           goal.startDate.isBefore(dateEnd) &&
-          (goal.endDate == null || goal.endDate!.isAfter(dateStart));
+          (goal.endDate == null || !goal.endDate!.isBefore(dateStart));
     }).toList();
 
     Widget mainDisplay;
@@ -485,6 +546,25 @@ class _TrackerPageState extends State<TrackerPage> {
               ],
             ),
             const SizedBox(height: 20),
+
+            if (widget.selectedActivity is TimedActivity)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Center(
+                  child: ActionChip(
+                    avatar: Icon(
+                      widget.sessionTargetSeconds != null
+                          ? Icons.flag
+                          : Icons.flag_outlined,
+                      size: 18,
+                    ),
+                    label: Text(widget.sessionTargetSeconds != null
+                        ? 'Session goal: ${_formatTargetLabel(widget.sessionTargetSeconds!)}'
+                        : 'Set session goal'),
+                    onPressed: widget.isRunning ? null : _showTargetDialog,
+                  ),
+                ),
+              ),
 
             Container(
               height: 150,

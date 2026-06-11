@@ -35,7 +35,7 @@ class HomePage extends StatefulWidget {
   static const int maxManualTimeMinutes = 10000;
   static const int maxManualCompletions = 10000;
   static const int maxActivities = 10;
-  static const int maxGoals = 10;
+  static const int maxGoals = 30;
 
   static Future<Map<String, dynamic>> loadDataFromPrefs(
       int shouldLoadDefaultData) async {
@@ -93,7 +93,14 @@ class HomePage extends StatefulWidget {
       try {
         final List<dynamic> logsList = jsonDecode(logsJson);
         logs = logsList
-            .map((json) => ActivityLog.fromJson(json))
+            .map((json) {
+              try {
+                return ActivityLog.fromJson(json);
+              } catch (_) {
+                return null;
+              }
+            })
+            .whereType<ActivityLog>()
             .take(maxLogs)
             .toList();
       } catch (e) {
@@ -106,8 +113,17 @@ class HomePage extends StatefulWidget {
     if (goalsJson != null && goalsJson.isNotEmpty) {
       try {
         final List<dynamic> goalsList = jsonDecode(goalsJson);
-        goals =
-            goalsList.map((json) => Goal.fromJson(json)).take(maxGoals).toList();
+        goals = goalsList
+            .map((json) {
+              try {
+                return Goal.fromJson(json);
+              } catch (_) {
+                return null;
+              }
+            })
+            .whereType<Goal>()
+            .take(maxGoals)
+            .toList();
       } catch (e) {
         goals = [];
         hasError = true;
@@ -135,7 +151,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<Activity> activities = [];
   List<ActivityLog> activityLogs = [];
   List<Goal> goals = [];
@@ -148,11 +164,13 @@ class _HomePageState extends State<HomePage> {
   DateTime? _timerStartDate;
   Duration _elapsedOffset = Duration.zero;
   Timer? _uiTimer;
+  int? _sessionTargetSeconds;
 
   final NotificationService _notificationService = NotificationService();
 
 
   Set<String> _previousCompletedQuestIds = {};
+  final Set<String> _completedGoalIds = {};
   bool _hasRatedApp = false;
   bool _hasExportedData = false;
 
@@ -167,6 +185,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _configureTimerListener();
     _loadData();
   }
@@ -201,7 +220,7 @@ class _HomePageState extends State<HomePage> {
             if (runningActivity != null) {
               selectedActivity = runningActivity;
             } else {
-              FlutterBackgroundService().invoke('stopTimer');
+              _stopBackgroundService();
               isRunning = false;
               elapsed = Duration.zero;
             }
@@ -322,16 +341,52 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _uiTimer?.cancel();
     _tickSubscription?.cancel();
     _serviceStateSubscription?.cancel();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _savePausedTimer();
+    }
+  }
+
+  Future<void> _savePausedTimer() async {
+    if (!isRunning &&
+        elapsed > Duration.zero &&
+        selectedActivity is TimedActivity) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('pausedElapsedSeconds', elapsed.inSeconds);
+      await prefs.setString('pausedActivityName', selectedActivity!.name);
+      await prefs.setInt(
+          'pausedSelectedDate', selectedDate.millisecondsSinceEpoch);
+    } else {
+      await _clearPausedTimer();
+    }
+  }
+
+  Future<void> _clearPausedTimer() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('pausedElapsedSeconds');
+    await prefs.remove('pausedActivityName');
+    await prefs.remove('pausedSelectedDate');
+  }
+
   void _startTimer() async {
     if (selectedActivity == null ||
         selectedActivity is! TimedActivity ||
         isRunning) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('timerActive', true);
+    await prefs.remove('pausedElapsedSeconds');
+    await prefs.remove('pausedActivityName');
+    await prefs.remove('pausedSelectedDate');
 
     final service = FlutterBackgroundService();
     bool isServiceRunning = await service.isRunning();
@@ -343,6 +398,7 @@ class _HomePageState extends State<HomePage> {
     service.invoke('startTimer', {
       'previousElapsed': elapsed.inSeconds,
       'activityName': selectedActivity!.name,
+      'targetSeconds': _sessionTargetSeconds,
     });
     setState(() {
       isRunning = true;
@@ -352,8 +408,14 @@ class _HomePageState extends State<HomePage> {
     _startUiTimer();
   }
 
-  void _stopTimer() {
+  void _stopBackgroundService() {
+    SharedPreferences.getInstance()
+        .then((prefs) => prefs.setBool('timerActive', false));
     FlutterBackgroundService().invoke('stopTimer');
+  }
+
+  void _stopTimer() {
+    _stopBackgroundService();
     setState(() {
       isRunning = false;
       _timerStartDate = null;
@@ -363,7 +425,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _finishTimerAndSave() {
-    FlutterBackgroundService().invoke('stopTimer');
+    _stopBackgroundService();
     if (selectedActivity == null || elapsed == Duration.zero) {
       _resetTimerState();
       return;
@@ -479,7 +541,7 @@ class _HomePageState extends State<HomePage> {
               if (runningActivity != null) {
                 selectedActivity = runningActivity;
               } else if (isCurrentlyRunning) {
-                FlutterBackgroundService().invoke('stopTimer');
+                _stopBackgroundService();
                 isRunning = false;
                 elapsed = Duration.zero;
               }
@@ -489,6 +551,33 @@ class _HomePageState extends State<HomePage> {
                 _timerStartDate = now.subtract(loadedElapsed);
                 selectedDate = now;
                 _startUiTimer();
+              }
+            });
+          } else {
+            _stopBackgroundService();
+          }
+        }
+      }
+
+      if (!isRunning && elapsed == Duration.zero) {
+        final prefs = await SharedPreferences.getInstance();
+        final int pausedSeconds = prefs.getInt('pausedElapsedSeconds') ?? 0;
+        final String? pausedName = prefs.getString('pausedActivityName');
+        if (pausedSeconds > 0 && pausedName != null) {
+          Activity? pausedActivity;
+          try {
+            pausedActivity =
+                activities.firstWhere((a) => a.name == pausedName);
+          } catch (_) {}
+          if (pausedActivity is TimedActivity) {
+            final TimedActivity activity = pausedActivity;
+            final int? pausedDateMs = prefs.getInt('pausedSelectedDate');
+            setState(() {
+              selectedActivity = activity;
+              elapsed = Duration(seconds: pausedSeconds);
+              if (pausedDateMs != null) {
+                selectedDate =
+                    DateTime.fromMillisecondsSinceEpoch(pausedDateMs);
               }
             });
           }
@@ -641,11 +730,11 @@ class _HomePageState extends State<HomePage> {
           }
         }
 
-        if (isCompletedNow && !_previousCompletedQuestIds.contains(goal.id)) {
+        if (isCompletedNow && !_completedGoalIds.contains(goal.id)) {
           _notificationService.scheduleGoalReminder(goal);
-          _previousCompletedQuestIds.add(goal.id);
+          _completedGoalIds.add(goal.id);
         } else if (!isCompletedNow) {
-          _previousCompletedQuestIds.remove(goal.id);
+          _completedGoalIds.remove(goal.id);
         }
       }
     }
@@ -667,7 +756,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _resetData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
-    FlutterBackgroundService().invoke('stopTimer');
+    _stopBackgroundService();
     setState(() {
       activities = [];
       activityLogs = [];
@@ -688,6 +777,7 @@ class _HomePageState extends State<HomePage> {
       _elapsedOffset = Duration.zero;
     });
     _stopUiTimer();
+    _clearPausedTimer();
   }
 
   void checkActivity() {
@@ -872,11 +962,55 @@ class _HomePageState extends State<HomePage> {
     _saveData();
   }
 
+  void _renameActivity(String oldName, String newName) {
+    setState(() {
+      for (final a in activities) {
+        if (a.name == oldName) {
+          a.name = newName;
+        }
+      }
+      for (final log in activityLogs) {
+        if (log.activityName == oldName) {
+          log.activityName = newName;
+        }
+      }
+      for (final g in goals) {
+        if (g.activityName == oldName) {
+          g.activityName = newName;
+        }
+      }
+    });
+    _saveData();
+  }
+
+  void _deleteActivity(String name) {
+    setState(() {
+      activities.removeWhere((a) => a.name == name);
+      activityLogs.removeWhere((log) => log.activityName == name);
+      goals.removeWhere((g) => g.activityName == name);
+      if (selectedActivity?.name == name) {
+        selectedActivity = activities.isNotEmpty ? activities.first : null;
+        elapsed = Duration.zero;
+      }
+    });
+    _saveData();
+  }
+
   void handleGoalChanged(List<Goal> newGoals) {
+    final newIds = newGoals.map((g) => g.id).toSet();
+    for (final removed in goals.where((g) => !newIds.contains(g.id))) {
+      _notificationService.cancelGoalReminder(removed);
+    }
     setState(() {
       goals = newGoals.take(HomePage.maxGoals).toList();
     });
     _saveData();
+  }
+
+  void _setSessionTarget(int? seconds) {
+    setState(() {
+      _sessionTargetSeconds = seconds;
+    });
   }
 
   void selectActivity(Activity? activity) {
@@ -927,6 +1061,8 @@ class _HomePageState extends State<HomePage> {
               selectedDate: selectedDate,
               elapsed: elapsed,
               isRunning: isRunning,
+              sessionTargetSeconds: _sessionTargetSeconds,
+              onSetSessionTarget: _setSessionTarget,
               onSelectActivity: selectActivity,
               onSelectDate: selectDate,
               onStartTimer: _startTimer,
@@ -950,6 +1086,8 @@ class _HomePageState extends State<HomePage> {
                 setState(() {});
                 _saveData();
               },
+              onRenameActivity: _renameActivity,
+              onDeleteActivity: _deleteActivity,
               launchCount: widget.launchCount,
             ),
             ProgressPage(
@@ -963,6 +1101,10 @@ class _HomePageState extends State<HomePage> {
               activities: activities,
               goals: goals,
               launchCount: widget.launchCount,
+              onUpdate: () {
+                setState(() {});
+                _saveData();
+              },
             ),
             HistoryPage(
               activities: activities,

@@ -7,12 +7,16 @@ class ActivitiesPage extends StatefulWidget {
   final List<Activity> activities;
   final VoidCallback onUpdate;
   final int launchCount;
+  final void Function(String oldName, String newName)? onRenameActivity;
+  final void Function(String name)? onDeleteActivity;
 
   const ActivitiesPage({
     super.key,
     required this.activities,
     required this.onUpdate,
     required this.launchCount,
+    this.onRenameActivity,
+    this.onDeleteActivity,
   });
 
   @override
@@ -211,34 +215,16 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
               if (name.isNotEmpty &&
                   name.length <= maxNameLength &&
                   !widget.activities.any((a) => a.name == name)) {
-                _adManager.incrementActivityChangeCount().then((_) {
-                  if (_adManager.shouldShowActivityChangeAd()) {
-                    //print("Attempting to show rewarded ad for activity rename");
-                    _adManager.showRewardedAd(
-                      onUserEarnedReward: () {
-                        setState(() {
-                          widget.activities[index].name = name;
-                        });
-                        //print('Renamed activity to: $name');
-                        widget.onUpdate();
-                        Navigator.pop(context);
-                      },
-                      onAdDismissed: () {
-                        //print("Ad dismissed, activity not renamed");
-                      },
-                      onAdFailedToShow: () {
-                        //print("Ad failed to show, activity not renamed");
-                      },
-                    );
-                  } else {
-                    setState(() {
-                      widget.activities[index].name = name;
-                    });
-                    //print('Renamed activity to: $name');
-                    widget.onUpdate();
-                    Navigator.pop(context);
-                  }
-                });
+                final oldName = widget.activities[index].name;
+                if (widget.onRenameActivity != null) {
+                  widget.onRenameActivity!(oldName, name);
+                } else {
+                  setState(() {
+                    widget.activities[index].name = name;
+                  });
+                  widget.onUpdate();
+                }
+                Navigator.pop(context);
               } else if (name.length > maxNameLength) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -263,32 +249,33 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
 
   void deleteActivity(int index) {
     final name = widget.activities[index].name;
-    _adManager.incrementActivityChangeCount().then((_) {
-      if (_adManager.shouldShowActivityChangeAd()) {
-        //print("Attempting to show rewarded ad for activity deletion");
-        _adManager.showRewardedAd(
-          onUserEarnedReward: () {
-            setState(() {
-              widget.activities.removeAt(index);
-            });
-            //print('Deleted activity: $name');
-            widget.onUpdate();
-          },
-          onAdDismissed: () {
-            //print("Ad dismissed, activity not deleted");
-          },
-          onAdFailedToShow: () {
-            //print("Ad failed to show, activity not deleted");
-          },
-        );
-      } else {
-        setState(() {
-          widget.activities.removeAt(index);
-        });
-        //print('Deleted activity: $name');
-        widget.onUpdate();
-      }
-    });
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Activity'),
+        content: Text(
+            'Delete "$name" and all of its logs and goals? This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (widget.onDeleteActivity != null) {
+                widget.onDeleteActivity!(name);
+              } else {
+                setState(() {
+                  widget.activities.removeAt(index);
+                });
+                widget.onUpdate();
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _onReorder(int oldIndex, int newIndex) {

@@ -6,10 +6,16 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _AdUnitIds {
-  static const String rewardedInterstitialAndroid = 'ca-app-pub-3191540141651884/9594852827';
-  static const String rewardedAndroid = 'ca-app-pub-3191540141651884/4684314330';
+  static const String rewardedInterstitialAndroid = kReleaseMode
+      ? 'ca-app-pub-3191540141651884/9594852827'
+      : 'ca-app-pub-3940256099942544/5354046379';
+  static const String rewardedAndroid = kReleaseMode
+      ? 'ca-app-pub-3191540141651884/4684314330'
+      : 'ca-app-pub-3940256099942544/5224354917';
   static const String rewardedIos = 'ca-app-pub-3940256099942544/1712485313';
-  static const String bannerAndroid = 'ca-app-pub-3191540141651884/8431987657';
+  static const String bannerAndroid = kReleaseMode
+      ? 'ca-app-pub-3191540141651884/8431987657'
+      : 'ca-app-pub-3940256099942544/6300978111';
   static const String bannerIos = 'ca-app-pub-3940256099942544/2934735716';
 }
 
@@ -163,16 +169,12 @@ class AdManager {
       if (!kReleaseMode) print('[AD] Ad not shown: duration too short');
       return false;
     }
-    if (_stoperUsageCount < 5) {
-      if (!kReleaseMode) print('[AD] Ad not shown: grace time');
-      return false;
-    }
     if (_lastAdShown) {
       if (!kReleaseMode) print('[AD] Ad not shown: ad shown last time');
       _lastAdShown = false;
       return false;
     }
-    final random = Random().nextDouble() < 0.4;
+    final random = Random().nextDouble() < 0.05;
     _lastAdShown = random;
     if (!kReleaseMode) print('[AD] Ad decision: ${random ? "show" : "skip (random)"}');
     return random;
@@ -188,7 +190,7 @@ class AdManager {
       _lastCheckAdShown = false;
       return false;
     }
-    final random = Random().nextDouble() < 0.2;
+    final random = Random().nextDouble() < 0.05;
     _lastCheckAdShown = random;
     if (!kReleaseMode) print('[AD] Ad check decision: ${random ? "show" : "skip (random)"}');
     return random;
@@ -199,7 +201,7 @@ class AdManager {
       if (!kReleaseMode) print('[AD] Ad not shown: first goals');
       return false;
     }
-    final random = Random().nextDouble() < 0.3;
+    final random = Random().nextDouble() < 0.05;
     if (!kReleaseMode) print('[AD] Ad goal decision: ${random ? "show" : "skip (random)"}');
     return random;
   }
@@ -209,7 +211,7 @@ class AdManager {
       if (!kReleaseMode) print('[AD] Ad not shown: first two activity changes');
       return false;
     }
-    final random = Random().nextDouble() < 0.3;
+    final random = Random().nextDouble() < 0.05;
     if (!kReleaseMode) print('[AD] Ad activity change decision: ${random ? "show" : "skip (random)"}');
     return random;
   }

@@ -29,6 +29,14 @@ class NotificationService {
     enableVibration: false,
   );
 
+  static const AndroidNotificationChannel _sessionTargetChannel =
+  AndroidNotificationChannel(
+    'session_target_channel',
+    'Session Goals',
+    description: 'Alerts when a timed session reaches its target time.',
+    importance: Importance.high,
+  );
+
   Future<void> init() async {
     final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
     await flutterLocalNotificationsPlugin
@@ -39,6 +47,10 @@ class NotificationService {
         .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_serviceChannel);
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(_sessionTargetChannel);
 
     const AndroidInitializationSettings initializationSettingsAndroid =
     AndroidInitializationSettings('@drawable/ic_notification_icon');
@@ -87,10 +99,42 @@ class NotificationService {
     );
   }
 
+  Future<void> cancelGoalReminder(Goal goal) async {
+    await _notificationsPlugin.cancel(goal.id.hashCode);
+  }
+
+  Future<void> showSessionTargetNotification({
+    String? activityName,
+    required int targetMinutes,
+  }) async {
+    final String name = (activityName == null || activityName.isEmpty)
+        ? 'your session'
+        : activityName;
+    final notificationDetails = NotificationDetails(
+      android: AndroidNotificationDetails(
+        _sessionTargetChannel.id,
+        _sessionTargetChannel.name,
+        channelDescription: _sessionTargetChannel.description,
+        importance: Importance.high,
+        priority: Priority.high,
+        largeIcon: const DrawableResourceAndroidBitmap('@drawable/ic_notification_icon'),
+      ),
+    );
+
+    await _notificationsPlugin.show(
+      889,
+      'Session goal reached',
+      'You reached your $targetMinutes-minute goal for $name.',
+      notificationDetails,
+    );
+  }
+
   Future<void> showOrUpdateServiceNotification({
     required String title,
     required String content,
+    int? whenMs,
   }) async {
+    final bool useChronometer = whenMs != null;
     final notificationDetails = NotificationDetails(
       android: AndroidNotificationDetails(
         _serviceChannel.id,
@@ -103,13 +147,19 @@ class NotificationService {
         playSound: false,
         enableVibration: false,
         silent: true,
+        when: whenMs,
+        usesChronometer: useChronometer,
+        chronometerCountDown: false,
+        showWhen: useChronometer,
         largeIcon: const DrawableResourceAndroidBitmap('@drawable/ic_notification_icon'),
-        styleInformation: BigTextStyleInformation(
-          content,
-          htmlFormatContent: false,
-          summaryText: title,
-          htmlFormatSummaryText: false,
-        ),
+        styleInformation: useChronometer
+            ? null
+            : BigTextStyleInformation(
+                content,
+                htmlFormatContent: false,
+                summaryText: title,
+                htmlFormatSummaryText: false,
+              ),
       ),
     );
 

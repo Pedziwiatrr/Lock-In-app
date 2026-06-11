@@ -79,7 +79,7 @@ class HistoryDataProvider {
             final dayEnd = DateTime(dayStart.year, dayStart.month, dayStart.day + 1);
 
             final bool startsTooLate = !goal.startDate.isBefore(dayEnd);
-            final bool endedTooEarly = goal.endDate != null && !goal.endDate!.isAfter(dayStart);
+            final bool endedTooEarly = goal.endDate != null && goal.endDate!.isBefore(dayStart);
 
             if (startsTooLate || endedTooEarly) {
               iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day + 1);
@@ -98,7 +98,7 @@ class HistoryDataProvider {
             final dayEnd = DateTime(dayStart.year, dayStart.month, dayStart.day + 7);
 
             final bool startsTooLate = !goal.startDate.isBefore(dayEnd);
-            final bool endedTooEarly = goal.endDate != null && !goal.endDate!.isAfter(dayStart);
+            final bool endedTooEarly = goal.endDate != null && goal.endDate!.isBefore(dayStart);
 
             if (startsTooLate || endedTooEarly) {
               iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day + 7);
@@ -116,7 +116,7 @@ class HistoryDataProvider {
             final dayEnd = DateTime(iterDate.year, iterDate.month + 1, 1);
 
             final bool startsTooLate = !goal.startDate.isBefore(dayEnd);
-            final bool endedTooEarly = goal.endDate != null && !goal.endDate!.isAfter(dayStart);
+            final bool endedTooEarly = goal.endDate != null && goal.endDate!.isBefore(dayStart);
 
             if (startsTooLate || endedTooEarly) {
               iterDate = dayEnd;
@@ -165,96 +165,97 @@ class HistoryDataProvider {
     };
   }
 
+  static Map<DateTime, bool> _buildDailyStatusByDay({
+    required List<Goal> goals,
+    required List<ActivityLog> activityLogs,
+    required List<Map<String, dynamic>> dailyStatuses,
+    required String? selectedActivity,
+    required DateTime firstLogDate,
+    required DateTime today,
+  }) {
+    final dailyStatusesGrouped = <DateTime, List<Map<String, dynamic>>>{};
+    for (var status in dailyStatuses) {
+      final date = status['date'] as DateTime;
+      dailyStatusesGrouped.putIfAbsent(date, () => []).add(status);
+    }
+
+    final allDailyGoals = goals
+        .where((g) =>
+            g.goalType == GoalType.daily &&
+            (selectedActivity == null || g.activityName == selectedActivity))
+        .toList();
+
+    final dailyStatusByDay = <DateTime, bool>{};
+    DateTime iterDate = firstLogDate.isBefore(today) ? firstLogDate : today;
+
+    while (iterDate.isAtSameMomentAs(today) || iterDate.isBefore(today)) {
+      final dayStart = iterDate;
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      bool dayStatus = false;
+
+      final activeGoalsForDay = allDailyGoals
+          .where((g) =>
+              g.goalDuration > Duration.zero &&
+              g.startDate.isBefore(dayEnd) &&
+              (g.endDate == null || !g.endDate!.isBefore(dayStart)))
+          .toList();
+
+      if (activeGoalsForDay.isNotEmpty) {
+        final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
+        final successfulCount =
+            statusesForDay.where((s) => s['status'] == 'successful').length;
+        dayStatus = successfulCount == activeGoalsForDay.length;
+      } else {
+        dayStatus = activityLogs.any((log) =>
+            log.date
+                .isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
+            log.date.isBefore(dayEnd) &&
+            (selectedActivity == null || log.activityName == selectedActivity));
+      }
+
+      dailyStatusByDay[dayStart] = dayStatus;
+      iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day + 1);
+    }
+
+    return dailyStatusByDay;
+  }
+
   Future<int> getCurrentStreak(String? selectedActivity) async {
-    //print('[STREAK DEBUG (getCurrentStreak)] Running...');
     try {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
-      //print('[STREAK DEBUG (getCurrentStreak)] Today: $today');
 
       final firstLogDate = activityLogs.isNotEmpty
-          ? activityLogs.map((e) =>
-          DateTime(e.date.year, e.date.month, e.date.day)).reduce((a, b) =>
-      a.isBefore(b) ? a : b)
+          ? activityLogs
+              .map((e) => DateTime(e.date.year, e.date.month, e.date.day))
+              .reduce((a, b) => a.isBefore(b) ? a : b)
           : today;
-      //print('[STREAK DEBUG (getCurrentStreak)] First log: $firstLogDate');
 
-      final allDailyStatuses = await getGoalStatusesForPeriod(
-          firstLogDate, now, selectedActivity)
-          .then((statuses) =>
-          statuses
-              .where((s) => (s['goal'] as Goal).goalType == GoalType.daily)
-              .toList());
-      //print('[STREAK DEBUG (getCurrentStreak)] Got ${allDailyStatuses.length} daily statuses.');
+      final allDailyStatuses =
+          await getGoalStatusesForPeriod(firstLogDate, now, selectedActivity)
+              .then((statuses) => statuses
+                  .where((s) => (s['goal'] as Goal).goalType == GoalType.daily)
+                  .toList());
 
-      final dailyStatusesGrouped = <DateTime, List<Map<String, dynamic>>>{};
-      for (var status in allDailyStatuses) {
-        final date = status['date'] as DateTime;
-        dailyStatusesGrouped.putIfAbsent(date, () => []).add(status);
-      }
-
-      final allDailyGoals = goals
-          .where((g) => g.goalType == GoalType.daily)
-          .toList();
-      final dailyStatusByDay = <DateTime, bool>{};
-
-      DateTime iterDate = firstLogDate.isBefore(today) ? firstLogDate : today;
-      //print('[STREAK DEBUG (getCurrentStreak)] Starting loop from: $iterDate');
-
-      while (iterDate.isAtSameMomentAs(today) || iterDate.isBefore(today)) {
-        final dayStart = iterDate;
-        final dayEnd = dayStart.add(const Duration(days: 1));
-        bool dayStatus = false;
-
-        final allFilteredDailyGoals = allDailyGoals
-            .where((g) => (selectedActivity == null || g.activityName == selectedActivity))
-            .toList();
-
-        final activeGoalsForDay = allFilteredDailyGoals.where((g) =>
-        g.goalDuration > Duration.zero &&
-            g.startDate.isBefore(dayEnd) &&
-            (g.endDate == null || g.endDate!.isAfter(dayStart))
-        ).toList();
-
-        if (activeGoalsForDay.isNotEmpty) {
-          final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
-          final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
-          dayStatus = successfulCount == activeGoalsForDay.length;
-          if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
-            //print('[STREAK DEBUG (getCurrentStreak)] Day: $dayStart. Active goals: ${activeGoalsForDay.length}. Success: $successfulCount. Status: $dayStatus');
-          }
-        } else {
-          final logsForDay = activityLogs.where((log) =>
-          log.date.isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
-              log.date.isBefore(dayEnd) &&
-              (selectedActivity == null || log.activityName == selectedActivity)
-          ).toList();
-
-          dayStatus = logsForDay.isNotEmpty;
-          if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
-            //print('[STREAK DEBUG (getCurrentStreak)] Day: $dayStart. No active goals. Logs: ${logsForDay.length}. Status: $dayStatus');
-          }
-        }
-
-        dailyStatusByDay[dayStart] = dayStatus;
-
-        iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day + 1);
-      }
-      //print('[STREAK DEBUG (getCurrentStreak)] Loop finished.');
+      final dailyStatusByDay = _buildDailyStatusByDay(
+        goals: goals,
+        activityLogs: activityLogs,
+        dailyStatuses: allDailyStatuses,
+        selectedActivity: selectedActivity,
+        firstLogDate: firstLogDate,
+        today: today,
+      );
 
       int currentStreak = 0;
       DateTime currentDate = today;
-
       while (dailyStatusByDay.containsKey(currentDate) &&
           dailyStatusByDay[currentDate] == true) {
         currentStreak++;
-        currentDate = DateTime(currentDate.year, currentDate.month, currentDate.day - 1);
+        currentDate =
+            DateTime(currentDate.year, currentDate.month, currentDate.day - 1);
       }
-      //print('[STREAK DEBUG (getCurrentStreak)] Final streak: $currentStreak');
       return currentStreak;
-    } catch (e, stackTrace) {
-      //print('[STREAK DEBUG (getCurrentStreak)] ERROR: $e');
-      print(stackTrace);
+    } catch (_) {
       return 0;
     }
   }
@@ -281,6 +282,7 @@ class StatsPage extends StatefulWidget {
   final List<Activity> activities;
   final List<Goal> goals;
   final int launchCount;
+  final VoidCallback? onUpdate;
 
   const StatsPage({
     super.key,
@@ -288,6 +290,7 @@ class StatsPage extends StatefulWidget {
     required this.activities,
     required this.goals,
     required this.launchCount,
+    this.onUpdate,
   });
 
   @override
@@ -349,74 +352,22 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
       //print('[STREAK DEBUG (_getCombinedGoalData)] Got ${allStatuses.length} total statuses.');
 
       final allDailyStatuses = allStatuses.where((s) => (s['goal'] as Goal).goalType == GoalType.daily).toList();
-      final dailyStatusesGrouped = <DateTime, List<Map<String, dynamic>>>{};
-      for (var status in allDailyStatuses) {
-        final date = status['date'] as DateTime;
-        dailyStatusesGrouped.putIfAbsent(date, () => []).add(status);
-      }
 
-      final allDailyGoals = widget.goals.where((g) => g.goalType == GoalType.daily).toList();
-      //print('[STREAK DEBUG (_getCombinedGoalData)] Found ${allDailyGoals.length} daily goals.');
-      final dailyStatusByDay = <DateTime, bool>{};
-
-      DateTime iterDate = firstLogDate.isBefore(today) ? firstLogDate : today;
-      //print('[STREAK DEBUG (_getCombinedGoalData)] Starting loop from: $iterDate');
-
-      while (iterDate.isAtSameMomentAs(today) || iterDate.isBefore(today)) {
-        final dayStart = iterDate;
-        final dayEnd = dayStart.add(const Duration(days: 1));
-        bool dayStatus = false;
-
-        final allFilteredDailyGoals = allDailyGoals
-            .where((g) => (selectedActivity == null || g.activityName == selectedActivity))
-            .toList();
-
-        final activeGoalsForDay = allFilteredDailyGoals.where((g) =>
-        g.goalDuration > Duration.zero &&
-            g.startDate.isBefore(dayEnd) &&
-            (g.endDate == null || g.endDate!.isAfter(dayStart))
-        ).toList();
-
-        if (activeGoalsForDay.isNotEmpty) {
-          final statusesForDay = dailyStatusesGrouped[dayStart] ?? [];
-          final successfulCount = statusesForDay.where((s) => s['status'] == 'successful').length;
-          dayStatus = successfulCount == activeGoalsForDay.length;
-          if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
-            //print('[STREAK DEBUG (_getCombinedGoalData)] Day: $dayStart. Active goals: ${activeGoalsForDay.length}. Success: $successfulCount. Status: $dayStatus');
-          }
-        } else {
-          final logsForDay = widget.activityLogs.where((log) =>
-          log.date.isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
-              log.date.isBefore(dayEnd) &&
-              (selectedActivity == null || log.activityName == selectedActivity)
-          ).toList();
-
-          dayStatus = logsForDay.isNotEmpty;
-          if (dayStart.isAfter(today.subtract(const Duration(days: 5))) || dayStart.isAtSameMomentAs(today)) {
-            //print('[STREAK DEBUG (_getCombinedGoalData)] Day: $dayStart. No active goals. Logs: ${logsForDay.length}. Status: $dayStatus');
-          }
-        }
-
-        dailyStatusByDay[dayStart] = dayStatus;
-
-        iterDate = DateTime(iterDate.year, iterDate.month, iterDate.day + 1);
-      }
-      //print('[STREAK DEBUG (_getCombinedGoalData)] Loop finished.');
+      final dailyStatusByDay = HistoryDataProvider._buildDailyStatusByDay(
+        goals: widget.goals,
+        activityLogs: widget.activityLogs,
+        dailyStatuses: allDailyStatuses,
+        selectedActivity: selectedActivity,
+        firstLogDate: firstLogDate,
+        today: today,
+      );
 
       int currentStreak = 0;
       DateTime currentDate = today;
-
-      while(dailyStatusByDay.containsKey(currentDate) && dailyStatusByDay[currentDate] == true) {
-        //print('[STREAK DEBUG (_getCombinedGoalData)] Counting streak... $currentDate = true');
+      while (dailyStatusByDay.containsKey(currentDate) && dailyStatusByDay[currentDate] == true) {
         currentStreak++;
         currentDate = DateTime(currentDate.year, currentDate.month, currentDate.day - 1);
       }
-      if (!dailyStatusByDay.containsKey(currentDate)) {
-        //print('[STREAK DEBUG (_getCombinedGoalData)] Streak stopped. No key for: $currentDate');
-      } else if (dailyStatusByDay[currentDate] == false) {
-        //print('[STREAK DEBUG (_getCombinedGoalData)] Streak stopped. $currentDate = false');
-      }
-      //print('[STREAK DEBUG (_getCombinedGoalData)] Final currentStreak: $currentStreak');
 
       int longestStreak = 0;
       DateTime? longestStreakStart;
@@ -486,7 +437,8 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
         totals = List.filled(numBars, 0.0);
         break;
       case StatsPeriod.month:
-        numBars = 4;
+        final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+        numBars = ((daysInMonth - 1) ~/ 7) + 1;
         startDate = DateTime(now.year, now.month, 1);
         endDate = DateTime(now.year, now.month + 1, 1);
         totals = List.filled(numBars, 0.0);
@@ -550,7 +502,8 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
         totals = List.filled(numBars, 0.0);
         break;
       case StatsPeriod.month:
-        numBars = 4;
+        final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+        numBars = ((daysInMonth - 1) ~/ 7) + 1;
         startDate = DateTime(now.year, now.month, 1);
         endDate = DateTime(now.year, now.month + 1, 1);
         totals = List.filled(numBars, 0.0);
@@ -872,7 +825,9 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
                           final activity = widget.activities.removeAt(oldIndex);
                           widget.activities.insert(newIndex, activity);
                         });
+                        widget.onUpdate?.call();
                       },
+
                     );
                   }).toList()),
                   const SizedBox(height: 8),
@@ -925,14 +880,21 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
                             sideTitles: SideTitles(
                               showTitles: true,
                               getTitlesWidget: (value, meta) {
+                                final idx = value.toInt();
                                 String text;
                                 if (selectedPeriod == StatsPeriod.week) {
                                   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                                  text = days[value.toInt()];
+                                  if (idx < 0 || idx >= days.length) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  text = days[idx];
                                 } else if (selectedPeriod == StatsPeriod.month) {
-                                  text = 'W${value.toInt() + 1}';
+                                  text = 'W${idx + 1}';
                                 } else {
-                                  text = monthLabels[value.toInt()];
+                                  if (idx < 0 || idx >= monthLabels.length) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  text = monthLabels[idx];
                                 }
                                 return Padding(
                                   padding: const EdgeInsets.only(top: 8),
@@ -1008,14 +970,21 @@ class _StatsPageState extends State<StatsPage> with AutomaticKeepAliveClientMixi
                             sideTitles: SideTitles(
                               showTitles: true,
                               getTitlesWidget: (value, meta) {
+                                final idx = value.toInt();
                                 String text;
                                 if (selectedPeriod == StatsPeriod.week) {
                                   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                                  text = days[value.toInt()];
+                                  if (idx < 0 || idx >= days.length) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  text = days[idx];
                                 } else if (selectedPeriod == StatsPeriod.month) {
-                                  text = 'W${value.toInt() + 1}';
+                                  text = 'W${idx + 1}';
                                 } else {
-                                  text = monthLabels[value.toInt()];
+                                  if (idx < 0 || idx >= monthLabels.length) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  text = monthLabels[idx];
                                 }
                                 return Padding(
                                   padding: const EdgeInsets.only(top: 8),

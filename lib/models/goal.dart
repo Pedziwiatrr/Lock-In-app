@@ -34,8 +34,8 @@ class Goal {
   factory Goal.fromJson(Map<String, dynamic> json) => Goal(
     id: json['id'] ?? const Uuid().v4(),
     title: json['title'],
-    activityName: json['activityName'],
-    goalDuration: Duration(seconds: json['goalDuration']),
+    activityName: json['activityName'] as String? ?? 'Unnamed',
+    goalDuration: Duration(seconds: (json['goalDuration'] as int?) ?? 0),
     goalType: json['goalType'] == 'GoalType.weekly'
         ? GoalType.weekly
         : json['goalType'] == 'GoalType.monthly'

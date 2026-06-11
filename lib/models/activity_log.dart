@@ -19,9 +19,9 @@ class ActivityLog {
   };
 
   factory ActivityLog.fromJson(Map<String, dynamic> json) => ActivityLog(
-    activityName: json['activityName'],
-    date: DateTime.parse(json['date']),
-    duration: Duration(seconds: json['duration']),
-    isCheckable: json['isCheckable'],
+    activityName: json['activityName'] as String? ?? 'Unnamed',
+    date: DateTime.parse(json['date'] as String),
+    duration: Duration(seconds: (json['duration'] as int?) ?? 0),
+    isCheckable: (json['isCheckable'] as bool?) ?? false,
   );
 }
